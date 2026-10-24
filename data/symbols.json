@@ -1,0 +1,4520 @@
+[
+  {
+    "symbol": "^NSEI",
+    "ticker": "NIFTY 50",
+    "name": "Nifty 50 Index",
+    "isin": "NSE_INDEX|Nifty 50",
+    "instrument_key": "NSE_INDEX|Nifty 50",
+    "industry": "Index",
+    "is_index": true
+  },
+  {
+    "symbol": "^CRSLDX",
+    "ticker": "NIFTY 500",
+    "name": "Nifty 500 Index",
+    "isin": "NSE_INDEX|Nifty 500",
+    "instrument_key": "NSE_INDEX|Nifty 500",
+    "industry": "Index",
+    "is_index": true
+  },
+  {
+    "symbol": "LTF.NS",
+    "ticker": "LTF",
+    "name": "L&T Finance Limited",
+    "isin": "INE498L01015",
+    "instrument_key": "NSE_EQ|INE498L01015",
+    "industry": "Investment Company",
+    "is_index": false
+  },
+  {
+    "symbol": "BSE.NS",
+    "ticker": "BSE",
+    "name": "BSE Limited",
+    "isin": "INE118H01025",
+    "instrument_key": "NSE_EQ|INE118H01025",
+    "industry": "Exchange and Data Platform",
+    "is_index": false
+  },
+  {
+    "symbol": "SWANCORP.NS",
+    "ticker": "SWANCORP",
+    "name": "SWAN CORP LIMITED",
+    "isin": "INE665A01038",
+    "instrument_key": "NSE_EQ|INE665A01038",
+    "industry": "Petrochemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "GMDCLTD.NS",
+    "ticker": "GMDCLTD",
+    "name": "Gujarat Mineral Development Corporation Limited",
+    "isin": "INE131A01031",
+    "instrument_key": "NSE_EQ|INE131A01031",
+    "industry": "Industrial Minerals",
+    "is_index": false
+  },
+  {
+    "symbol": "BLUEJET.NS",
+    "ticker": "BLUEJET",
+    "name": "Blue Jet Healthcare Limited",
+    "isin": "INE0KBH01020",
+    "instrument_key": "NSE_EQ|INE0KBH01020",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "CCL.NS",
+    "ticker": "CCL",
+    "name": "CCL Products (India) Limited",
+    "isin": "INE421D01022",
+    "instrument_key": "NSE_EQ|INE421D01022",
+    "industry": "Tea & Coffee",
+    "is_index": false
+  },
+  {
+    "symbol": "ANGELONE.NS",
+    "ticker": "ANGELONE",
+    "name": "Angel One Limited",
+    "isin": "INE732I01021",
+    "instrument_key": "NSE_EQ|INE732I01021",
+    "industry": "Stockbroking & Allied",
+    "is_index": false
+  },
+  {
+    "symbol": "NETWEB.NS",
+    "ticker": "NETWEB",
+    "name": "Netweb Technologies India Limited",
+    "isin": "INE0NT901020",
+    "instrument_key": "NSE_EQ|INE0NT901020",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "KFINTECH.NS",
+    "ticker": "KFINTECH",
+    "name": "Kfin Technologies Limited",
+    "isin": "INE138Y01010",
+    "instrument_key": "NSE_EQ|INE138Y01010",
+    "industry": "Depositories Clearing Houses and Other Intermediaries",
+    "is_index": false
+  },
+  {
+    "symbol": "CHENNPETRO.NS",
+    "ticker": "CHENNPETRO",
+    "name": "Chennai Petroleum Corporation Limited",
+    "isin": "INE178A01016",
+    "instrument_key": "NSE_EQ|INE178A01016",
+    "industry": "Refineries & Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "RADICO.NS",
+    "ticker": "RADICO",
+    "name": "Radico Khaitan Limited",
+    "isin": "INE944F01028",
+    "instrument_key": "NSE_EQ|INE944F01028",
+    "industry": "Breweries & Distilleries",
+    "is_index": false
+  },
+  {
+    "symbol": "SHRIRAMFIN.NS",
+    "ticker": "SHRIRAMFIN",
+    "name": "Shriram Finance Limited",
+    "isin": "INE721A01047",
+    "instrument_key": "NSE_EQ|INE721A01047",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "IDEA.NS",
+    "ticker": "IDEA",
+    "name": "Vodafone Idea Limited",
+    "isin": "INE669E01016",
+    "instrument_key": "NSE_EQ|INE669E01016",
+    "industry": "Telecom - Cellular & Fixed line services",
+    "is_index": false
+  },
+  {
+    "symbol": "MAHABANK.NS",
+    "ticker": "MAHABANK",
+    "name": "Bank of Maharashtra",
+    "isin": "INE457A01014",
+    "instrument_key": "NSE_EQ|INE457A01014",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "GESHIP.NS",
+    "ticker": "GESHIP",
+    "name": "The Great Eastern Shipping Company Limited",
+    "isin": "INE017A01032",
+    "instrument_key": "NSE_EQ|INE017A01032",
+    "industry": "Shipping",
+    "is_index": false
+  },
+  {
+    "symbol": "PREMIERENE.NS",
+    "ticker": "PREMIERENE",
+    "name": "Premier Energies Limited",
+    "isin": "INE0BS701011",
+    "instrument_key": "NSE_EQ|INE0BS701011",
+    "industry": "Other Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "POWERINDIA.NS",
+    "ticker": "POWERINDIA",
+    "name": "Hitachi Energy India Limited",
+    "isin": "INE07Y701011",
+    "instrument_key": "NSE_EQ|INE07Y701011",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "LICI.NS",
+    "ticker": "LICI",
+    "name": "Life Insurance Corporation Of India",
+    "isin": "INE0J1Y01017",
+    "instrument_key": "NSE_EQ|INE0J1Y01017",
+    "industry": "Life Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "THELEELA.NS",
+    "ticker": "THELEELA",
+    "name": "Leela Palaces Hotels & Resorts Limited",
+    "isin": "INE0AQ201015",
+    "instrument_key": "NSE_EQ|INE0AQ201015",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "BANKINDIA.NS",
+    "ticker": "BANKINDIA",
+    "name": "Bank of India",
+    "isin": "INE084A01016",
+    "instrument_key": "NSE_EQ|INE084A01016",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "IDBI.NS",
+    "ticker": "IDBI",
+    "name": "IDBI Bank Limited",
+    "isin": "INE008A01015",
+    "instrument_key": "NSE_EQ|INE008A01015",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "CARBORUNIV.NS",
+    "ticker": "CARBORUNIV",
+    "name": "Carborundum Universal Limited",
+    "isin": "INE120A01034",
+    "instrument_key": "NSE_EQ|INE120A01034",
+    "industry": "Abrasives & Bearings",
+    "is_index": false
+  },
+  {
+    "symbol": "ABCAPITAL.NS",
+    "ticker": "ABCAPITAL",
+    "name": "Aditya Birla Capital Limited",
+    "isin": "INE674K01013",
+    "instrument_key": "NSE_EQ|INE674K01013",
+    "industry": "Investment Company",
+    "is_index": false
+  },
+  {
+    "symbol": "SHYAMMETL.NS",
+    "ticker": "SHYAMMETL",
+    "name": "Shyam Metalics and Energy Limited",
+    "isin": "INE810G01011",
+    "instrument_key": "NSE_EQ|INE810G01011",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ATHERENERG.NS",
+    "ticker": "ATHERENERG",
+    "name": "Ather Energy Limited",
+    "isin": "INE0LEZ01016",
+    "instrument_key": "NSE_EQ|INE0LEZ01016",
+    "industry": "2/3 Wheelers",
+    "is_index": false
+  },
+  {
+    "symbol": "AUBANK.NS",
+    "ticker": "AUBANK",
+    "name": "AU Small Finance Bank Limited",
+    "isin": "INE949L01017",
+    "instrument_key": "NSE_EQ|INE949L01017",
+    "industry": "Other Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "CDSL.NS",
+    "ticker": "CDSL",
+    "name": "Central Depository Services (India) Limited",
+    "isin": "INE736A01011",
+    "instrument_key": "NSE_EQ|INE736A01011",
+    "industry": "Depositories Clearing Houses and Other Intermediaries",
+    "is_index": false
+  },
+  {
+    "symbol": "FIVESTAR.NS",
+    "ticker": "FIVESTAR",
+    "name": "Five-Star Business Finance Limited",
+    "isin": "INE128S01021",
+    "instrument_key": "NSE_EQ|INE128S01021",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "SOBHA.NS",
+    "ticker": "SOBHA",
+    "name": "Sobha Limited",
+    "isin": "INE671H01015",
+    "instrument_key": "NSE_EQ|INE671H01015",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "CAMPUS.NS",
+    "ticker": "CAMPUS",
+    "name": "Campus Activewear Limited",
+    "isin": "INE278Y01022",
+    "instrument_key": "NSE_EQ|INE278Y01022",
+    "industry": "Footwear",
+    "is_index": false
+  },
+  {
+    "symbol": "HINDCOPPER.NS",
+    "ticker": "HINDCOPPER",
+    "name": "Hindustan Copper Limited",
+    "isin": "INE531E01026",
+    "instrument_key": "NSE_EQ|INE531E01026",
+    "industry": "Copper",
+    "is_index": false
+  },
+  {
+    "symbol": "BAJFINANCE.NS",
+    "ticker": "BAJFINANCE",
+    "name": "Bajaj Finance Limited",
+    "isin": "INE296A01032",
+    "instrument_key": "NSE_EQ|INE296A01032",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "J&KBANK.NS",
+    "ticker": "J&KBANK",
+    "name": "The Jammu & Kashmir Bank Limited",
+    "isin": "INE168A01041",
+    "instrument_key": "NSE_EQ|INE168A01041",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "GVT&D.NS",
+    "ticker": "GVT&D",
+    "name": "GE Vernova T&D India Limited",
+    "isin": "INE200A01026",
+    "instrument_key": "NSE_EQ|INE200A01026",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "ADANIENT.NS",
+    "ticker": "ADANIENT",
+    "name": "Adani Enterprises Limited",
+    "isin": "INE423A01024",
+    "instrument_key": "NSE_EQ|INE423A01024",
+    "industry": "Trading - Minerals",
+    "is_index": false
+  },
+  {
+    "symbol": "MAPMYINDIA.NS",
+    "ticker": "MAPMYINDIA",
+    "name": "C.E. Info Systems Limited",
+    "isin": "INE0BV301023",
+    "instrument_key": "NSE_EQ|INE0BV301023",
+    "industry": "Software Products",
+    "is_index": false
+  },
+  {
+    "symbol": "TATASTEEL.NS",
+    "ticker": "TATASTEEL",
+    "name": "Tata Steel Limited",
+    "isin": "INE081A01020",
+    "instrument_key": "NSE_EQ|INE081A01020",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "BRITANNIA.NS",
+    "ticker": "BRITANNIA",
+    "name": "Britannia Industries Limited",
+    "isin": "INE216A01030",
+    "instrument_key": "NSE_EQ|INE216A01030",
+    "industry": "Packaged Foods",
+    "is_index": false
+  },
+  {
+    "symbol": "VTL.NS",
+    "ticker": "VTL",
+    "name": "Vardhman Textiles Limited",
+    "isin": "INE825A01020",
+    "instrument_key": "NSE_EQ|INE825A01020",
+    "industry": "Other Textile Products",
+    "is_index": false
+  },
+  {
+    "symbol": "VOLTAS.NS",
+    "ticker": "VOLTAS",
+    "name": "Voltas Limited",
+    "isin": "INE226A01021",
+    "instrument_key": "NSE_EQ|INE226A01021",
+    "industry": "Household Appliances",
+    "is_index": false
+  },
+  {
+    "symbol": "BAJAJFINSV.NS",
+    "ticker": "BAJAJFINSV",
+    "name": "Bajaj Finserv Limited",
+    "isin": "INE918I01026",
+    "instrument_key": "NSE_EQ|INE918I01026",
+    "industry": "Holding Company",
+    "is_index": false
+  },
+  {
+    "symbol": "MFSL.NS",
+    "ticker": "MFSL",
+    "name": "Max Financial Services Limited",
+    "isin": "INE180A01020",
+    "instrument_key": "NSE_EQ|INE180A01020",
+    "industry": "Life Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "IOB.NS",
+    "ticker": "IOB",
+    "name": "Indian Overseas Bank",
+    "isin": "INE565A01014",
+    "instrument_key": "NSE_EQ|INE565A01014",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "SAGILITY.NS",
+    "ticker": "SAGILITY",
+    "name": "SAGILITY LIMITED",
+    "isin": "INE0W2G01015",
+    "instrument_key": "NSE_EQ|INE0W2G01015",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "TATAINVEST.NS",
+    "ticker": "TATAINVEST",
+    "name": "Tata Investment Corporation Limited",
+    "isin": "INE672A01026",
+    "instrument_key": "NSE_EQ|INE672A01026",
+    "industry": "Investment Company",
+    "is_index": false
+  },
+  {
+    "symbol": "ICICIPRULI.NS",
+    "ticker": "ICICIPRULI",
+    "name": "ICICI Prudential Life Insurance Company Limited",
+    "isin": "INE726G01019",
+    "instrument_key": "NSE_EQ|INE726G01019",
+    "industry": "Life Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "WELSPUNLIV.NS",
+    "ticker": "WELSPUNLIV",
+    "name": "Welspun Living Limited",
+    "isin": "INE192B01031",
+    "instrument_key": "NSE_EQ|INE192B01031",
+    "industry": "Other Textile Products",
+    "is_index": false
+  },
+  {
+    "symbol": "UPL.NS",
+    "ticker": "UPL",
+    "name": "UPL Limited",
+    "isin": "INE628A01036",
+    "instrument_key": "NSE_EQ|INE628A01036",
+    "industry": "Pesticides & Agrochemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "CENTRALBK.NS",
+    "ticker": "CENTRALBK",
+    "name": "Central Bank of India",
+    "isin": "INE483A01010",
+    "instrument_key": "NSE_EQ|INE483A01010",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "SCI.NS",
+    "ticker": "SCI",
+    "name": "Shipping Corporation Of India Limited",
+    "isin": "INE109A01011",
+    "instrument_key": "NSE_EQ|INE109A01011",
+    "industry": "Shipping",
+    "is_index": false
+  },
+  {
+    "symbol": "JINDALSTEL.NS",
+    "ticker": "JINDALSTEL",
+    "name": "JINDAL STEEL LIMITED",
+    "isin": "INE749A01030",
+    "instrument_key": "NSE_EQ|INE749A01030",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "VEDL.NS",
+    "ticker": "VEDL",
+    "name": "Vedanta Limited",
+    "isin": "INE205A01025",
+    "instrument_key": "NSE_EQ|INE205A01025",
+    "industry": "Diversified Metals",
+    "is_index": false
+  },
+  {
+    "symbol": "CAMS.NS",
+    "ticker": "CAMS",
+    "name": "Computer Age Management Services Limited",
+    "isin": "INE596I01020",
+    "instrument_key": "NSE_EQ|INE596I01020",
+    "industry": "Depositories Clearing Houses and Other Intermediaries",
+    "is_index": false
+  },
+  {
+    "symbol": "UNIONBANK.NS",
+    "ticker": "UNIONBANK",
+    "name": "Union Bank of India",
+    "isin": "INE692A01016",
+    "instrument_key": "NSE_EQ|INE692A01016",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "SAIL.NS",
+    "ticker": "SAIL",
+    "name": "Steel Authority of India Limited",
+    "isin": "INE114A01011",
+    "instrument_key": "NSE_EQ|INE114A01011",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "DCMSHRIRAM.NS",
+    "ticker": "DCMSHRIRAM",
+    "name": "DCM Shriram Limited",
+    "isin": "INE499A01024",
+    "instrument_key": "NSE_EQ|INE499A01024",
+    "industry": "Diversified",
+    "is_index": false
+  },
+  {
+    "symbol": "APOLLOTYRE.NS",
+    "ticker": "APOLLOTYRE",
+    "name": "Apollo Tyres Limited",
+    "isin": "INE438A01022",
+    "instrument_key": "NSE_EQ|INE438A01022",
+    "industry": "Tyres & Rubber Products",
+    "is_index": false
+  },
+  {
+    "symbol": "HDFCLIFE.NS",
+    "ticker": "HDFCLIFE",
+    "name": "HDFC Life Insurance Company Limited",
+    "isin": "INE795G01014",
+    "instrument_key": "NSE_EQ|INE795G01014",
+    "industry": "Life Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "M&MFIN.NS",
+    "ticker": "M&MFIN",
+    "name": "Mahindra & Mahindra Financial Services Limited",
+    "isin": "INE774D01024",
+    "instrument_key": "NSE_EQ|INE774D01024",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "PAYTM.NS",
+    "ticker": "PAYTM",
+    "name": "One 97 Communications Limited",
+    "isin": "INE982J01020",
+    "instrument_key": "NSE_EQ|INE982J01020",
+    "industry": "Financial Technology (Fintech)",
+    "is_index": false
+  },
+  {
+    "symbol": "M&M.NS",
+    "ticker": "M&M",
+    "name": "Mahindra & Mahindra Limited",
+    "isin": "INE101A01026",
+    "instrument_key": "NSE_EQ|INE101A01026",
+    "industry": "Passenger Cars & Utility Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "MCX.NS",
+    "ticker": "MCX",
+    "name": "Multi Commodity Exchange of India Limited",
+    "isin": "INE745G01043",
+    "instrument_key": "NSE_EQ|INE745G01043",
+    "industry": "Exchange and Data Platform",
+    "is_index": false
+  },
+  {
+    "symbol": "ABFRL.NS",
+    "ticker": "ABFRL",
+    "name": "Aditya Birla Fashion and Retail Limited",
+    "isin": "INE647O01011",
+    "instrument_key": "NSE_EQ|INE647O01011",
+    "industry": "Speciality Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "BPCL.NS",
+    "ticker": "BPCL",
+    "name": "Bharat Petroleum Corporation Limited",
+    "isin": "INE029A01011",
+    "instrument_key": "NSE_EQ|INE029A01011",
+    "industry": "Refineries & Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "FORCEMOT.NS",
+    "ticker": "FORCEMOT",
+    "name": "FORCE MOTORS LTD",
+    "isin": "INE451A01017",
+    "instrument_key": "NSE_EQ|INE451A01017",
+    "industry": "Passenger Cars & Utility Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "NBCC.NS",
+    "ticker": "NBCC",
+    "name": "NBCC (India) Limited",
+    "isin": "INE095N01031",
+    "instrument_key": "NSE_EQ|INE095N01031",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "JKTYRE.NS",
+    "ticker": "JKTYRE",
+    "name": "JK Tyre & Industries Limited",
+    "isin": "INE573A01042",
+    "instrument_key": "NSE_EQ|INE573A01042",
+    "industry": "Tyres & Rubber Products",
+    "is_index": false
+  },
+  {
+    "symbol": "FINPIPE.NS",
+    "ticker": "FINPIPE",
+    "name": "Finolex Industries Limited",
+    "isin": "INE183A01024",
+    "instrument_key": "NSE_EQ|INE183A01024",
+    "industry": "Plastic Products - Industrial",
+    "is_index": false
+  },
+  {
+    "symbol": "COCHINSHIP.NS",
+    "ticker": "COCHINSHIP",
+    "name": "Cochin Shipyard Limited",
+    "isin": "INE704P01025",
+    "instrument_key": "NSE_EQ|INE704P01025",
+    "industry": "Ship Building & Allied Services",
+    "is_index": false
+  },
+  {
+    "symbol": "HUDCO.NS",
+    "ticker": "HUDCO",
+    "name": "Housing & Urban Development Corporation Limited",
+    "isin": "INE031A01017",
+    "instrument_key": "NSE_EQ|INE031A01017",
+    "industry": "Financial Institution",
+    "is_index": false
+  },
+  {
+    "symbol": "NATIONALUM.NS",
+    "ticker": "NATIONALUM",
+    "name": "National Aluminium Company Limited",
+    "isin": "INE139A01034",
+    "instrument_key": "NSE_EQ|INE139A01034",
+    "industry": "Aluminium",
+    "is_index": false
+  },
+  {
+    "symbol": "UCOBANK.NS",
+    "ticker": "UCOBANK",
+    "name": "UCO Bank",
+    "isin": "INE691A01018",
+    "instrument_key": "NSE_EQ|INE691A01018",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "CREDITACC.NS",
+    "ticker": "CREDITACC",
+    "name": "CREDITACCESS GRAMEEN LIMITED",
+    "isin": "INE741K01010",
+    "instrument_key": "NSE_EQ|INE741K01010",
+    "industry": "Microfinance Institutions",
+    "is_index": false
+  },
+  {
+    "symbol": "GPIL.NS",
+    "ticker": "GPIL",
+    "name": "Godawari Power And Ispat limited",
+    "isin": "INE177H01039",
+    "instrument_key": "NSE_EQ|INE177H01039",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "POLICYBZR.NS",
+    "ticker": "POLICYBZR",
+    "name": "PB Fintech Limited",
+    "isin": "INE417T01026",
+    "instrument_key": "NSE_EQ|INE417T01026",
+    "industry": "Financial Technology (Fintech)",
+    "is_index": false
+  },
+  {
+    "symbol": "ICICIBANK.NS",
+    "ticker": "ICICIBANK",
+    "name": "ICICI Bank Limited",
+    "isin": "INE090A01021",
+    "instrument_key": "NSE_EQ|INE090A01021",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "SBILIFE.NS",
+    "ticker": "SBILIFE",
+    "name": "SBI Life Insurance Company Limited",
+    "isin": "INE123W01016",
+    "instrument_key": "NSE_EQ|INE123W01016",
+    "industry": "Life Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "HINDZINC.NS",
+    "ticker": "HINDZINC",
+    "name": "Hindustan Zinc Limited",
+    "isin": "INE267A01025",
+    "instrument_key": "NSE_EQ|INE267A01025",
+    "industry": "Zinc",
+    "is_index": false
+  },
+  {
+    "symbol": "SOLARINDS.NS",
+    "ticker": "SOLARINDS",
+    "name": "Solar Industries India Limited",
+    "isin": "INE343H01029",
+    "instrument_key": "NSE_EQ|INE343H01029",
+    "industry": "Explosives",
+    "is_index": false
+  },
+  {
+    "symbol": "SARDAEN.NS",
+    "ticker": "SARDAEN",
+    "name": "Sarda Energy & Minerals Limited",
+    "isin": "INE385C01021",
+    "instrument_key": "NSE_EQ|INE385C01021",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "BHEL.NS",
+    "ticker": "BHEL",
+    "name": "Bharat Heavy Electricals Limited",
+    "isin": "INE257A01026",
+    "instrument_key": "NSE_EQ|INE257A01026",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "GICRE.NS",
+    "ticker": "GICRE",
+    "name": "General Insurance Corporation of India",
+    "isin": "INE481Y01014",
+    "instrument_key": "NSE_EQ|INE481Y01014",
+    "industry": "General Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "MRPL.NS",
+    "ticker": "MRPL",
+    "name": "Mangalore Refinery and Petrochemicals Limited",
+    "isin": "INE103A01014",
+    "instrument_key": "NSE_EQ|INE103A01014",
+    "industry": "Refineries & Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "PNB.NS",
+    "ticker": "PNB",
+    "name": "Punjab National Bank",
+    "isin": "INE160A01022",
+    "instrument_key": "NSE_EQ|INE160A01022",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "MAZDOCK.NS",
+    "ticker": "MAZDOCK",
+    "name": "Mazagon Dock Shipbuilders Limited",
+    "isin": "INE249Z01020",
+    "instrument_key": "NSE_EQ|INE249Z01020",
+    "industry": "Ship Building & Allied Services",
+    "is_index": false
+  },
+  {
+    "symbol": "CEATLTD.NS",
+    "ticker": "CEATLTD",
+    "name": "CEAT Limited",
+    "isin": "INE482A01020",
+    "instrument_key": "NSE_EQ|INE482A01020",
+    "industry": "Tyres & Rubber Products",
+    "is_index": false
+  },
+  {
+    "symbol": "BSOFT.NS",
+    "ticker": "BSOFT",
+    "name": "BIRLASOFT LIMITED",
+    "isin": "INE836A01035",
+    "instrument_key": "NSE_EQ|INE836A01035",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "WELCORP.NS",
+    "ticker": "WELCORP",
+    "name": "Welspun Corp Limited",
+    "isin": "INE191B01025",
+    "instrument_key": "NSE_EQ|INE191B01025",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "NMDC.NS",
+    "ticker": "NMDC",
+    "name": "NMDC Limited",
+    "isin": "INE584A01023",
+    "instrument_key": "NSE_EQ|INE584A01023",
+    "industry": "Industrial Minerals",
+    "is_index": false
+  },
+  {
+    "symbol": "GODIGIT.NS",
+    "ticker": "GODIGIT",
+    "name": "Go Digit General Insurance Limited",
+    "isin": "INE03JT01014",
+    "instrument_key": "NSE_EQ|INE03JT01014",
+    "industry": "General Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "SONACOMS.NS",
+    "ticker": "SONACOMS",
+    "name": "Sona BLW Precision Forgings Limited",
+    "isin": "INE073K01018",
+    "instrument_key": "NSE_EQ|INE073K01018",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "HBLENGINE.NS",
+    "ticker": "HBLENGINE",
+    "name": "HBL Engineering Limited",
+    "isin": "INE292B01021",
+    "instrument_key": "NSE_EQ|INE292B01021",
+    "industry": "Other Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "SBFC.NS",
+    "ticker": "SBFC",
+    "name": "SBFC Finance Limited",
+    "isin": "INE423Y01016",
+    "instrument_key": "NSE_EQ|INE423Y01016",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "RCF.NS",
+    "ticker": "RCF",
+    "name": "Rashtriya Chemicals and Fertilizers Limited",
+    "isin": "INE027A01015",
+    "instrument_key": "NSE_EQ|INE027A01015",
+    "industry": "Fertilizers",
+    "is_index": false
+  },
+  {
+    "symbol": "INDUSINDBK.NS",
+    "ticker": "INDUSINDBK",
+    "name": "IndusInd Bank Limited",
+    "isin": "INE095A01012",
+    "instrument_key": "NSE_EQ|INE095A01012",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "BEL.NS",
+    "ticker": "BEL",
+    "name": "Bharat Electronics Limited",
+    "isin": "INE263A01024",
+    "instrument_key": "NSE_EQ|INE263A01024",
+    "industry": "Aerospace & Defense",
+    "is_index": false
+  },
+  {
+    "symbol": "ENRIN.NS",
+    "ticker": "ENRIN",
+    "name": "Siemens Energy India Limited",
+    "isin": "INE1NPP01017",
+    "instrument_key": "NSE_EQ|INE1NPP01017",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "BATAINDIA.NS",
+    "ticker": "BATAINDIA",
+    "name": "Bata India Limited",
+    "isin": "INE176A01028",
+    "instrument_key": "NSE_EQ|INE176A01028",
+    "industry": "Footwear",
+    "is_index": false
+  },
+  {
+    "symbol": "DBREALTY.NS",
+    "ticker": "DBREALTY",
+    "name": "Valor Estate Limited",
+    "isin": "INE879I01012",
+    "instrument_key": "NSE_EQ|INE879I01012",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "MINDACORP.NS",
+    "ticker": "MINDACORP",
+    "name": "Minda Corporation Limited",
+    "isin": "INE842C01021",
+    "instrument_key": "NSE_EQ|INE842C01021",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "NAUKRI.NS",
+    "ticker": "NAUKRI",
+    "name": "Info Edge (India) Limited",
+    "isin": "INE663F01032",
+    "instrument_key": "NSE_EQ|INE663F01032",
+    "industry": "Internet & Catalogue Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "GMRAIRPORT.NS",
+    "ticker": "GMRAIRPORT",
+    "name": "GMR AIRPORTS LIMITED",
+    "isin": "INE776C01039",
+    "instrument_key": "NSE_EQ|INE776C01039",
+    "industry": "Airport & Airport services",
+    "is_index": false
+  },
+  {
+    "symbol": "SYRMA.NS",
+    "ticker": "SYRMA",
+    "name": "Syrma SGS Technology Limited",
+    "isin": "INE0DYJ01015",
+    "instrument_key": "NSE_EQ|INE0DYJ01015",
+    "industry": "Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "PETRONET.NS",
+    "ticker": "PETRONET",
+    "name": "Petronet LNG Limited",
+    "isin": "INE347G01014",
+    "instrument_key": "NSE_EQ|INE347G01014",
+    "industry": "LPG/CNG/PNG/LNG Supplier",
+    "is_index": false
+  },
+  {
+    "symbol": "USHAMART.NS",
+    "ticker": "USHAMART",
+    "name": "Usha Martin Limited",
+    "isin": "INE228A01035",
+    "instrument_key": "NSE_EQ|INE228A01035",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "NEULANDLAB.NS",
+    "ticker": "NEULANDLAB",
+    "name": "Neuland Laboratories Limited",
+    "isin": "INE794A01010",
+    "instrument_key": "NSE_EQ|INE794A01010",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "MUTHOOTFIN.NS",
+    "ticker": "MUTHOOTFIN",
+    "name": "Muthoot Finance Limited",
+    "isin": "INE414G01012",
+    "instrument_key": "NSE_EQ|INE414G01012",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "TBOTEK.NS",
+    "ticker": "TBOTEK",
+    "name": "TBO Tek Limited",
+    "isin": "INE673O01025",
+    "instrument_key": "NSE_EQ|INE673O01025",
+    "industry": "Tour Travel Related Services",
+    "is_index": false
+  },
+  {
+    "symbol": "VMM.NS",
+    "ticker": "VMM",
+    "name": "Vishal Mega Mart Limited",
+    "isin": "INE01EA01019",
+    "instrument_key": "NSE_EQ|INE01EA01019",
+    "industry": "Diversified Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "IDFCFIRSTB.NS",
+    "ticker": "IDFCFIRSTB",
+    "name": "IDFC First Bank Limited",
+    "isin": "INE092T01019",
+    "instrument_key": "NSE_EQ|INE092T01019",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "EICHERMOT.NS",
+    "ticker": "EICHERMOT",
+    "name": "Eicher Motors Limited",
+    "isin": "INE066A01021",
+    "instrument_key": "NSE_EQ|INE066A01021",
+    "industry": "2/3 Wheelers",
+    "is_index": false
+  },
+  {
+    "symbol": "ENGINERSIN.NS",
+    "ticker": "ENGINERSIN",
+    "name": "Engineers India Limited",
+    "isin": "INE510A01028",
+    "instrument_key": "NSE_EQ|INE510A01028",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "CANBK.NS",
+    "ticker": "CANBK",
+    "name": "Canara Bank",
+    "isin": "INE476A01022",
+    "instrument_key": "NSE_EQ|INE476A01022",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "IRFC.NS",
+    "ticker": "IRFC",
+    "name": "Indian Railway Finance Corporation Limited",
+    "isin": "INE053F01010",
+    "instrument_key": "NSE_EQ|INE053F01010",
+    "industry": "Financial Institution",
+    "is_index": false
+  },
+  {
+    "symbol": "YESBANK.NS",
+    "ticker": "YESBANK",
+    "name": "Yes Bank Limited",
+    "isin": "INE528G01035",
+    "instrument_key": "NSE_EQ|INE528G01035",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "SUNTV.NS",
+    "ticker": "SUNTV",
+    "name": "Sun TV Network Limited",
+    "isin": "INE424H01027",
+    "instrument_key": "NSE_EQ|INE424H01027",
+    "industry": "TV Broadcasting & Software Production",
+    "is_index": false
+  },
+  {
+    "symbol": "FORTIS.NS",
+    "ticker": "FORTIS",
+    "name": "Fortis Healthcare Limited",
+    "isin": "INE061F01013",
+    "instrument_key": "NSE_EQ|INE061F01013",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "GAIL.NS",
+    "ticker": "GAIL",
+    "name": "GAIL (India) Limited",
+    "isin": "INE129A01019",
+    "instrument_key": "NSE_EQ|INE129A01019",
+    "industry": "Gas Transmission/Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "BANKBARODA.NS",
+    "ticker": "BANKBARODA",
+    "name": "Bank of Baroda",
+    "isin": "INE028A01039",
+    "instrument_key": "NSE_EQ|INE028A01039",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "ASAHIINDIA.NS",
+    "ticker": "ASAHIINDIA",
+    "name": "Asahi India Glass Limited",
+    "isin": "INE439A01020",
+    "instrument_key": "NSE_EQ|INE439A01020",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "CHOLAFIN.NS",
+    "ticker": "CHOLAFIN",
+    "name": "Cholamandalam Investment and Finance Company Limited",
+    "isin": "INE121A01024",
+    "instrument_key": "NSE_EQ|INE121A01024",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "APLAPOLLO.NS",
+    "ticker": "APLAPOLLO",
+    "name": "APL Apollo Tubes Limited",
+    "isin": "INE702C01027",
+    "instrument_key": "NSE_EQ|INE702C01027",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "MAXHEALTH.NS",
+    "ticker": "MAXHEALTH",
+    "name": "Max Healthcare Institute Limited",
+    "isin": "INE027H01010",
+    "instrument_key": "NSE_EQ|INE027H01010",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "IIFL.NS",
+    "ticker": "IIFL",
+    "name": "IIFL Finance Limited",
+    "isin": "INE530B01024",
+    "instrument_key": "NSE_EQ|INE530B01024",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "INDIANB.NS",
+    "ticker": "INDIANB",
+    "name": "Indian Bank",
+    "isin": "INE562A01011",
+    "instrument_key": "NSE_EQ|INE562A01011",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "PHOENIXLTD.NS",
+    "ticker": "PHOENIXLTD",
+    "name": "The Phoenix Mills Limited",
+    "isin": "INE211B01039",
+    "instrument_key": "NSE_EQ|INE211B01039",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "KARURVYSYA.NS",
+    "ticker": "KARURVYSYA",
+    "name": "Karur Vysya Bank Limited",
+    "isin": "INE036D01028",
+    "instrument_key": "NSE_EQ|INE036D01028",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "JSL.NS",
+    "ticker": "JSL",
+    "name": "Jindal Stainless Limited",
+    "isin": "INE220G01021",
+    "instrument_key": "NSE_EQ|INE220G01021",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "GRASIM.NS",
+    "ticker": "GRASIM",
+    "name": "Grasim Industries Limited",
+    "isin": "INE047A01021",
+    "instrument_key": "NSE_EQ|INE047A01021",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "RBLBANK.NS",
+    "ticker": "RBLBANK",
+    "name": "RBL Bank Limited",
+    "isin": "INE976G01028",
+    "instrument_key": "NSE_EQ|INE976G01028",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "IREDA.NS",
+    "ticker": "IREDA",
+    "name": "Indian Renewable Energy Development Agency Limited",
+    "isin": "INE202E01016",
+    "instrument_key": "NSE_EQ|INE202E01016",
+    "industry": "Financial Institution",
+    "is_index": false
+  },
+  {
+    "symbol": "ZYDUSLIFE.NS",
+    "ticker": "ZYDUSLIFE",
+    "name": "Zydus Lifesciences Limited",
+    "isin": "INE010B01027",
+    "instrument_key": "NSE_EQ|INE010B01027",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "BEML.NS",
+    "ticker": "BEML",
+    "name": "BEML Limited",
+    "isin": "INE258A01024",
+    "instrument_key": "NSE_EQ|INE258A01024",
+    "industry": "Construction Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "UNITDSPR.NS",
+    "ticker": "UNITDSPR",
+    "name": "United Spirits Limited",
+    "isin": "INE854D01024",
+    "instrument_key": "NSE_EQ|INE854D01024",
+    "industry": "Breweries & Distilleries",
+    "is_index": false
+  },
+  {
+    "symbol": "HDFCAMC.NS",
+    "ticker": "HDFCAMC",
+    "name": "HDFC Asset Management Company Limited",
+    "isin": "INE127D01025",
+    "instrument_key": "NSE_EQ|INE127D01025",
+    "industry": "Asset Management Company",
+    "is_index": false
+  },
+  {
+    "symbol": "MRF.NS",
+    "ticker": "MRF",
+    "name": "MRF Limited",
+    "isin": "INE883A01011",
+    "instrument_key": "NSE_EQ|INE883A01011",
+    "industry": "Tyres & Rubber Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ADANIPORTS.NS",
+    "ticker": "ADANIPORTS",
+    "name": "Adani Ports and Special Economic Zone Limited",
+    "isin": "INE742F01042",
+    "instrument_key": "NSE_EQ|INE742F01042",
+    "industry": "Port & Port services",
+    "is_index": false
+  },
+  {
+    "symbol": "HAL.NS",
+    "ticker": "HAL",
+    "name": "Hindustan Aeronautics Limited",
+    "isin": "INE066F01020",
+    "instrument_key": "NSE_EQ|INE066F01020",
+    "industry": "Aerospace & Defense",
+    "is_index": false
+  },
+  {
+    "symbol": "ICICIGI.NS",
+    "ticker": "ICICIGI",
+    "name": "ICICI Lombard General Insurance Company Limited",
+    "isin": "INE765G01017",
+    "instrument_key": "NSE_EQ|INE765G01017",
+    "industry": "General Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "RAINBOW.NS",
+    "ticker": "RAINBOW",
+    "name": "Rainbow Childrens Medicare Limited",
+    "isin": "INE961O01016",
+    "instrument_key": "NSE_EQ|INE961O01016",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "KEI.NS",
+    "ticker": "KEI",
+    "name": "KEI Industries Limited",
+    "isin": "INE878B01027",
+    "instrument_key": "NSE_EQ|INE878B01027",
+    "industry": "Cables - Electricals",
+    "is_index": false
+  },
+  {
+    "symbol": "IPCALAB.NS",
+    "ticker": "IPCALAB",
+    "name": "IPCA Laboratories Limited",
+    "isin": "INE571A01038",
+    "instrument_key": "NSE_EQ|INE571A01038",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "AKZOINDIA.NS",
+    "ticker": "AKZOINDIA",
+    "name": "Akzo Nobel India Limited",
+    "isin": "INE133A01029",
+    "instrument_key": "NSE_EQ|INE133A01029",
+    "industry": "Paints",
+    "is_index": false
+  },
+  {
+    "symbol": "TORNTPHARM.NS",
+    "ticker": "TORNTPHARM",
+    "name": "Torrent Pharmaceuticals Limited",
+    "isin": "INE685A01028",
+    "instrument_key": "NSE_EQ|INE685A01028",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "INFY.NS",
+    "ticker": "INFY",
+    "name": "Infosys Limited",
+    "isin": "INE009A01021",
+    "instrument_key": "NSE_EQ|INE009A01021",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "TRIVENI.NS",
+    "ticker": "TRIVENI",
+    "name": "Triveni Engineering & Industries Limited",
+    "isin": "INE256C01024",
+    "instrument_key": "NSE_EQ|INE256C01024",
+    "industry": "Sugar",
+    "is_index": false
+  },
+  {
+    "symbol": "COALINDIA.NS",
+    "ticker": "COALINDIA",
+    "name": "Coal India Limited",
+    "isin": "INE522F01014",
+    "instrument_key": "NSE_EQ|INE522F01014",
+    "industry": "Coal",
+    "is_index": false
+  },
+  {
+    "symbol": "MOTILALOFS.NS",
+    "ticker": "MOTILALOFS",
+    "name": "Motilal Oswal Financial Services Limited",
+    "isin": "INE338I01027",
+    "instrument_key": "NSE_EQ|INE338I01027",
+    "industry": "Stockbroking & Allied",
+    "is_index": false
+  },
+  {
+    "symbol": "NIVABUPA.NS",
+    "ticker": "NIVABUPA",
+    "name": "Niva Bupa Health Insurance Company Limited",
+    "isin": "INE995S01015",
+    "instrument_key": "NSE_EQ|INE995S01015",
+    "industry": "General Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "IKS.NS",
+    "ticker": "IKS",
+    "name": "Inventurus Knowledge Solutions Limited",
+    "isin": "INE115Q01022",
+    "instrument_key": "NSE_EQ|INE115Q01022",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "TECHNOE.NS",
+    "ticker": "TECHNOE",
+    "name": "Techno Electric & Engineering Company Limited",
+    "isin": "INE285K01026",
+    "instrument_key": "NSE_EQ|INE285K01026",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "STARHEALTH.NS",
+    "ticker": "STARHEALTH",
+    "name": "Star Health and Allied Insurance Company Limited",
+    "isin": "INE575P01011",
+    "instrument_key": "NSE_EQ|INE575P01011",
+    "industry": "General Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "ACC.NS",
+    "ticker": "ACC",
+    "name": "ACC Limited",
+    "isin": "INE012A01025",
+    "instrument_key": "NSE_EQ|INE012A01025",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "FEDERALBNK.NS",
+    "ticker": "FEDERALBNK",
+    "name": "The Federal Bank  Limited",
+    "isin": "INE171A01029",
+    "instrument_key": "NSE_EQ|INE171A01029",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "ASTERDM.NS",
+    "ticker": "ASTERDM",
+    "name": "Aster DM Healthcare Limited",
+    "isin": "INE914M01019",
+    "instrument_key": "NSE_EQ|INE914M01019",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "LUPIN.NS",
+    "ticker": "LUPIN",
+    "name": "Lupin Limited",
+    "isin": "INE326A01037",
+    "instrument_key": "NSE_EQ|INE326A01037",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "IEX.NS",
+    "ticker": "IEX",
+    "name": "Indian Energy Exchange Limited",
+    "isin": "INE022Q01020",
+    "instrument_key": "NSE_EQ|INE022Q01020",
+    "industry": "Exchange and Data Platform",
+    "is_index": false
+  },
+  {
+    "symbol": "JBCHEPHARM.NS",
+    "ticker": "JBCHEPHARM",
+    "name": "JB Chemicals & Pharmaceuticals Limited",
+    "isin": "INE572A01036",
+    "instrument_key": "NSE_EQ|INE572A01036",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "ENDURANCE.NS",
+    "ticker": "ENDURANCE",
+    "name": "Endurance Technologies Limited",
+    "isin": "INE913H01037",
+    "instrument_key": "NSE_EQ|INE913H01037",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "BANDHANBNK.NS",
+    "ticker": "BANDHANBNK",
+    "name": "Bandhan Bank Limited",
+    "isin": "INE545U01014",
+    "instrument_key": "NSE_EQ|INE545U01014",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "ANANDRATHI.NS",
+    "ticker": "ANANDRATHI",
+    "name": "Anand Rathi Wealth Limited",
+    "isin": "INE463V01026",
+    "instrument_key": "NSE_EQ|INE463V01026",
+    "industry": "Financial Products Distributor",
+    "is_index": false
+  },
+  {
+    "symbol": "GLENMARK.NS",
+    "ticker": "GLENMARK",
+    "name": "Glenmark Pharmaceuticals Limited",
+    "isin": "INE935A01035",
+    "instrument_key": "NSE_EQ|INE935A01035",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "NTPC.NS",
+    "ticker": "NTPC",
+    "name": "NTPC Limited",
+    "isin": "INE733E01010",
+    "instrument_key": "NSE_EQ|INE733E01010",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "KIMS.NS",
+    "ticker": "KIMS",
+    "name": "Krishna Institute of Medical Sciences Limited",
+    "isin": "INE967H01025",
+    "instrument_key": "NSE_EQ|INE967H01025",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "IGL.NS",
+    "ticker": "IGL",
+    "name": "Indraprastha Gas Limited",
+    "isin": "INE203G01027",
+    "instrument_key": "NSE_EQ|INE203G01027",
+    "industry": "LPG/CNG/PNG/LNG Supplier",
+    "is_index": false
+  },
+  {
+    "symbol": "TVSMOTOR.NS",
+    "ticker": "TVSMOTOR",
+    "name": "TVS Motor Company Limited",
+    "isin": "INE494B01023",
+    "instrument_key": "NSE_EQ|INE494B01023",
+    "industry": "2/3 Wheelers",
+    "is_index": false
+  },
+  {
+    "symbol": "RECLTD.NS",
+    "ticker": "RECLTD",
+    "name": "REC Limited",
+    "isin": "INE020B01018",
+    "instrument_key": "NSE_EQ|INE020B01018",
+    "industry": "Financial Institution",
+    "is_index": false
+  },
+  {
+    "symbol": "PRESTIGE.NS",
+    "ticker": "PRESTIGE",
+    "name": "Prestige Estates Projects Limited",
+    "isin": "INE811K01011",
+    "instrument_key": "NSE_EQ|INE811K01011",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "HINDPETRO.NS",
+    "ticker": "HINDPETRO",
+    "name": "Hindustan Petroleum Corporation Limited",
+    "isin": "INE094A01015",
+    "instrument_key": "NSE_EQ|INE094A01015",
+    "industry": "Refineries & Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "APLLTD.NS",
+    "ticker": "APLLTD",
+    "name": "Alembic Pharmaceuticals Limited",
+    "isin": "INE901L01018",
+    "instrument_key": "NSE_EQ|INE901L01018",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "TATAPOWER.NS",
+    "ticker": "TATAPOWER",
+    "name": "Tata Power Company Limited",
+    "isin": "INE245A01021",
+    "instrument_key": "NSE_EQ|INE245A01021",
+    "industry": "Integrated Power Utilities",
+    "is_index": false
+  },
+  {
+    "symbol": "TORNTPOWER.NS",
+    "ticker": "TORNTPOWER",
+    "name": "Torrent Power Limited",
+    "isin": "INE813H01021",
+    "instrument_key": "NSE_EQ|INE813H01021",
+    "industry": "Integrated Power Utilities",
+    "is_index": false
+  },
+  {
+    "symbol": "POWERGRID.NS",
+    "ticker": "POWERGRID",
+    "name": "Power Grid Corporation of India Limited",
+    "isin": "INE752E01010",
+    "instrument_key": "NSE_EQ|INE752E01010",
+    "industry": "Power - Transmission",
+    "is_index": false
+  },
+  {
+    "symbol": "ERIS.NS",
+    "ticker": "ERIS",
+    "name": "Eris Lifesciences Limited",
+    "isin": "INE406M01024",
+    "instrument_key": "NSE_EQ|INE406M01024",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "CIPLA.NS",
+    "ticker": "CIPLA",
+    "name": "Cipla Limited",
+    "isin": "INE059A01026",
+    "instrument_key": "NSE_EQ|INE059A01026",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "BDL.NS",
+    "ticker": "BDL",
+    "name": "Bharat Dynamics Limited",
+    "isin": "INE171Z01026",
+    "instrument_key": "NSE_EQ|INE171Z01026",
+    "industry": "Aerospace & Defense",
+    "is_index": false
+  },
+  {
+    "symbol": "REDINGTON.NS",
+    "ticker": "REDINGTON",
+    "name": "Redington Limited",
+    "isin": "INE891D01026",
+    "instrument_key": "NSE_EQ|INE891D01026",
+    "industry": "Trading & Distributors",
+    "is_index": false
+  },
+  {
+    "symbol": "HAVELLS.NS",
+    "ticker": "HAVELLS",
+    "name": "Havells India Limited",
+    "isin": "INE176B01034",
+    "instrument_key": "NSE_EQ|INE176B01034",
+    "industry": "Consumer Electronics",
+    "is_index": false
+  },
+  {
+    "symbol": "JIOFIN.NS",
+    "ticker": "JIOFIN",
+    "name": "Jio Financial Services Limited",
+    "isin": "INE758E01017",
+    "instrument_key": "NSE_EQ|INE758E01017",
+    "industry": "Investment Company",
+    "is_index": false
+  },
+  {
+    "symbol": "PATANJALI.NS",
+    "ticker": "PATANJALI",
+    "name": "Patanjali Foods Limited",
+    "isin": "INE619A01035",
+    "instrument_key": "NSE_EQ|INE619A01035",
+    "industry": "Edible Oil",
+    "is_index": false
+  },
+  {
+    "symbol": "SONATSOFTW.NS",
+    "ticker": "SONATSOFTW",
+    "name": "Sonata Software Limited",
+    "isin": "INE269A01021",
+    "instrument_key": "NSE_EQ|INE269A01021",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "UTIAMC.NS",
+    "ticker": "UTIAMC",
+    "name": "UTI Asset Management Company Limited",
+    "isin": "INE094J01016",
+    "instrument_key": "NSE_EQ|INE094J01016",
+    "industry": "Asset Management Company",
+    "is_index": false
+  },
+  {
+    "symbol": "CONCOR.NS",
+    "ticker": "CONCOR",
+    "name": "Container Corporation of India Limited",
+    "isin": "INE111A01025",
+    "instrument_key": "NSE_EQ|INE111A01025",
+    "industry": "Logistics Solution Provider",
+    "is_index": false
+  },
+  {
+    "symbol": "PIIND.NS",
+    "ticker": "PIIND",
+    "name": "PI Industries Limited",
+    "isin": "INE603J01030",
+    "instrument_key": "NSE_EQ|INE603J01030",
+    "industry": "Pesticides & Agrochemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "ALKEM.NS",
+    "ticker": "ALKEM",
+    "name": "Alkem Laboratories Limited",
+    "isin": "INE540L01014",
+    "instrument_key": "NSE_EQ|INE540L01014",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "JSWSTEEL.NS",
+    "ticker": "JSWSTEEL",
+    "name": "JSW Steel Limited",
+    "isin": "INE019A01038",
+    "instrument_key": "NSE_EQ|INE019A01038",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "INDUSTOWER.NS",
+    "ticker": "INDUSTOWER",
+    "name": "Indus Towers Limited",
+    "isin": "INE121J01017",
+    "instrument_key": "NSE_EQ|INE121J01017",
+    "industry": "Telecom - Infrastructure",
+    "is_index": false
+  },
+  {
+    "symbol": "LAURUSLABS.NS",
+    "ticker": "LAURUSLABS",
+    "name": "Laurus Labs Limited",
+    "isin": "INE947Q01028",
+    "instrument_key": "NSE_EQ|INE947Q01028",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "TATACOMM.NS",
+    "ticker": "TATACOMM",
+    "name": "Tata Communications Limited",
+    "isin": "INE151A01013",
+    "instrument_key": "NSE_EQ|INE151A01013",
+    "industry": "Telecom - Cellular & Fixed line services",
+    "is_index": false
+  },
+  {
+    "symbol": "NATCOPHARM.NS",
+    "ticker": "NATCOPHARM",
+    "name": "Natco Pharma Limited",
+    "isin": "INE987B01026",
+    "instrument_key": "NSE_EQ|INE987B01026",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "GRAVITA.NS",
+    "ticker": "GRAVITA",
+    "name": "Gravita India Limited",
+    "isin": "INE024L01027",
+    "instrument_key": "NSE_EQ|INE024L01027",
+    "industry": "Industrial Minerals",
+    "is_index": false
+  },
+  {
+    "symbol": "GRANULES.NS",
+    "ticker": "GRANULES",
+    "name": "Granules India Limited",
+    "isin": "INE101D01020",
+    "instrument_key": "NSE_EQ|INE101D01020",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "SUNPHARMA.NS",
+    "ticker": "SUNPHARMA",
+    "name": "Sun Pharmaceutical Industries Limited",
+    "isin": "INE044A01036",
+    "instrument_key": "NSE_EQ|INE044A01036",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "ONGC.NS",
+    "ticker": "ONGC",
+    "name": "Oil & Natural Gas Corporation Limited",
+    "isin": "INE213A01029",
+    "instrument_key": "NSE_EQ|INE213A01029",
+    "industry": "Oil Exploration & Production",
+    "is_index": false
+  },
+  {
+    "symbol": "CRAFTSMAN.NS",
+    "ticker": "CRAFTSMAN",
+    "name": "Craftsman Automation Limited",
+    "isin": "INE00LO01017",
+    "instrument_key": "NSE_EQ|INE00LO01017",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "CHOICEIN.NS",
+    "ticker": "CHOICEIN",
+    "name": "Choice International Limited",
+    "isin": "INE102B01014",
+    "instrument_key": "NSE_EQ|INE102B01014",
+    "industry": "Holding Company",
+    "is_index": false
+  },
+  {
+    "symbol": "TIINDIA.NS",
+    "ticker": "TIINDIA",
+    "name": "Tube Investments of India Limited",
+    "isin": "INE974X01010",
+    "instrument_key": "NSE_EQ|INE974X01010",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "OBEROIRLTY.NS",
+    "ticker": "OBEROIRLTY",
+    "name": "Oberoi Realty Limited",
+    "isin": "INE093I01010",
+    "instrument_key": "NSE_EQ|INE093I01010",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "RVNL.NS",
+    "ticker": "RVNL",
+    "name": "Rail Vikas Nigam Limited",
+    "isin": "INE415G01027",
+    "instrument_key": "NSE_EQ|INE415G01027",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "ASIANPAINT.NS",
+    "ticker": "ASIANPAINT",
+    "name": "Asian Paints Limited",
+    "isin": "INE021A01026",
+    "instrument_key": "NSE_EQ|INE021A01026",
+    "industry": "Paints",
+    "is_index": false
+  },
+  {
+    "symbol": "SUNDRMFAST.NS",
+    "ticker": "SUNDRMFAST",
+    "name": "Sundram Fasteners Limited",
+    "isin": "INE387A01021",
+    "instrument_key": "NSE_EQ|INE387A01021",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "MOTHERSON.NS",
+    "ticker": "MOTHERSON",
+    "name": "Samvardhana Motherson International Limited",
+    "isin": "INE775A01035",
+    "instrument_key": "NSE_EQ|INE775A01035",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "CASTROLIND.NS",
+    "ticker": "CASTROLIND",
+    "name": "Castrol India Limited",
+    "isin": "INE172A01027",
+    "instrument_key": "NSE_EQ|INE172A01027",
+    "industry": "Lubricants",
+    "is_index": false
+  },
+  {
+    "symbol": "KOTAKBANK.NS",
+    "ticker": "KOTAKBANK",
+    "name": "Kotak Mahindra Bank Limited",
+    "isin": "INE237A01036",
+    "instrument_key": "NSE_EQ|INE237A01036",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "IOC.NS",
+    "ticker": "IOC",
+    "name": "Indian Oil Corporation Limited",
+    "isin": "INE242A01010",
+    "instrument_key": "NSE_EQ|INE242A01010",
+    "industry": "Refineries & Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "LINDEINDIA.NS",
+    "ticker": "LINDEINDIA",
+    "name": "Linde India Limited",
+    "isin": "INE473A01011",
+    "instrument_key": "NSE_EQ|INE473A01011",
+    "industry": "Industrial Gases",
+    "is_index": false
+  },
+  {
+    "symbol": "CGPOWER.NS",
+    "ticker": "CGPOWER",
+    "name": "CG Power and Industrial Solutions Limited",
+    "isin": "INE067A01029",
+    "instrument_key": "NSE_EQ|INE067A01029",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "PIDILITIND.NS",
+    "ticker": "PIDILITIND",
+    "name": "Pidilite Industries Limited",
+    "isin": "INE318A01026",
+    "instrument_key": "NSE_EQ|INE318A01026",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "RAMCOCEM.NS",
+    "ticker": "RAMCOCEM",
+    "name": "The Ramco Cements Limited",
+    "isin": "INE331A01037",
+    "instrument_key": "NSE_EQ|INE331A01037",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "HINDALCO.NS",
+    "ticker": "HINDALCO",
+    "name": "Hindalco Industries Limited",
+    "isin": "INE038A01020",
+    "instrument_key": "NSE_EQ|INE038A01020",
+    "industry": "Aluminium",
+    "is_index": false
+  },
+  {
+    "symbol": "LICHSGFIN.NS",
+    "ticker": "LICHSGFIN",
+    "name": "LIC Housing Finance Limited",
+    "isin": "INE115A01026",
+    "instrument_key": "NSE_EQ|INE115A01026",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "MARUTI.NS",
+    "ticker": "MARUTI",
+    "name": "Maruti Suzuki India Limited",
+    "isin": "INE585B01010",
+    "instrument_key": "NSE_EQ|INE585B01010",
+    "industry": "Passenger Cars & Utility Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "IRCON.NS",
+    "ticker": "IRCON",
+    "name": "Ircon International Limited",
+    "isin": "INE962Y01021",
+    "instrument_key": "NSE_EQ|INE962Y01021",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "NSLNISP.NS",
+    "ticker": "NSLNISP",
+    "name": "NMDC Steel Limited",
+    "isin": "INE0NNS01018",
+    "instrument_key": "NSE_EQ|INE0NNS01018",
+    "industry": "Iron & Steel",
+    "is_index": false
+  },
+  {
+    "symbol": "AIIL.NS",
+    "ticker": "AIIL",
+    "name": "Authum Investment & Infrastructure Limited",
+    "isin": "INE206F01022",
+    "instrument_key": "NSE_EQ|INE206F01022",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "PFIZER.NS",
+    "ticker": "PFIZER",
+    "name": "Pfizer Limited",
+    "isin": "INE182A01018",
+    "instrument_key": "NSE_EQ|INE182A01018",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "JSWENERGY.NS",
+    "ticker": "JSWENERGY",
+    "name": "JSW Energy Limited",
+    "isin": "INE121E01018",
+    "instrument_key": "NSE_EQ|INE121E01018",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "GODFRYPHLP.NS",
+    "ticker": "GODFRYPHLP",
+    "name": "Godfrey Phillips India Limited",
+    "isin": "INE260B01028",
+    "instrument_key": "NSE_EQ|INE260B01028",
+    "industry": "Cigarettes & Tobacco Products",
+    "is_index": false
+  },
+  {
+    "symbol": "BASF.NS",
+    "ticker": "BASF",
+    "name": "BASF India Limited",
+    "isin": "INE373A01013",
+    "instrument_key": "NSE_EQ|INE373A01013",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "HFCL.NS",
+    "ticker": "HFCL",
+    "name": "HFCL Limited",
+    "isin": "INE548A01028",
+    "instrument_key": "NSE_EQ|INE548A01028",
+    "industry": "Telecom - Infrastructure",
+    "is_index": false
+  },
+  {
+    "symbol": "OIL.NS",
+    "ticker": "OIL",
+    "name": "Oil India Limited",
+    "isin": "INE274J01014",
+    "instrument_key": "NSE_EQ|INE274J01014",
+    "industry": "Oil Exploration & Production",
+    "is_index": false
+  },
+  {
+    "symbol": "KALYANKJIL.NS",
+    "ticker": "KALYANKJIL",
+    "name": "Kalyan Jewellers India Limited",
+    "isin": "INE303R01014",
+    "instrument_key": "NSE_EQ|INE303R01014",
+    "industry": "Gems Jewellery And Watches",
+    "is_index": false
+  },
+  {
+    "symbol": "IFCI.NS",
+    "ticker": "IFCI",
+    "name": "IFCI Limited",
+    "isin": "INE039A01010",
+    "instrument_key": "NSE_EQ|INE039A01010",
+    "industry": "Financial Institution",
+    "is_index": false
+  },
+  {
+    "symbol": "NUVOCO.NS",
+    "ticker": "NUVOCO",
+    "name": "Nuvoco Vistas Corporation Limited",
+    "isin": "INE118D01016",
+    "instrument_key": "NSE_EQ|INE118D01016",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "LLOYDSME.NS",
+    "ticker": "LLOYDSME",
+    "name": "Lloyds Metals And Energy Limited",
+    "isin": "INE281B01032",
+    "instrument_key": "NSE_EQ|INE281B01032",
+    "industry": "Industrial Minerals",
+    "is_index": false
+  },
+  {
+    "symbol": "BBTC.NS",
+    "ticker": "BBTC",
+    "name": "Bombay Burmah Trading Corporation Limited",
+    "isin": "INE050A01025",
+    "instrument_key": "NSE_EQ|INE050A01025",
+    "industry": "Packaged Foods",
+    "is_index": false
+  },
+  {
+    "symbol": "DRREDDY.NS",
+    "ticker": "DRREDDY",
+    "name": "Dr. Reddy's Laboratories Limited",
+    "isin": "INE089A01031",
+    "instrument_key": "NSE_EQ|INE089A01031",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "POONAWALLA.NS",
+    "ticker": "POONAWALLA",
+    "name": "Poonawalla Fincorp Limited",
+    "isin": "INE511C01022",
+    "instrument_key": "NSE_EQ|INE511C01022",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "TTML.NS",
+    "ticker": "TTML",
+    "name": "Tata Teleservices (Maharashtra) Limited",
+    "isin": "INE517B01013",
+    "instrument_key": "NSE_EQ|INE517B01013",
+    "industry": "Telecom - Cellular & Fixed line services",
+    "is_index": false
+  },
+  {
+    "symbol": "MAHSEAMLES.NS",
+    "ticker": "MAHSEAMLES",
+    "name": "Maharashtra Seamless Limited",
+    "isin": "INE271B01025",
+    "instrument_key": "NSE_EQ|INE271B01025",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "IRCTC.NS",
+    "ticker": "IRCTC",
+    "name": "Indian Railway Catering And Tourism Corporation Limited",
+    "isin": "INE335Y01020",
+    "instrument_key": "NSE_EQ|INE335Y01020",
+    "industry": "Tour Travel Related Services",
+    "is_index": false
+  },
+  {
+    "symbol": "ETERNAL.NS",
+    "ticker": "ETERNAL",
+    "name": "ETERNAL LIMITED",
+    "isin": "INE758T01015",
+    "instrument_key": "NSE_EQ|INE758T01015",
+    "industry": "E-Retail/ E-Commerce",
+    "is_index": false
+  },
+  {
+    "symbol": "JUBLINGREA.NS",
+    "ticker": "JUBLINGREA",
+    "name": "Jubilant Ingrevia Limited",
+    "isin": "INE0BY001018",
+    "instrument_key": "NSE_EQ|INE0BY001018",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "FACT.NS",
+    "ticker": "FACT",
+    "name": "Fertilizers and Chemicals Travancore Limited",
+    "isin": "INE188A01015",
+    "instrument_key": "NSE_EQ|INE188A01015",
+    "industry": "Fertilizers",
+    "is_index": false
+  },
+  {
+    "symbol": "AMBUJACEM.NS",
+    "ticker": "AMBUJACEM",
+    "name": "Ambuja Cements Limited",
+    "isin": "INE079A01024",
+    "instrument_key": "NSE_EQ|INE079A01024",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ASHOKLEY.NS",
+    "ticker": "ASHOKLEY",
+    "name": "Ashok Leyland Limited",
+    "isin": "INE208A01029",
+    "instrument_key": "NSE_EQ|INE208A01029",
+    "industry": "Commercial Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "PTCIL.NS",
+    "ticker": "PTCIL",
+    "name": "PTC Industries Limited",
+    "isin": "INE596F01018",
+    "instrument_key": "NSE_EQ|INE596F01018",
+    "industry": "Other Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "POLYMED.NS",
+    "ticker": "POLYMED",
+    "name": "Poly Medicure Limited",
+    "isin": "INE205C01021",
+    "instrument_key": "NSE_EQ|INE205C01021",
+    "industry": "Medical Equipment & Supplies",
+    "is_index": false
+  },
+  {
+    "symbol": "BAJAJHFL.NS",
+    "ticker": "BAJAJHFL",
+    "name": "Bajaj Housing Finance Limited",
+    "isin": "INE377Y01014",
+    "instrument_key": "NSE_EQ|INE377Y01014",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "DLF.NS",
+    "ticker": "DLF",
+    "name": "DLF Limited",
+    "isin": "INE271C01023",
+    "instrument_key": "NSE_EQ|INE271C01023",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "SRF.NS",
+    "ticker": "SRF",
+    "name": "SRF Limited",
+    "isin": "INE647A01010",
+    "instrument_key": "NSE_EQ|INE647A01010",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "LT.NS",
+    "ticker": "LT",
+    "name": "Larsen & Toubro Limited",
+    "isin": "INE018A01030",
+    "instrument_key": "NSE_EQ|INE018A01030",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "HINDUNILVR.NS",
+    "ticker": "HINDUNILVR",
+    "name": "Hindustan Unilever Limited",
+    "isin": "INE030A01027",
+    "instrument_key": "NSE_EQ|INE030A01027",
+    "industry": "Diversified FMCG",
+    "is_index": false
+  },
+  {
+    "symbol": "SBICARD.NS",
+    "ticker": "SBICARD",
+    "name": "SBI Cards and Payment Services Limited",
+    "isin": "INE018E01016",
+    "instrument_key": "NSE_EQ|INE018E01016",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "GUJGASLTD.NS",
+    "ticker": "GUJGASLTD",
+    "name": "Gujarat Gas Limited",
+    "isin": "INE844O01030",
+    "instrument_key": "NSE_EQ|INE844O01030",
+    "industry": "LPG/CNG/PNG/LNG Supplier",
+    "is_index": false
+  },
+  {
+    "symbol": "RHIM.NS",
+    "ticker": "RHIM",
+    "name": "RHI MAGNESITA INDIA LIMITED",
+    "isin": "INE743M01012",
+    "instrument_key": "NSE_EQ|INE743M01012",
+    "industry": "Electrodes & Refractories",
+    "is_index": false
+  },
+  {
+    "symbol": "PAGEIND.NS",
+    "ticker": "PAGEIND",
+    "name": "Page Industries Limited",
+    "isin": "INE761H01022",
+    "instrument_key": "NSE_EQ|INE761H01022",
+    "industry": "Garments & Apparels",
+    "is_index": false
+  },
+  {
+    "symbol": "HDFCBANK.NS",
+    "ticker": "HDFCBANK",
+    "name": "HDFC Bank Limited",
+    "isin": "INE040A01034",
+    "instrument_key": "NSE_EQ|INE040A01034",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "BAJAJ-AUTO.NS",
+    "ticker": "BAJAJ-AUTO",
+    "name": "Bajaj Auto Limited",
+    "isin": "INE917I01010",
+    "instrument_key": "NSE_EQ|INE917I01010",
+    "industry": "2/3 Wheelers",
+    "is_index": false
+  },
+  {
+    "symbol": "SAMMAANCAP.NS",
+    "ticker": "SAMMAANCAP",
+    "name": "Sammaan Capital Limited",
+    "isin": "INE148I01020",
+    "instrument_key": "NSE_EQ|INE148I01020",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "TRIDENT.NS",
+    "ticker": "TRIDENT",
+    "name": "Trident Limited",
+    "isin": "INE064C01022",
+    "instrument_key": "NSE_EQ|INE064C01022",
+    "industry": "Other Textile Products",
+    "is_index": false
+  },
+  {
+    "symbol": "COROMANDEL.NS",
+    "ticker": "COROMANDEL",
+    "name": "Coromandel International Limited",
+    "isin": "INE169A01031",
+    "instrument_key": "NSE_EQ|INE169A01031",
+    "industry": "Fertilizers",
+    "is_index": false
+  },
+  {
+    "symbol": "SCHAEFFLER.NS",
+    "ticker": "SCHAEFFLER",
+    "name": "Schaeffler India Limited",
+    "isin": "INE513A01022",
+    "instrument_key": "NSE_EQ|INE513A01022",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "NCC.NS",
+    "ticker": "NCC",
+    "name": "NCC Limited",
+    "isin": "INE868B01028",
+    "instrument_key": "NSE_EQ|INE868B01028",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "NYKAA.NS",
+    "ticker": "NYKAA",
+    "name": "FSN E-Commerce Ventures Limited",
+    "isin": "INE388Y01029",
+    "instrument_key": "NSE_EQ|INE388Y01029",
+    "industry": "E-Retail/ E-Commerce",
+    "is_index": false
+  },
+  {
+    "symbol": "LALPATHLAB.NS",
+    "ticker": "LALPATHLAB",
+    "name": "Dr. Lal Path Labs Ltd.",
+    "isin": "INE600L01024",
+    "instrument_key": "NSE_EQ|INE600L01024",
+    "industry": "Healthcare Service Provider",
+    "is_index": false
+  },
+  {
+    "symbol": "DATAPATTNS.NS",
+    "ticker": "DATAPATTNS",
+    "name": "Data Patterns (India) Limited",
+    "isin": "INE0IX101010",
+    "instrument_key": "NSE_EQ|INE0IX101010",
+    "industry": "Aerospace & Defense",
+    "is_index": false
+  },
+  {
+    "symbol": "AEGISLOG.NS",
+    "ticker": "AEGISLOG",
+    "name": "Aegis Logistics Limited",
+    "isin": "INE208C01025",
+    "instrument_key": "NSE_EQ|INE208C01025",
+    "industry": "Trading - Gas",
+    "is_index": false
+  },
+  {
+    "symbol": "PPLPHARMA.NS",
+    "ticker": "PPLPHARMA",
+    "name": "Piramal Pharma Limited",
+    "isin": "INE0DK501011",
+    "instrument_key": "NSE_EQ|INE0DK501011",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "AEGISVOPAK.NS",
+    "ticker": "AEGISVOPAK",
+    "name": "Aegis Vopak Terminals Limited",
+    "isin": "INE0INX01018",
+    "instrument_key": "NSE_EQ|INE0INX01018",
+    "industry": "Oil Storage & Transportation",
+    "is_index": false
+  },
+  {
+    "symbol": "RKFORGE.NS",
+    "ticker": "RKFORGE",
+    "name": "Ramkrishna Forgings Limited",
+    "isin": "INE399G01023",
+    "instrument_key": "NSE_EQ|INE399G01023",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "PGHH.NS",
+    "ticker": "PGHH",
+    "name": "Procter & Gamble Hygiene and Health Care Limited",
+    "isin": "INE179A01014",
+    "instrument_key": "NSE_EQ|INE179A01014",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "VIJAYA.NS",
+    "ticker": "VIJAYA",
+    "name": "Vijaya Diagnostic Centre Limited",
+    "isin": "INE043W01024",
+    "instrument_key": "NSE_EQ|INE043W01024",
+    "industry": "Healthcare Service Provider",
+    "is_index": false
+  },
+  {
+    "symbol": "VBL.NS",
+    "ticker": "VBL",
+    "name": "Varun Beverages Limited",
+    "isin": "INE200M01039",
+    "instrument_key": "NSE_EQ|INE200M01039",
+    "industry": "Other Beverages",
+    "is_index": false
+  },
+  {
+    "symbol": "ADANIGREEN.NS",
+    "ticker": "ADANIGREEN",
+    "name": "Adani Green Energy Limited",
+    "isin": "INE364U01010",
+    "instrument_key": "NSE_EQ|INE364U01010",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "PVRINOX.NS",
+    "ticker": "PVRINOX",
+    "name": "PVR INOX Limited",
+    "isin": "INE191H01014",
+    "instrument_key": "NSE_EQ|INE191H01014",
+    "industry": "Film Production Distribution & Exhibition",
+    "is_index": false
+  },
+  {
+    "symbol": "TITAN.NS",
+    "ticker": "TITAN",
+    "name": "Titan Company Limited",
+    "isin": "INE280A01028",
+    "instrument_key": "NSE_EQ|INE280A01028",
+    "industry": "Gems Jewellery And Watches",
+    "is_index": false
+  },
+  {
+    "symbol": "BHARATFORG.NS",
+    "ticker": "BHARATFORG",
+    "name": "Bharat Forge Limited",
+    "isin": "INE465A01025",
+    "instrument_key": "NSE_EQ|INE465A01025",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "SHREECEM.NS",
+    "ticker": "SHREECEM",
+    "name": "SHREE CEMENT LIMITED",
+    "isin": "INE070A01015",
+    "instrument_key": "NSE_EQ|INE070A01015",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ADANIENSOL.NS",
+    "ticker": "ADANIENSOL",
+    "name": "Adani Energy Solutions Limited",
+    "isin": "INE931S01010",
+    "instrument_key": "NSE_EQ|INE931S01010",
+    "industry": "Power Distribution",
+    "is_index": false
+  },
+  {
+    "symbol": "CUB.NS",
+    "ticker": "CUB",
+    "name": "City Union Bank Limited",
+    "isin": "INE491A01021",
+    "instrument_key": "NSE_EQ|INE491A01021",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "360ONE.NS",
+    "ticker": "360ONE",
+    "name": "360 ONE WAM LIMITED",
+    "isin": "INE466L01038",
+    "instrument_key": "NSE_EQ|INE466L01038",
+    "industry": "Stockbroking & Allied",
+    "is_index": false
+  },
+  {
+    "symbol": "AGARWALEYE.NS",
+    "ticker": "AGARWALEYE",
+    "name": "Dr. Agarwal's Health Care Limited",
+    "isin": "INE943P01029",
+    "instrument_key": "NSE_EQ|INE943P01029",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "APTUS.NS",
+    "ticker": "APTUS",
+    "name": "Aptus Value Housing Finance India Limited",
+    "isin": "INE852O01025",
+    "instrument_key": "NSE_EQ|INE852O01025",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "INTELLECT.NS",
+    "ticker": "INTELLECT",
+    "name": "Intellect Design Arena Limited",
+    "isin": "INE306R01017",
+    "instrument_key": "NSE_EQ|INE306R01017",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "JPPOWER.NS",
+    "ticker": "JPPOWER",
+    "name": "Jaiprakash Power Ventures Limited",
+    "isin": "INE351F01018",
+    "instrument_key": "NSE_EQ|INE351F01018",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "NESTLEIND.NS",
+    "ticker": "NESTLEIND",
+    "name": "Nestle India Limited",
+    "isin": "INE239A01024",
+    "instrument_key": "NSE_EQ|INE239A01024",
+    "industry": "Packaged Foods",
+    "is_index": false
+  },
+  {
+    "symbol": "LTFOODS.NS",
+    "ticker": "LTFOODS",
+    "name": "LT Foods Limited",
+    "isin": "INE818H01020",
+    "instrument_key": "NSE_EQ|INE818H01020",
+    "industry": "Other Agricultural Products",
+    "is_index": false
+  },
+  {
+    "symbol": "AFCONS.NS",
+    "ticker": "AFCONS",
+    "name": "Afcons Infrastructure Limited",
+    "isin": "INE101I01011",
+    "instrument_key": "NSE_EQ|INE101I01011",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "BRIGADE.NS",
+    "ticker": "BRIGADE",
+    "name": "Brigade Enterprises Limited",
+    "isin": "INE791I01019",
+    "instrument_key": "NSE_EQ|INE791I01019",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "DALBHARAT.NS",
+    "ticker": "DALBHARAT",
+    "name": "Dalmia Bharat Limited",
+    "isin": "INE00R701025",
+    "instrument_key": "NSE_EQ|INE00R701025",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ANANTRAJ.NS",
+    "ticker": "ANANTRAJ",
+    "name": "Anant Raj Limited",
+    "isin": "INE242C01024",
+    "instrument_key": "NSE_EQ|INE242C01024",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "NIACL.NS",
+    "ticker": "NIACL",
+    "name": "The New India Assurance Company Limited",
+    "isin": "INE470Y01017",
+    "instrument_key": "NSE_EQ|INE470Y01017",
+    "industry": "General Insurance",
+    "is_index": false
+  },
+  {
+    "symbol": "ZENSARTECH.NS",
+    "ticker": "ZENSARTECH",
+    "name": "Zensar Technologies Limited",
+    "isin": "INE520A01027",
+    "instrument_key": "NSE_EQ|INE520A01027",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "DEEPAKFERT.NS",
+    "ticker": "DEEPAKFERT",
+    "name": "Deepak Fertilizers and Petrochemicals Corporation Limited",
+    "isin": "INE501A01019",
+    "instrument_key": "NSE_EQ|INE501A01019",
+    "industry": "Commodity Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "EIHOTEL.NS",
+    "ticker": "EIHOTEL",
+    "name": "EIH Limited",
+    "isin": "INE230A01023",
+    "instrument_key": "NSE_EQ|INE230A01023",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "COLPAL.NS",
+    "ticker": "COLPAL",
+    "name": "Colgate Palmolive (India) Limited",
+    "isin": "INE259A01022",
+    "instrument_key": "NSE_EQ|INE259A01022",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "TATATECH.NS",
+    "ticker": "TATATECH",
+    "name": "Tata Technologies Limited",
+    "isin": "INE142M01025",
+    "instrument_key": "NSE_EQ|INE142M01025",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "ITI.NS",
+    "ticker": "ITI",
+    "name": "ITI Limited",
+    "isin": "INE248A01017",
+    "instrument_key": "NSE_EQ|INE248A01017",
+    "industry": "Telecom - Equipment & Accessories",
+    "is_index": false
+  },
+  {
+    "symbol": "AXISBANK.NS",
+    "ticker": "AXISBANK",
+    "name": "Axis Bank Limited",
+    "isin": "INE238A01034",
+    "instrument_key": "NSE_EQ|INE238A01034",
+    "industry": "Private Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "SUPREMEIND.NS",
+    "ticker": "SUPREMEIND",
+    "name": "Supreme Industries Limited",
+    "isin": "INE195A01028",
+    "instrument_key": "NSE_EQ|INE195A01028",
+    "industry": "Plastic Products - Industrial",
+    "is_index": false
+  },
+  {
+    "symbol": "DABUR.NS",
+    "ticker": "DABUR",
+    "name": "Dabur India Limited",
+    "isin": "INE016A01026",
+    "instrument_key": "NSE_EQ|INE016A01026",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "CROMPTON.NS",
+    "ticker": "CROMPTON",
+    "name": "Crompton Greaves Consumer Electricals Limited",
+    "isin": "INE299U01018",
+    "instrument_key": "NSE_EQ|INE299U01018",
+    "industry": "Household Appliances",
+    "is_index": false
+  },
+  {
+    "symbol": "NUVAMA.NS",
+    "ticker": "NUVAMA",
+    "name": "Nuvama Wealth Management Limited",
+    "isin": "INE531F01023",
+    "instrument_key": "NSE_EQ|INE531F01023",
+    "industry": "Stockbroking & Allied",
+    "is_index": false
+  },
+  {
+    "symbol": "HONAUT.NS",
+    "ticker": "HONAUT",
+    "name": "Honeywell Automation India Limited",
+    "isin": "INE671A01010",
+    "instrument_key": "NSE_EQ|INE671A01010",
+    "industry": "Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "PRAJIND.NS",
+    "ticker": "PRAJIND",
+    "name": "Praj Industries Limited",
+    "isin": "INE074A01025",
+    "instrument_key": "NSE_EQ|INE074A01025",
+    "industry": "Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "VENTIVE.NS",
+    "ticker": "VENTIVE",
+    "name": "Ventive Hospitality Limited",
+    "isin": "INE781S01027",
+    "instrument_key": "NSE_EQ|INE781S01027",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "KPITTECH.NS",
+    "ticker": "KPITTECH",
+    "name": "KPIT Technologies Limited",
+    "isin": "INE04I401011",
+    "instrument_key": "NSE_EQ|INE04I401011",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "MARICO.NS",
+    "ticker": "MARICO",
+    "name": "Marico Limited",
+    "isin": "INE196A01026",
+    "instrument_key": "NSE_EQ|INE196A01026",
+    "industry": "Edible Oil",
+    "is_index": false
+  },
+  {
+    "symbol": "CANFINHOME.NS",
+    "ticker": "CANFINHOME",
+    "name": "Can Fin Homes Limited",
+    "isin": "INE477A01020",
+    "instrument_key": "NSE_EQ|INE477A01020",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "NH.NS",
+    "ticker": "NH",
+    "name": "Narayana Hrudayalaya Ltd.",
+    "isin": "INE410P01011",
+    "instrument_key": "NSE_EQ|INE410P01011",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "HOMEFIRST.NS",
+    "ticker": "HOMEFIRST",
+    "name": "Home First Finance Company India Limited",
+    "isin": "INE481N01025",
+    "instrument_key": "NSE_EQ|INE481N01025",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "RAILTEL.NS",
+    "ticker": "RAILTEL",
+    "name": "Railtel Corporation Of India Limited",
+    "isin": "INE0DD101019",
+    "instrument_key": "NSE_EQ|INE0DD101019",
+    "industry": "Other Telecom Services",
+    "is_index": false
+  },
+  {
+    "symbol": "LODHA.NS",
+    "ticker": "LODHA",
+    "name": "Lodha Developers Limited",
+    "isin": "INE670K01029",
+    "instrument_key": "NSE_EQ|INE670K01029",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "GRSE.NS",
+    "ticker": "GRSE",
+    "name": "Garden Reach Shipbuilders & Engineers Limited",
+    "isin": "INE382Z01011",
+    "instrument_key": "NSE_EQ|INE382Z01011",
+    "industry": "Aerospace & Defense",
+    "is_index": false
+  },
+  {
+    "symbol": "SWIGGY.NS",
+    "ticker": "SWIGGY",
+    "name": "Swiggy Limited",
+    "isin": "INE00H001014",
+    "instrument_key": "NSE_EQ|INE00H001014",
+    "industry": "E-Retail/ E-Commerce",
+    "is_index": false
+  },
+  {
+    "symbol": "HEROMOTOCO.NS",
+    "ticker": "HEROMOTOCO",
+    "name": "Hero MotoCorp Limited",
+    "isin": "INE158A01026",
+    "instrument_key": "NSE_EQ|INE158A01026",
+    "industry": "2/3 Wheelers",
+    "is_index": false
+  },
+  {
+    "symbol": "ULTRACEMCO.NS",
+    "ticker": "ULTRACEMCO",
+    "name": "UltraTech Cement Limited",
+    "isin": "INE481G01011",
+    "instrument_key": "NSE_EQ|INE481G01011",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "AWL.NS",
+    "ticker": "AWL",
+    "name": "AWL Agri Business Limited",
+    "isin": "INE699H01024",
+    "instrument_key": "NSE_EQ|INE699H01024",
+    "industry": "Edible Oil",
+    "is_index": false
+  },
+  {
+    "symbol": "TMPV.NS",
+    "ticker": "TMPV",
+    "name": "Tata Motors Passenger Vehicles Limited",
+    "isin": "INE155A01022",
+    "instrument_key": "NSE_EQ|INE155A01022",
+    "industry": "Passenger Cars & Utility Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "FINCABLES.NS",
+    "ticker": "FINCABLES",
+    "name": "Finolex Cables Limited",
+    "isin": "INE235A01022",
+    "instrument_key": "NSE_EQ|INE235A01022",
+    "industry": "Cables - Electricals",
+    "is_index": false
+  },
+  {
+    "symbol": "JYOTHYLAB.NS",
+    "ticker": "JYOTHYLAB",
+    "name": "Jyothy Labs Limited",
+    "isin": "INE668F01031",
+    "instrument_key": "NSE_EQ|INE668F01031",
+    "industry": "Household Products",
+    "is_index": false
+  },
+  {
+    "symbol": "NEWGEN.NS",
+    "ticker": "NEWGEN",
+    "name": "Newgen Software Technologies Limited",
+    "isin": "INE619B01017",
+    "instrument_key": "NSE_EQ|INE619B01017",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "ASTRAL.NS",
+    "ticker": "ASTRAL",
+    "name": "Astral Limited",
+    "isin": "INE006I01046",
+    "instrument_key": "NSE_EQ|INE006I01046",
+    "industry": "Plastic Products - Industrial",
+    "is_index": false
+  },
+  {
+    "symbol": "ABSLAMC.NS",
+    "ticker": "ABSLAMC",
+    "name": "Aditya Birla Sun Life AMC Limited",
+    "isin": "INE404A01024",
+    "instrument_key": "NSE_EQ|INE404A01024",
+    "industry": "Asset Management Company",
+    "is_index": false
+  },
+  {
+    "symbol": "TCS.NS",
+    "ticker": "TCS",
+    "name": "Tata Consultancy Services Limited",
+    "isin": "INE467B01029",
+    "instrument_key": "NSE_EQ|INE467B01029",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "EMCURE.NS",
+    "ticker": "EMCURE",
+    "name": "Emcure Pharmaceuticals Limited",
+    "isin": "INE168P01015",
+    "instrument_key": "NSE_EQ|INE168P01015",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "BOSCHLTD.NS",
+    "ticker": "BOSCHLTD",
+    "name": "Bosch Limited",
+    "isin": "INE323A01026",
+    "instrument_key": "NSE_EQ|INE323A01026",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "JBMA.NS",
+    "ticker": "JBMA",
+    "name": "JBM Auto Limited",
+    "isin": "INE927D01051",
+    "instrument_key": "NSE_EQ|INE927D01051",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "RITES.NS",
+    "ticker": "RITES",
+    "name": "RITES Limited",
+    "isin": "INE320J01015",
+    "instrument_key": "NSE_EQ|INE320J01015",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "CUMMINSIND.NS",
+    "ticker": "CUMMINSIND",
+    "name": "Cummins India Limited",
+    "isin": "INE298A01020",
+    "instrument_key": "NSE_EQ|INE298A01020",
+    "industry": "Compressors Pumps & Diesel Engines",
+    "is_index": false
+  },
+  {
+    "symbol": "INOXWIND.NS",
+    "ticker": "INOXWIND",
+    "name": "Inox Wind Limited",
+    "isin": "INE066P01011",
+    "instrument_key": "NSE_EQ|INE066P01011",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "CGCL.NS",
+    "ticker": "CGCL",
+    "name": "Capri Global Capital Limited",
+    "isin": "INE180C01042",
+    "instrument_key": "NSE_EQ|INE180C01042",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "SBIN.NS",
+    "ticker": "SBIN",
+    "name": "State Bank of India",
+    "isin": "INE062A01020",
+    "instrument_key": "NSE_EQ|INE062A01020",
+    "industry": "Public Sector Bank",
+    "is_index": false
+  },
+  {
+    "symbol": "CESC.NS",
+    "ticker": "CESC",
+    "name": "CESC Limited",
+    "isin": "INE486A01021",
+    "instrument_key": "NSE_EQ|INE486A01021",
+    "industry": "Integrated Power Utilities",
+    "is_index": false
+  },
+  {
+    "symbol": "BALKRISIND.NS",
+    "ticker": "BALKRISIND",
+    "name": "Balkrishna Industries Limited",
+    "isin": "INE787D01026",
+    "instrument_key": "NSE_EQ|INE787D01026",
+    "industry": "Tyres & Rubber Products",
+    "is_index": false
+  },
+  {
+    "symbol": "SUMICHEM.NS",
+    "ticker": "SUMICHEM",
+    "name": "Sumitomo Chemical India Limited",
+    "isin": "INE258G01013",
+    "instrument_key": "NSE_EQ|INE258G01013",
+    "industry": "Pesticides & Agrochemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "CONCORDBIO.NS",
+    "ticker": "CONCORDBIO",
+    "name": "Concord Biotech Limited",
+    "isin": "INE338H01029",
+    "instrument_key": "NSE_EQ|INE338H01029",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "MMTC.NS",
+    "ticker": "MMTC",
+    "name": "MMTC Limited",
+    "isin": "INE123F01029",
+    "instrument_key": "NSE_EQ|INE123F01029",
+    "industry": "Trading & Distributors",
+    "is_index": false
+  },
+  {
+    "symbol": "POLYCAB.NS",
+    "ticker": "POLYCAB",
+    "name": "Polycab India Limited",
+    "isin": "INE455K01017",
+    "instrument_key": "NSE_EQ|INE455K01017",
+    "industry": "Cables - Electricals",
+    "is_index": false
+  },
+  {
+    "symbol": "UNOMINDA.NS",
+    "ticker": "UNOMINDA",
+    "name": "UNO Minda Limited",
+    "isin": "INE405E01023",
+    "instrument_key": "NSE_EQ|INE405E01023",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "EXIDEIND.NS",
+    "ticker": "EXIDEIND",
+    "name": "Exide Industries Limited",
+    "isin": "INE302A01020",
+    "instrument_key": "NSE_EQ|INE302A01020",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "DEEPAKNTR.NS",
+    "ticker": "DEEPAKNTR",
+    "name": "Deepak Nitrite Limited",
+    "isin": "INE288B01029",
+    "instrument_key": "NSE_EQ|INE288B01029",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "NTPCGREEN.NS",
+    "ticker": "NTPCGREEN",
+    "name": "NTPC Green Energy Limited",
+    "isin": "INE0ONG01011",
+    "instrument_key": "NSE_EQ|INE0ONG01011",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "ITC.NS",
+    "ticker": "ITC",
+    "name": "ITC Limited",
+    "isin": "INE154A01025",
+    "instrument_key": "NSE_EQ|INE154A01025",
+    "industry": "Diversified FMCG",
+    "is_index": false
+  },
+  {
+    "symbol": "WHIRLPOOL.NS",
+    "ticker": "WHIRLPOOL",
+    "name": "Whirlpool of India Limited",
+    "isin": "INE716A01013",
+    "instrument_key": "NSE_EQ|INE716A01013",
+    "industry": "Household Appliances",
+    "is_index": false
+  },
+  {
+    "symbol": "INDHOTEL.NS",
+    "ticker": "INDHOTEL",
+    "name": "The Indian Hotels Company Limited",
+    "isin": "INE053A01029",
+    "instrument_key": "NSE_EQ|INE053A01029",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "SYNGENE.NS",
+    "ticker": "SYNGENE",
+    "name": "Syngene International Limited",
+    "isin": "INE398R01022",
+    "instrument_key": "NSE_EQ|INE398R01022",
+    "industry": "Healthcare Research Analytics & Technology",
+    "is_index": false
+  },
+  {
+    "symbol": "GLAXO.NS",
+    "ticker": "GLAXO",
+    "name": "GlaxoSmithKline Pharmaceuticals Limited",
+    "isin": "INE159A01016",
+    "instrument_key": "NSE_EQ|INE159A01016",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "KPIL.NS",
+    "ticker": "KPIL",
+    "name": "Kalpataru Projects International Limited",
+    "isin": "INE220B01022",
+    "instrument_key": "NSE_EQ|INE220B01022",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "ZEEL.NS",
+    "ticker": "ZEEL",
+    "name": "Zee Entertainment Enterprises Limited",
+    "isin": "INE256A01028",
+    "instrument_key": "NSE_EQ|INE256A01028",
+    "industry": "TV Broadcasting & Software Production",
+    "is_index": false
+  },
+  {
+    "symbol": "ATGL.NS",
+    "ticker": "ATGL",
+    "name": "Adani Total Gas Limited",
+    "isin": "INE399L01023",
+    "instrument_key": "NSE_EQ|INE399L01023",
+    "industry": "LPG/CNG/PNG/LNG Supplier",
+    "is_index": false
+  },
+  {
+    "symbol": "NLCINDIA.NS",
+    "ticker": "NLCINDIA",
+    "name": "NLC India Limited",
+    "isin": "INE589A01014",
+    "instrument_key": "NSE_EQ|INE589A01014",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "HSCL.NS",
+    "ticker": "HSCL",
+    "name": "Himadri Speciality Chemical Limited",
+    "isin": "INE019C01026",
+    "instrument_key": "NSE_EQ|INE019C01026",
+    "industry": "Carbon Black",
+    "is_index": false
+  },
+  {
+    "symbol": "IRB.NS",
+    "ticker": "IRB",
+    "name": "IRB Infrastructure Developers Limited",
+    "isin": "INE821I01022",
+    "instrument_key": "NSE_EQ|INE821I01022",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "ALOKINDS.NS",
+    "ticker": "ALOKINDS",
+    "name": "Alok Industries Limited",
+    "isin": "INE270A01029",
+    "instrument_key": "NSE_EQ|INE270A01029",
+    "industry": "Other Textile Products",
+    "is_index": false
+  },
+  {
+    "symbol": "MANAPPURAM.NS",
+    "ticker": "MANAPPURAM",
+    "name": "Manappuram Finance Limited",
+    "isin": "INE522D01027",
+    "instrument_key": "NSE_EQ|INE522D01027",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "ELECON.NS",
+    "ticker": "ELECON",
+    "name": "Elecon Engineering Company Limited",
+    "isin": "INE205B01031",
+    "instrument_key": "NSE_EQ|INE205B01031",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "PERSISTENT.NS",
+    "ticker": "PERSISTENT",
+    "name": "Persistent Systems Limited",
+    "isin": "INE262H01021",
+    "instrument_key": "NSE_EQ|INE262H01021",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "MANYAVAR.NS",
+    "ticker": "MANYAVAR",
+    "name": "Vedant Fashions Limited",
+    "isin": "INE825V01034",
+    "instrument_key": "NSE_EQ|INE825V01034",
+    "industry": "Speciality Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "JSWINFRA.NS",
+    "ticker": "JSWINFRA",
+    "name": "JSW Infrastructure Limited",
+    "isin": "INE880J01026",
+    "instrument_key": "NSE_EQ|INE880J01026",
+    "industry": "Port & Port services",
+    "is_index": false
+  },
+  {
+    "symbol": "SKFINDIA.NS",
+    "ticker": "SKFINDIA",
+    "name": "SKF India Limited",
+    "isin": "INE640A01023",
+    "instrument_key": "NSE_EQ|INE640A01023",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "OLECTRA.NS",
+    "ticker": "OLECTRA",
+    "name": "Olectra Greentech Limited",
+    "isin": "INE260D01016",
+    "instrument_key": "NSE_EQ|INE260D01016",
+    "industry": "Passenger Cars & Utility Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "ADANIPOWER.NS",
+    "ticker": "ADANIPOWER",
+    "name": "Adani Power Limited",
+    "isin": "INE814H01029",
+    "instrument_key": "NSE_EQ|INE814H01029",
+    "industry": "Integrated Power Utilities",
+    "is_index": false
+  },
+  {
+    "symbol": "3MINDIA.NS",
+    "ticker": "3MINDIA",
+    "name": "3M India Limited",
+    "isin": "INE470A01017",
+    "instrument_key": "NSE_EQ|INE470A01017",
+    "industry": "Diversified",
+    "is_index": false
+  },
+  {
+    "symbol": "KPRMILL.NS",
+    "ticker": "KPRMILL",
+    "name": "K.P.R. Mill Limited",
+    "isin": "INE930H01031",
+    "instrument_key": "NSE_EQ|INE930H01031",
+    "industry": "Other Textile Products",
+    "is_index": false
+  },
+  {
+    "symbol": "HCLTECH.NS",
+    "ticker": "HCLTECH",
+    "name": "HCL Technologies Limited",
+    "isin": "INE860A01027",
+    "instrument_key": "NSE_EQ|INE860A01027",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "RRKABEL.NS",
+    "ticker": "RRKABEL",
+    "name": "R R Kabel Limited",
+    "isin": "INE777K01022",
+    "instrument_key": "NSE_EQ|INE777K01022",
+    "industry": "Cables - Electricals",
+    "is_index": false
+  },
+  {
+    "symbol": "JKCEMENT.NS",
+    "ticker": "JKCEMENT",
+    "name": "JK Cement Limited",
+    "isin": "INE823G01014",
+    "instrument_key": "NSE_EQ|INE823G01014",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ZENTEC.NS",
+    "ticker": "ZENTEC",
+    "name": "Zen Technologies Limited",
+    "isin": "INE251B01027",
+    "instrument_key": "NSE_EQ|INE251B01027",
+    "industry": "Aerospace & Defense",
+    "is_index": false
+  },
+  {
+    "symbol": "GODREJIND.NS",
+    "ticker": "GODREJIND",
+    "name": "Godrej Industries Limited",
+    "isin": "INE233A01035",
+    "instrument_key": "NSE_EQ|INE233A01035",
+    "industry": "Diversified",
+    "is_index": false
+  },
+  {
+    "symbol": "RELIANCE.NS",
+    "ticker": "RELIANCE",
+    "name": "Reliance Industries Limited",
+    "isin": "INE002A01018",
+    "instrument_key": "NSE_EQ|INE002A01018",
+    "industry": "Refineries & Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "CHAMBLFERT.NS",
+    "ticker": "CHAMBLFERT",
+    "name": "Chambal Fertilizers & Chemicals Limited",
+    "isin": "INE085A01013",
+    "instrument_key": "NSE_EQ|INE085A01013",
+    "industry": "Fertilizers",
+    "is_index": false
+  },
+  {
+    "symbol": "ONESOURCE.NS",
+    "ticker": "ONESOURCE",
+    "name": "Onesource Specialty Pharma Limited",
+    "isin": "INE013P01021",
+    "instrument_key": "NSE_EQ|INE013P01021",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "PNBHOUSING.NS",
+    "ticker": "PNBHOUSING",
+    "name": "PNB Housing Finance Limited",
+    "isin": "INE572E01012",
+    "instrument_key": "NSE_EQ|INE572E01012",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "JINDALSAW.NS",
+    "ticker": "JINDALSAW",
+    "name": "Jindal Saw Limited",
+    "isin": "INE324A01032",
+    "instrument_key": "NSE_EQ|INE324A01032",
+    "industry": "Iron & Steel Products",
+    "is_index": false
+  },
+  {
+    "symbol": "ELGIEQUIP.NS",
+    "ticker": "ELGIEQUIP",
+    "name": "Elgi Equipments Limited",
+    "isin": "INE285A01027",
+    "instrument_key": "NSE_EQ|INE285A01027",
+    "industry": "Compressors Pumps & Diesel Engines",
+    "is_index": false
+  },
+  {
+    "symbol": "TITAGARH.NS",
+    "ticker": "TITAGARH",
+    "name": "TITAGARH RAIL SYSTEMS LIMITED",
+    "isin": "INE615H01020",
+    "instrument_key": "NSE_EQ|INE615H01020",
+    "industry": "Railway Wagons",
+    "is_index": false
+  },
+  {
+    "symbol": "ARE&M.NS",
+    "ticker": "ARE&M",
+    "name": "Amara Raja Energy & Mobility Limited",
+    "isin": "INE885A01032",
+    "instrument_key": "NSE_EQ|INE885A01032",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "HAPPSTMNDS.NS",
+    "ticker": "HAPPSTMNDS",
+    "name": "Happiest Minds Technologies Limited",
+    "isin": "INE419U01012",
+    "instrument_key": "NSE_EQ|INE419U01012",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "MAHSCOOTER.NS",
+    "ticker": "MAHSCOOTER",
+    "name": "Maharashtra Scooters Limited",
+    "isin": "INE288A01013",
+    "instrument_key": "NSE_EQ|INE288A01013",
+    "industry": "Investment Company",
+    "is_index": false
+  },
+  {
+    "symbol": "ZFCVINDIA.NS",
+    "ticker": "ZFCVINDIA",
+    "name": "ZF Commercial Vehicle Control Systems India Limited",
+    "isin": "INE342J01019",
+    "instrument_key": "NSE_EQ|INE342J01019",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "CHALET.NS",
+    "ticker": "CHALET",
+    "name": "Chalet Hotels Limited",
+    "isin": "INE427F01016",
+    "instrument_key": "NSE_EQ|INE427F01016",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "HYUNDAI.NS",
+    "ticker": "HYUNDAI",
+    "name": "Hyundai Motor India Limited",
+    "isin": "INE0V6F01027",
+    "instrument_key": "NSE_EQ|INE0V6F01027",
+    "industry": "Passenger Cars & Utility Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "BIKAJI.NS",
+    "ticker": "BIKAJI",
+    "name": "Bikaji Foods International Limited",
+    "isin": "INE00E101023",
+    "instrument_key": "NSE_EQ|INE00E101023",
+    "industry": "Packaged Foods",
+    "is_index": false
+  },
+  {
+    "symbol": "JUBLFOOD.NS",
+    "ticker": "JUBLFOOD",
+    "name": "Jubilant Foodworks Limited",
+    "isin": "INE797F01020",
+    "instrument_key": "NSE_EQ|INE797F01020",
+    "industry": "Restaurants",
+    "is_index": false
+  },
+  {
+    "symbol": "SUNDARMFIN.NS",
+    "ticker": "SUNDARMFIN",
+    "name": "Sundaram Finance Limited",
+    "isin": "INE660A01013",
+    "instrument_key": "NSE_EQ|INE660A01013",
+    "industry": "Non Banking Financial Company (NBFC)",
+    "is_index": false
+  },
+  {
+    "symbol": "TATAELXSI.NS",
+    "ticker": "TATAELXSI",
+    "name": "Tata Elxsi Limited",
+    "isin": "INE670A01012",
+    "instrument_key": "NSE_EQ|INE670A01012",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "TRENT.NS",
+    "ticker": "TRENT",
+    "name": "Trent Limited",
+    "isin": "INE849A01020",
+    "instrument_key": "NSE_EQ|INE849A01020",
+    "industry": "Speciality Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "JWL.NS",
+    "ticker": "JWL",
+    "name": "Jupiter Wagons Limited",
+    "isin": "INE209L01016",
+    "instrument_key": "NSE_EQ|INE209L01016",
+    "industry": "Railway Wagons",
+    "is_index": false
+  },
+  {
+    "symbol": "INDIAMART.NS",
+    "ticker": "INDIAMART",
+    "name": "Indiamart Intermesh Limited",
+    "isin": "INE933S01016",
+    "instrument_key": "NSE_EQ|INE933S01016",
+    "industry": "Internet & Catalogue Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "COFORGE.NS",
+    "ticker": "COFORGE",
+    "name": "Coforge Limited",
+    "isin": "INE591G01025",
+    "instrument_key": "NSE_EQ|INE591G01025",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "LTTS.NS",
+    "ticker": "LTTS",
+    "name": "L&T Technology Services Limited",
+    "isin": "INE010V01017",
+    "instrument_key": "NSE_EQ|INE010V01017",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "TEJASNET.NS",
+    "ticker": "TEJASNET",
+    "name": "Tejas Networks Limited",
+    "isin": "INE010J01012",
+    "instrument_key": "NSE_EQ|INE010J01012",
+    "industry": "Telecom - Equipment & Accessories",
+    "is_index": false
+  },
+  {
+    "symbol": "BIOCON.NS",
+    "ticker": "BIOCON",
+    "name": "Biocon Limited",
+    "isin": "INE376G01013",
+    "instrument_key": "NSE_EQ|INE376G01013",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "WOCKPHARMA.NS",
+    "ticker": "WOCKPHARMA",
+    "name": "Wockhardt Limited",
+    "isin": "INE049B01025",
+    "instrument_key": "NSE_EQ|INE049B01025",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "MGL.NS",
+    "ticker": "MGL",
+    "name": "Mahanagar Gas Limited",
+    "isin": "INE002S01010",
+    "instrument_key": "NSE_EQ|INE002S01010",
+    "industry": "LPG/CNG/PNG/LNG Supplier",
+    "is_index": false
+  },
+  {
+    "symbol": "LTIM.NS",
+    "ticker": "LTIM",
+    "name": "LTIMindtree Limited",
+    "isin": "INE214T01019",
+    "instrument_key": "NSE_EQ|INE214T01019",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "WIPRO.NS",
+    "ticker": "WIPRO",
+    "name": "Wipro Limited",
+    "isin": "INE075A01022",
+    "instrument_key": "NSE_EQ|INE075A01022",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "SJVN.NS",
+    "ticker": "SJVN",
+    "name": "SJVN Limited",
+    "isin": "INE002L01015",
+    "instrument_key": "NSE_EQ|INE002L01015",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "GODREJCP.NS",
+    "ticker": "GODREJCP",
+    "name": "Godrej Consumer Products Limited",
+    "isin": "INE102D01028",
+    "instrument_key": "NSE_EQ|INE102D01028",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "JYOTICNC.NS",
+    "ticker": "JYOTICNC",
+    "name": "Jyoti CNC Automation Limited",
+    "isin": "INE980O01024",
+    "instrument_key": "NSE_EQ|INE980O01024",
+    "industry": "Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "MEDANTA.NS",
+    "ticker": "MEDANTA",
+    "name": "Global Health Limited",
+    "isin": "INE474Q01031",
+    "instrument_key": "NSE_EQ|INE474Q01031",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "SIGNATURE.NS",
+    "ticker": "SIGNATURE",
+    "name": "Signatureglobal (India) Limited",
+    "isin": "INE903U01023",
+    "instrument_key": "NSE_EQ|INE903U01023",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "INDGN.NS",
+    "ticker": "INDGN",
+    "name": "Indegene Limited",
+    "isin": "INE065X01017",
+    "instrument_key": "NSE_EQ|INE065X01017",
+    "industry": "Healthcare Research Analytics & Technology",
+    "is_index": false
+  },
+  {
+    "symbol": "ATUL.NS",
+    "ticker": "ATUL",
+    "name": "Atul Limited",
+    "isin": "INE100A01010",
+    "instrument_key": "NSE_EQ|INE100A01010",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "AARTIIND.NS",
+    "ticker": "AARTIIND",
+    "name": "Aarti Industries Limited",
+    "isin": "INE769A01020",
+    "instrument_key": "NSE_EQ|INE769A01020",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "MPHASIS.NS",
+    "ticker": "MPHASIS",
+    "name": "MphasiS Limited",
+    "isin": "INE356A01018",
+    "instrument_key": "NSE_EQ|INE356A01018",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "ITCHOTELS.NS",
+    "ticker": "ITCHOTELS",
+    "name": "ITC Hotels Limited",
+    "isin": "INE379A01028",
+    "instrument_key": "NSE_EQ|INE379A01028",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "AADHARHFC.NS",
+    "ticker": "AADHARHFC",
+    "name": "Aadhar Housing Finance Limited",
+    "isin": "INE883F01010",
+    "instrument_key": "NSE_EQ|INE883F01010",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "FLUOROCHEM.NS",
+    "ticker": "FLUOROCHEM",
+    "name": "Gujarat Fluorochemicals Limited",
+    "isin": "INE09N301011",
+    "instrument_key": "NSE_EQ|INE09N301011",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "DIXON.NS",
+    "ticker": "DIXON",
+    "name": "Dixon Technologies (India) Limited",
+    "isin": "INE935N01020",
+    "instrument_key": "NSE_EQ|INE935N01020",
+    "industry": "Consumer Electronics",
+    "is_index": false
+  },
+  {
+    "symbol": "TATACHEM.NS",
+    "ticker": "TATACHEM",
+    "name": "Tata Chemicals Limited",
+    "isin": "INE092A01019",
+    "instrument_key": "NSE_EQ|INE092A01019",
+    "industry": "Commodity Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "HEG.NS",
+    "ticker": "HEG",
+    "name": "HEG Limited",
+    "isin": "INE545A01024",
+    "instrument_key": "NSE_EQ|INE545A01024",
+    "industry": "Electrodes & Refractories",
+    "is_index": false
+  },
+  {
+    "symbol": "ACMESOLAR.NS",
+    "ticker": "ACMESOLAR",
+    "name": "Acme Solar Holdings Limited",
+    "isin": "INE622W01025",
+    "instrument_key": "NSE_EQ|INE622W01025",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "INDIGO.NS",
+    "ticker": "INDIGO",
+    "name": "InterGlobe Aviation Limited",
+    "isin": "INE646L01027",
+    "instrument_key": "NSE_EQ|INE646L01027",
+    "industry": "Airline",
+    "is_index": false
+  },
+  {
+    "symbol": "ABLBL.NS",
+    "ticker": "ABLBL",
+    "name": "Aditya Birla Lifestyle Brands Limited",
+    "isin": "INE14LE01019",
+    "instrument_key": "NSE_EQ|INE14LE01019",
+    "industry": "Speciality Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "AFFLE.NS",
+    "ticker": "AFFLE",
+    "name": "Affle 3i Limited",
+    "isin": "INE00WC01027",
+    "instrument_key": "NSE_EQ|INE00WC01027",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "UBL.NS",
+    "ticker": "UBL",
+    "name": "United Breweries Limited",
+    "isin": "INE686F01025",
+    "instrument_key": "NSE_EQ|INE686F01025",
+    "industry": "Breweries & Distilleries",
+    "is_index": false
+  },
+  {
+    "symbol": "AUROPHARMA.NS",
+    "ticker": "AUROPHARMA",
+    "name": "Aurobindo Pharma Limited",
+    "isin": "INE406A01037",
+    "instrument_key": "NSE_EQ|INE406A01037",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "NHPC.NS",
+    "ticker": "NHPC",
+    "name": "NHPC Limited",
+    "isin": "INE848E01016",
+    "instrument_key": "NSE_EQ|INE848E01016",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "OFSS.NS",
+    "ticker": "OFSS",
+    "name": "Oracle Financial Services Software Limited",
+    "isin": "INE881D01027",
+    "instrument_key": "NSE_EQ|INE881D01027",
+    "industry": "Software Products",
+    "is_index": false
+  },
+  {
+    "symbol": "DMART.NS",
+    "ticker": "DMART",
+    "name": "Avenue Supermarts Limited",
+    "isin": "INE192R01011",
+    "instrument_key": "NSE_EQ|INE192R01011",
+    "industry": "Diversified Retail",
+    "is_index": false
+  },
+  {
+    "symbol": "TIMKEN.NS",
+    "ticker": "TIMKEN",
+    "name": "Timken India Limited",
+    "isin": "INE325A01013",
+    "instrument_key": "NSE_EQ|INE325A01013",
+    "industry": "Abrasives & Bearings",
+    "is_index": false
+  },
+  {
+    "symbol": "KAJARIACER.NS",
+    "ticker": "KAJARIACER",
+    "name": "Kajaria Ceramics Limited",
+    "isin": "INE217B01036",
+    "instrument_key": "NSE_EQ|INE217B01036",
+    "industry": "Ceramics",
+    "is_index": false
+  },
+  {
+    "symbol": "BLUESTARCO.NS",
+    "ticker": "BLUESTARCO",
+    "name": "Blue Star Limited",
+    "isin": "INE472A01039",
+    "instrument_key": "NSE_EQ|INE472A01039",
+    "industry": "Household Appliances",
+    "is_index": false
+  },
+  {
+    "symbol": "KSB.NS",
+    "ticker": "KSB",
+    "name": "Ksb Limited",
+    "isin": "INE999A01023",
+    "instrument_key": "NSE_EQ|INE999A01023",
+    "industry": "Compressors Pumps & Diesel Engines",
+    "is_index": false
+  },
+  {
+    "symbol": "CENTURYPLY.NS",
+    "ticker": "CENTURYPLY",
+    "name": "Century Plyboards (India) Limited",
+    "isin": "INE348B01021",
+    "instrument_key": "NSE_EQ|INE348B01021",
+    "industry": "Plywood Boards/ Laminates",
+    "is_index": false
+  },
+  {
+    "symbol": "BLS.NS",
+    "ticker": "BLS",
+    "name": "BLS International Services Limited",
+    "isin": "INE153T01027",
+    "instrument_key": "NSE_EQ|INE153T01027",
+    "industry": "Tour Travel Related Services",
+    "is_index": false
+  },
+  {
+    "symbol": "ESCORTS.NS",
+    "ticker": "ESCORTS",
+    "name": "Escorts Kubota Limited",
+    "isin": "INE042A01014",
+    "instrument_key": "NSE_EQ|INE042A01014",
+    "industry": "Tractors",
+    "is_index": false
+  },
+  {
+    "symbol": "EIDPARRY.NS",
+    "ticker": "EIDPARRY",
+    "name": "EID Parry India Limited",
+    "isin": "INE126A01031",
+    "instrument_key": "NSE_EQ|INE126A01031",
+    "industry": "Other Food Products",
+    "is_index": false
+  },
+  {
+    "symbol": "NAM-INDIA.NS",
+    "ticker": "NAM-INDIA",
+    "name": "Nippon Life India Asset Management Limited",
+    "isin": "INE298J01013",
+    "instrument_key": "NSE_EQ|INE298J01013",
+    "industry": "Asset Management Company",
+    "is_index": false
+  },
+  {
+    "symbol": "KAYNES.NS",
+    "ticker": "KAYNES",
+    "name": "Kaynes Technology India Limited",
+    "isin": "INE918Z01012",
+    "instrument_key": "NSE_EQ|INE918Z01012",
+    "industry": "Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "EMAMILTD.NS",
+    "ticker": "EMAMILTD",
+    "name": "Emami Limited",
+    "isin": "INE548C01032",
+    "instrument_key": "NSE_EQ|INE548C01032",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "SIEMENS.NS",
+    "ticker": "SIEMENS",
+    "name": "Siemens Limited",
+    "isin": "INE003A01024",
+    "instrument_key": "NSE_EQ|INE003A01024",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "CRISIL.NS",
+    "ticker": "CRISIL",
+    "name": "CRISIL Limited",
+    "isin": "INE007A01025",
+    "instrument_key": "NSE_EQ|INE007A01025",
+    "industry": "Other Financial Services",
+    "is_index": false
+  },
+  {
+    "symbol": "JMFINANCIL.NS",
+    "ticker": "JMFINANCIL",
+    "name": "JM Financial Limited",
+    "isin": "INE780C01023",
+    "instrument_key": "NSE_EQ|INE780C01023",
+    "industry": "Holding Company",
+    "is_index": false
+  },
+  {
+    "symbol": "HONASA.NS",
+    "ticker": "HONASA",
+    "name": "Honasa Consumer Limited",
+    "isin": "INE0J5401028",
+    "instrument_key": "NSE_EQ|INE0J5401028",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "AIAENG.NS",
+    "ticker": "AIAENG",
+    "name": "AIA Engineering Limited",
+    "isin": "INE212H01026",
+    "instrument_key": "NSE_EQ|INE212H01026",
+    "industry": "Castings & Forgings",
+    "is_index": false
+  },
+  {
+    "symbol": "GLAND.NS",
+    "ticker": "GLAND",
+    "name": "Gland Pharma Limited",
+    "isin": "INE068V01023",
+    "instrument_key": "NSE_EQ|INE068V01023",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "MANKIND.NS",
+    "ticker": "MANKIND",
+    "name": "Mankind Pharma Limited",
+    "isin": "INE634S01028",
+    "instrument_key": "NSE_EQ|INE634S01028",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "APOLLOHOSP.NS",
+    "ticker": "APOLLOHOSP",
+    "name": "Apollo Hospitals Enterprise Limited",
+    "isin": "INE437A01024",
+    "instrument_key": "NSE_EQ|INE437A01024",
+    "industry": "Hospital",
+    "is_index": false
+  },
+  {
+    "symbol": "NAVINFLUOR.NS",
+    "ticker": "NAVINFLUOR",
+    "name": "Navin Fluorine International Limited",
+    "isin": "INE048G01026",
+    "instrument_key": "NSE_EQ|INE048G01026",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "APARINDS.NS",
+    "ticker": "APARINDS",
+    "name": "Apar Industries Limited",
+    "isin": "INE372A01015",
+    "instrument_key": "NSE_EQ|INE372A01015",
+    "industry": "Other Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "ALKYLAMINE.NS",
+    "ticker": "ALKYLAMINE",
+    "name": "Alkyl Amines Chemicals Limited",
+    "isin": "INE150B01039",
+    "instrument_key": "NSE_EQ|INE150B01039",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "TRITURBINE.NS",
+    "ticker": "TRITURBINE",
+    "name": "Triveni Turbine Limited",
+    "isin": "INE152M01016",
+    "instrument_key": "NSE_EQ|INE152M01016",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "ASTRAZEN.NS",
+    "ticker": "ASTRAZEN",
+    "name": "AstraZeneca Pharma India Limited",
+    "isin": "INE203A01020",
+    "instrument_key": "NSE_EQ|INE203A01020",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "TECHM.NS",
+    "ticker": "TECHM",
+    "name": "Tech Mahindra Limited",
+    "isin": "INE669C01036",
+    "instrument_key": "NSE_EQ|INE669C01036",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "AJANTPHARM.NS",
+    "ticker": "AJANTPHARM",
+    "name": "Ajanta Pharma Limited",
+    "isin": "INE031B01049",
+    "instrument_key": "NSE_EQ|INE031B01049",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "AAVAS.NS",
+    "ticker": "AAVAS",
+    "name": "Aavas Financiers Limited",
+    "isin": "INE216P01012",
+    "instrument_key": "NSE_EQ|INE216P01012",
+    "industry": "Housing Finance Company",
+    "is_index": false
+  },
+  {
+    "symbol": "GSPL.NS",
+    "ticker": "GSPL",
+    "name": "Gujarat State Petronet Limited",
+    "isin": "INE1TUG01013",
+    "instrument_key": "NSE_EQ|INE1TUG01013",
+    "industry": "Gas Transmission/Marketing",
+    "is_index": false
+  },
+  {
+    "symbol": "TATACONSUM.NS",
+    "ticker": "TATACONSUM",
+    "name": "TATA CONSUMER PRODUCTS LIMITED",
+    "isin": "INE192A01025",
+    "instrument_key": "NSE_EQ|INE192A01025",
+    "industry": "Tea & Coffee",
+    "is_index": false
+  },
+  {
+    "symbol": "BLUEDART.NS",
+    "ticker": "BLUEDART",
+    "name": "Blue Dart Express Limited",
+    "isin": "INE233B01017",
+    "instrument_key": "NSE_EQ|INE233B01017",
+    "industry": "Logistics Solution Provider",
+    "is_index": false
+  },
+  {
+    "symbol": "TARIL.NS",
+    "ticker": "TARIL",
+    "name": "Transformers And Rectifiers (India) Limited",
+    "isin": "INE763I01026",
+    "instrument_key": "NSE_EQ|INE763I01026",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "LEMONTREE.NS",
+    "ticker": "LEMONTREE",
+    "name": "Lemon Tree Hotels Limited",
+    "isin": "INE970X01018",
+    "instrument_key": "NSE_EQ|INE970X01018",
+    "industry": "Hotels & Resorts",
+    "is_index": false
+  },
+  {
+    "symbol": "THERMAX.NS",
+    "ticker": "THERMAX",
+    "name": "Thermax Limited",
+    "isin": "INE152A01029",
+    "instrument_key": "NSE_EQ|INE152A01029",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "ABREL.NS",
+    "ticker": "ABREL",
+    "name": "Aditya Birla Real Estate Limited",
+    "isin": "INE055A01016",
+    "instrument_key": "NSE_EQ|INE055A01016",
+    "industry": "Paper & Paper Products",
+    "is_index": false
+  },
+  {
+    "symbol": "SCHNEIDER.NS",
+    "ticker": "SCHNEIDER",
+    "name": "Schneider Electric Infrastructure Limited",
+    "isin": "INE839M01018",
+    "instrument_key": "NSE_EQ|INE839M01018",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "IGIL.NS",
+    "ticker": "IGIL",
+    "name": "International Gemmological Institute (India) Limited",
+    "isin": "INE0Q9301021",
+    "instrument_key": "NSE_EQ|INE0Q9301021",
+    "industry": "Diversified Commercial Services",
+    "is_index": false
+  },
+  {
+    "symbol": "BERGEPAINT.NS",
+    "ticker": "BERGEPAINT",
+    "name": "Berger Paints (I) Limited",
+    "isin": "INE463A01038",
+    "instrument_key": "NSE_EQ|INE463A01038",
+    "industry": "Paints",
+    "is_index": false
+  },
+  {
+    "symbol": "MSUMI.NS",
+    "ticker": "MSUMI",
+    "name": "Motherson Sumi Wiring India Limited",
+    "isin": "INE0FS801015",
+    "instrument_key": "NSE_EQ|INE0FS801015",
+    "industry": "Auto Components & Equipments",
+    "is_index": false
+  },
+  {
+    "symbol": "PCBL.NS",
+    "ticker": "PCBL",
+    "name": "PCBL Chemical Limited",
+    "isin": "INE602A01031",
+    "instrument_key": "NSE_EQ|INE602A01031",
+    "industry": "Carbon Black",
+    "is_index": false
+  },
+  {
+    "symbol": "AKUMS.NS",
+    "ticker": "AKUMS",
+    "name": "Akums Drugs and Pharmaceuticals Limited",
+    "isin": "INE09XN01023",
+    "instrument_key": "NSE_EQ|INE09XN01023",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "ABBOTINDIA.NS",
+    "ticker": "ABBOTINDIA",
+    "name": "Abbott India Limited",
+    "isin": "INE358A01014",
+    "instrument_key": "NSE_EQ|INE358A01014",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "CYIENT.NS",
+    "ticker": "CYIENT",
+    "name": "Cyient Limited",
+    "isin": "INE136B01020",
+    "instrument_key": "NSE_EQ|INE136B01020",
+    "industry": "IT Enabled Services",
+    "is_index": false
+  },
+  {
+    "symbol": "GRAPHITE.NS",
+    "ticker": "GRAPHITE",
+    "name": "Graphite India Limited",
+    "isin": "INE371A01025",
+    "instrument_key": "NSE_EQ|INE371A01025",
+    "industry": "Electrodes & Refractories",
+    "is_index": false
+  },
+  {
+    "symbol": "INOXINDIA.NS",
+    "ticker": "INOXINDIA",
+    "name": "INOX India Limited",
+    "isin": "INE616N01034",
+    "instrument_key": "NSE_EQ|INE616N01034",
+    "industry": "Other Industrial Products",
+    "is_index": false
+  },
+  {
+    "symbol": "FIRSTCRY.NS",
+    "ticker": "FIRSTCRY",
+    "name": "Brainbees Solutions Limited",
+    "isin": "INE02RE01045",
+    "instrument_key": "NSE_EQ|INE02RE01045",
+    "industry": "E-Retail/ E-Commerce",
+    "is_index": false
+  },
+  {
+    "symbol": "GODREJPROP.NS",
+    "ticker": "GODREJPROP",
+    "name": "Godrej Properties Limited",
+    "isin": "INE484J01027",
+    "instrument_key": "NSE_EQ|INE484J01027",
+    "industry": "Residential Commercial Projects",
+    "is_index": false
+  },
+  {
+    "symbol": "DELHIVERY.NS",
+    "ticker": "DELHIVERY",
+    "name": "Delhivery Limited",
+    "isin": "INE148O01028",
+    "instrument_key": "NSE_EQ|INE148O01028",
+    "industry": "Logistics Solution Provider",
+    "is_index": false
+  },
+  {
+    "symbol": "COHANCE.NS",
+    "ticker": "COHANCE",
+    "name": "Cohance Lifesciences Limited",
+    "isin": "INE03QK01018",
+    "instrument_key": "NSE_EQ|INE03QK01018",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "VGUARD.NS",
+    "ticker": "VGUARD",
+    "name": "V-Guard Industries Limited",
+    "isin": "INE951I01027",
+    "instrument_key": "NSE_EQ|INE951I01027",
+    "industry": "Household Appliances",
+    "is_index": false
+  },
+  {
+    "symbol": "GILLETTE.NS",
+    "ticker": "GILLETTE",
+    "name": "Gillette India Limited",
+    "isin": "INE322A01010",
+    "instrument_key": "NSE_EQ|INE322A01010",
+    "industry": "Personal Care",
+    "is_index": false
+  },
+  {
+    "symbol": "PFC.NS",
+    "ticker": "PFC",
+    "name": "Power Finance Corporation Limited",
+    "isin": "INE134E01011",
+    "instrument_key": "NSE_EQ|INE134E01011",
+    "industry": "Financial Institution",
+    "is_index": false
+  },
+  {
+    "symbol": "OLAELEC.NS",
+    "ticker": "OLAELEC",
+    "name": "Ola Electric Mobility Limited",
+    "isin": "INE0LXG01040",
+    "instrument_key": "NSE_EQ|INE0LXG01040",
+    "industry": "2/3 Wheelers",
+    "is_index": false
+  },
+  {
+    "symbol": "DOMS.NS",
+    "ticker": "DOMS",
+    "name": "DOMS Industries Limited",
+    "isin": "INE321T01012",
+    "instrument_key": "NSE_EQ|INE321T01012",
+    "industry": "Stationary",
+    "is_index": false
+  },
+  {
+    "symbol": "METROPOLIS.NS",
+    "ticker": "METROPOLIS",
+    "name": "Metropolis Healthcare Limited",
+    "isin": "INE112L01020",
+    "instrument_key": "NSE_EQ|INE112L01020",
+    "industry": "Healthcare Service Provider",
+    "is_index": false
+  },
+  {
+    "symbol": "KIRLOSENG.NS",
+    "ticker": "KIRLOSENG",
+    "name": "Kirloskar Oil Engines Limited",
+    "isin": "INE146L01010",
+    "instrument_key": "NSE_EQ|INE146L01010",
+    "industry": "Compressors Pumps & Diesel Engines",
+    "is_index": false
+  },
+  {
+    "symbol": "INDIACEM.NS",
+    "ticker": "INDIACEM",
+    "name": "The India Cements Limited",
+    "isin": "INE383A01012",
+    "instrument_key": "NSE_EQ|INE383A01012",
+    "industry": "Cement & Cement Products",
+    "is_index": false
+  },
+  {
+    "symbol": "WAAREEENER.NS",
+    "ticker": "WAAREEENER",
+    "name": "Waaree Energies Limited",
+    "isin": "INE377N01017",
+    "instrument_key": "NSE_EQ|INE377N01017",
+    "industry": "Other Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "BALRAMCHIN.NS",
+    "ticker": "BALRAMCHIN",
+    "name": "Balrampur Chini Mills Limited",
+    "isin": "INE119A01028",
+    "instrument_key": "NSE_EQ|INE119A01028",
+    "industry": "Sugar",
+    "is_index": false
+  },
+  {
+    "symbol": "SAPPHIRE.NS",
+    "ticker": "SAPPHIRE",
+    "name": "Sapphire Foods India Limited",
+    "isin": "INE806T01020",
+    "instrument_key": "NSE_EQ|INE806T01020",
+    "industry": "Restaurants",
+    "is_index": false
+  },
+  {
+    "symbol": "CERA.NS",
+    "ticker": "CERA",
+    "name": "Cera Sanitaryware Limited",
+    "isin": "INE739E01017",
+    "instrument_key": "NSE_EQ|INE739E01017",
+    "industry": "Sanitary Ware",
+    "is_index": false
+  },
+  {
+    "symbol": "BAYERCROP.NS",
+    "ticker": "BAYERCROP",
+    "name": "Bayer Cropscience Limited",
+    "isin": "INE462A01022",
+    "instrument_key": "NSE_EQ|INE462A01022",
+    "industry": "Pesticides & Agrochemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "CAPLIPOINT.NS",
+    "ticker": "CAPLIPOINT",
+    "name": "Caplin Point Laboratories Limited",
+    "isin": "INE475E01026",
+    "instrument_key": "NSE_EQ|INE475E01026",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "FSL.NS",
+    "ticker": "FSL",
+    "name": "Firstsource Solutions Limited",
+    "isin": "INE684F01012",
+    "instrument_key": "NSE_EQ|INE684F01012",
+    "industry": "Business Process Outsourcing (BPO)/ Knowledge Process Outsourcing (KPO)",
+    "is_index": false
+  },
+  {
+    "symbol": "JUBLPHARMA.NS",
+    "ticker": "JUBLPHARMA",
+    "name": "Jubilant Pharmova Limited",
+    "isin": "INE700A01033",
+    "instrument_key": "NSE_EQ|INE700A01033",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "KEC.NS",
+    "ticker": "KEC",
+    "name": "KEC International Limited",
+    "isin": "INE389H01022",
+    "instrument_key": "NSE_EQ|INE389H01022",
+    "industry": "Civil Construction",
+    "is_index": false
+  },
+  {
+    "symbol": "BHARTIHEXA.NS",
+    "ticker": "BHARTIHEXA",
+    "name": "Bharti Hexacom Limited",
+    "isin": "INE343G01021",
+    "instrument_key": "NSE_EQ|INE343G01021",
+    "industry": "Telecom - Cellular & Fixed line services",
+    "is_index": false
+  },
+  {
+    "symbol": "SUZLON.NS",
+    "ticker": "SUZLON",
+    "name": "Suzlon Energy Limited",
+    "isin": "INE040H01021",
+    "instrument_key": "NSE_EQ|INE040H01021",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "PGEL.NS",
+    "ticker": "PGEL",
+    "name": "PG Electroplast Limited",
+    "isin": "INE457L01029",
+    "instrument_key": "NSE_EQ|INE457L01029",
+    "industry": "Consumer Electronics",
+    "is_index": false
+  },
+  {
+    "symbol": "BAJAJHLDNG.NS",
+    "ticker": "BAJAJHLDNG",
+    "name": "Bajaj Holdings & Investment Limited",
+    "isin": "INE118A01012",
+    "instrument_key": "NSE_EQ|INE118A01012",
+    "industry": "Holding Company",
+    "is_index": false
+  },
+  {
+    "symbol": "DIVISLAB.NS",
+    "ticker": "DIVISLAB",
+    "name": "Divi's Laboratories Limited",
+    "isin": "INE361B01024",
+    "instrument_key": "NSE_EQ|INE361B01024",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "ABB.NS",
+    "ticker": "ABB",
+    "name": "ABB India Limited",
+    "isin": "INE117A01022",
+    "instrument_key": "NSE_EQ|INE117A01022",
+    "industry": "Heavy Electrical Equipment",
+    "is_index": false
+  },
+  {
+    "symbol": "SAREGAMA.NS",
+    "ticker": "SAREGAMA",
+    "name": "Saregama India Limited",
+    "isin": "INE979A01025",
+    "instrument_key": "NSE_EQ|INE979A01025",
+    "industry": "Media & Entertainment",
+    "is_index": false
+  },
+  {
+    "symbol": "HEXT.NS",
+    "ticker": "HEXT",
+    "name": "Hexaware Technologies Limited",
+    "isin": "INE093A01041",
+    "instrument_key": "NSE_EQ|INE093A01041",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  },
+  {
+    "symbol": "BHARTIARTL.NS",
+    "ticker": "BHARTIARTL",
+    "name": "Bharti Airtel Limited",
+    "isin": "INE397D01024",
+    "instrument_key": "NSE_EQ|INE397D01024",
+    "industry": "Telecom - Cellular & Fixed line services",
+    "is_index": false
+  },
+  {
+    "symbol": "ACE.NS",
+    "ticker": "ACE",
+    "name": "Action Construction Equipment Limited",
+    "isin": "INE731H01025",
+    "instrument_key": "NSE_EQ|INE731H01025",
+    "industry": "Construction Vehicles",
+    "is_index": false
+  },
+  {
+    "symbol": "RPOWER.NS",
+    "ticker": "RPOWER",
+    "name": "Reliance Power Limited",
+    "isin": "INE614G01033",
+    "instrument_key": "NSE_EQ|INE614G01033",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "CHOLAHLDNG.NS",
+    "ticker": "CHOLAHLDNG",
+    "name": "Cholamandalam Financial Holdings Limited",
+    "isin": "INE149A01033",
+    "instrument_key": "NSE_EQ|INE149A01033",
+    "industry": "Investment Company",
+    "is_index": false
+  },
+  {
+    "symbol": "NAVA.NS",
+    "ticker": "NAVA",
+    "name": "NAVA LIMITED",
+    "isin": "INE725A01030",
+    "instrument_key": "NSE_EQ|INE725A01030",
+    "industry": "Power Generation",
+    "is_index": false
+  },
+  {
+    "symbol": "KIRLOSBROS.NS",
+    "ticker": "KIRLOSBROS",
+    "name": "Kirloskar Brothers Limited",
+    "isin": "INE732A01036",
+    "instrument_key": "NSE_EQ|INE732A01036",
+    "industry": "Compressors Pumps & Diesel Engines",
+    "is_index": false
+  },
+  {
+    "symbol": "CLEAN.NS",
+    "ticker": "CLEAN",
+    "name": "Clean Science and Technology Limited",
+    "isin": "INE227W01023",
+    "instrument_key": "NSE_EQ|INE227W01023",
+    "industry": "Specialty Chemicals",
+    "is_index": false
+  },
+  {
+    "symbol": "GODREJAGRO.NS",
+    "ticker": "GODREJAGRO",
+    "name": "Godrej Agrovet Limited",
+    "isin": "INE850D01014",
+    "instrument_key": "NSE_EQ|INE850D01014",
+    "industry": "Animal Feed",
+    "is_index": false
+  },
+  {
+    "symbol": "RELINFRA.NS",
+    "ticker": "RELINFRA",
+    "name": "Reliance Infrastructure Limited",
+    "isin": "INE036A01016",
+    "instrument_key": "NSE_EQ|INE036A01016",
+    "industry": "Integrated Power Utilities",
+    "is_index": false
+  },
+  {
+    "symbol": "DEVYANI.NS",
+    "ticker": "DEVYANI",
+    "name": "Devyani International Limited",
+    "isin": "INE872J01023",
+    "instrument_key": "NSE_EQ|INE872J01023",
+    "industry": "Restaurants",
+    "is_index": false
+  },
+  {
+    "symbol": "SAILIFE.NS",
+    "ticker": "SAILIFE",
+    "name": "Sai Life Sciences Limited",
+    "isin": "INE570L01029",
+    "instrument_key": "NSE_EQ|INE570L01029",
+    "industry": "Pharmaceuticals",
+    "is_index": false
+  },
+  {
+    "symbol": "ECLERX.NS",
+    "ticker": "ECLERX",
+    "name": "eClerx Services Limited",
+    "isin": "INE738I01010",
+    "instrument_key": "NSE_EQ|INE738I01010",
+    "industry": "Business Process Outsourcing (BPO)/ Knowledge Process Outsourcing (KPO)",
+    "is_index": false
+  },
+  {
+    "symbol": "AMBER.NS",
+    "ticker": "AMBER",
+    "name": "Amber Enterprises India Limited",
+    "isin": "INE371P01015",
+    "instrument_key": "NSE_EQ|INE371P01015",
+    "industry": "Household Appliances",
+    "is_index": false
+  },
+  {
+    "symbol": "LATENTVIEW.NS",
+    "ticker": "LATENTVIEW",
+    "name": "Latent View Analytics Limited",
+    "isin": "INE0I7C01011",
+    "instrument_key": "NSE_EQ|INE0I7C01011",
+    "industry": "Computers - Software & Consulting",
+    "is_index": false
+  }
+]

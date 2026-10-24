@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nse-quant-lab"
+version = "1.0.0"
+description = "Institutional Quantitative Research, Event-Driven Backtesting & Forward Paper Trading Harness for NSE Equities"
+authors = [{ name = "Deep Adhia", email = "adhia750@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "pyarrow>=14.0.0",
+    "pymongo>=4.6.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0",
+]

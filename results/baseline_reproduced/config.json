@@ -1,0 +1,23 @@
+{
+  "initial_capital": 1000000.0,
+  "portfolio_size": 12,
+  "max_open_positions": 12,
+  "rebalance_frequency": "MONTHLY",
+  "enforce_lower_circuit_deferral": true,
+  "enforce_upper_circuit_rejection": true,
+  "unaffordable_policy": "SKIP",
+  "slippage_pct": 0.001,
+  "limit_cap_pct": 0.02,
+  "gap_limit_cap_pct": 0.02,
+  "gap_buffer_pct": 0.015,
+  "fees_buffer_pct": 0.002,
+  "cash_buffer_pct": 0.018,
+  "brokerage_per_order": 20.0,
+  "stt_pct": 0.1,
+  "stamp_duty_buy_pct": 0.015,
+  "exchange_txn_pct_legacy": 0.00345,
+  "exchange_txn_pct_revised": 0.00297,
+  "sebi_pct": 0.0001,
+  "gst_pct": 18.0,
+  "dp_charge_sell": 15.93
+}

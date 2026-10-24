@@ -1,0 +1,12 @@
+{
+  "description": "Expected daily OHLCV bar schema for KM Momentum backtester",
+  "required_columns": {
+    "symbol": "string (e.g. RELIANCE.NS)",
+    "date": "datetime64[ns] or YYYY-MM-DD",
+    "open": "float64 (positive)",
+    "high": "float64 (>= low)",
+    "low": "float64 (<= high)",
+    "close": "float64 (positive)",
+    "volume": "float64 (>= 0)"
+  }
+}
