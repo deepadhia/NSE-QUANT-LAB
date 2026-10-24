@@ -25,6 +25,7 @@ from nse_quant_lab.config import PaperTradingConfig
 from nse_quant_lab.data_loader import auto_refresh_upstox_token, fetch_from_upstox
 from nse_quant_lab.db.mongo_client import MongoDatabase
 from nse_quant_lab.notifications.telegram import TelegramNotifier
+from nse_quant_lab.holidays import is_trading_day
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("upstox_ingestion")
@@ -139,13 +140,17 @@ def main():
     parser = argparse.ArgumentParser(description="Ingest EOD Daily Candles from Upstox API v2")
     parser.add_argument("--date", default=None, help="Candle date to ingest (YYYY-MM-DD). Defaults to today.")
     parser.add_argument("--limit", type=int, default=None, help="Optional limit on symbols count for testing.")
+    parser.add_argument("--force", action="store_true", help="Force run even on weekends or market holidays.")
     args = parser.parse_args()
 
     cfg = PaperTradingConfig(strategy_id="ingest")
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)
     notifier = TelegramNotifier(cfg.telegram_bot_token, cfg.telegram_chat_id, cfg.telegram_enabled)
 
-    date_str = args.date or datetime.now().strftime("%Y-%m-%d")
+        date_str = args.date or datetime.now().strftime("%Y-%m-%d")
+    if not args.force and not is_trading_day(date_str):
+        logger.info(f"Target date {date_str} is a weekend or official NSE holiday. Skipping ingestion.")
+        sys.exit(0)
     symbols = get_target_symbols(db)
     if args.limit:
         symbols = symbols[:args.limit]

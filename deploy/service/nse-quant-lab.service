@@ -1,0 +1,27 @@
+[Unit]
+Description=NSE Quant Lab - Automated Market Pipeline Scheduler Daemon
+After=network.target time-sync.target
+Wants=time-sync.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%APP_DIR%
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-%APP_DIR%/.env
+ExecStart=%APP_DIR%/venv/bin/python %APP_DIR%/scripts/run_scheduler_daemon.py
+Restart=always
+RestartSec=10
+TimeoutStopSec=60
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Standard Logging to Journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nse-quant-lab
+
+[Install]
+WantedBy=multi-user.target

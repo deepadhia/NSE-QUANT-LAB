@@ -80,7 +80,21 @@ def fetch_from_upstox(
         return None
 
     clean_sym = symbol.replace(".NS", "").replace(".BO", "")
-    instrument_key = f"NSE_EQ|{clean_sym}"
+    if clean_sym.startswith("INE"):
+        instrument_key = f"NSE_EQ|{clean_sym}"
+    else:
+        # Check if ISIN is available from local database mapping
+        instrument_key = f"NSE_EQ|{clean_sym}"
+        try:
+            from pymongo import MongoClient
+            mongo_u = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+            m_db = os.environ.get("MONGO_DB", "stock_scanner")
+            cli = MongoClient(mongo_u, serverSelectionTimeoutMS=500)
+            sym_doc = cli[m_db]["symbols"].find_one({"symbol": {"$in": [symbol, f"{clean_sym}.NS", clean_sym]}})
+            if sym_doc and sym_doc.get("isin"):
+                instrument_key = f"NSE_EQ|{sym_doc['isin']}"
+        except Exception:
+            pass
 
     headers = {
         "Accept": "application/json",
