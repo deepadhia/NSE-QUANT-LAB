@@ -22,6 +22,16 @@ Trace at least one entry and exit through:
 data row -> indicator -> signal timestamp -> order eligibility -> fill -> position size -> fees -> stop/exit -> realized P&L -> equity curve -> aggregate metrics.
 Record timestamps and formulas. If impossible, mark INCOMPLETE.
 
+
+### Phase 2.5 — Early Defect & Production Crash Checks
+Before evaluating deep statistical models, run these mechanical audits:
+1. **Compilation Check**: Run `python -m py_compile` across all repository scripts. Reject immediately on syntax or indentation errors.
+2. **Cron Script Dates**: Ensure daily cron scripts do not contain hardcoded dates (e.g. `2024-01-01` to `2026-10-24`).
+3. **Bar Temporal Availability**: For any script running at market open (09:16 AM), verify it does not expect end-of-day candles to be present or look ahead to daily close.
+4. **Rebalance Drop Check**: If strategy has `rebalance_frequency="DAILY"`, check whether `evaluate_rebalance_exits()` causes 1-day trade churn on held positions.
+5. **Mark-to-Market Valuation**: Verify sizing equity values active holdings at current decision close, not static `entry_price`.
+6. **Credential & PII Audit**: Scan `.md` documentation and scripts for raw Telegram Chat IDs, database hostnames, or tokens.
+
 ### Phase 3 — High-priority bias checks
 Inspect for:
 - Signal and return computed on the same bar.

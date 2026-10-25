@@ -69,6 +69,51 @@ Every nontrivial coding task must report:
 6. Remaining risks, data limitations, and follow-up.
 7. Whether the acceptance criteria passed, failed, or remain incomplete.
 
+
+## Automated Static Analysis & Early Detection Gates
+To catch syntax, semantic, temporal, and execution bugs before they reach staging or production, every agent and engineer must adhere to the following automated gates:
+
+### 1. Universal Compilation Gate
+- `pytest` alone does NOT execute standalone cron scripts (e.g. `scripts/ingest_daily_upstox_candles.py`, `scripts/run_daily_pipeline.py`).
+- Before completing any task, run `python -m py_compile` across all `.py` files in the repository.
+- An automated test (`tests/test_compilation_and_contracts.py`) enforces that every Python script compiles cleanly on every test run.
+
+### 2. Metric & Schema Contract Invariants
+- When consuming outputs from `metrics.calculate_financial_metrics()` or database models, never guess or fabricate dictionary keys (e.g. `cagr_trading_pct` vs `cagr_pct`).
+- Verify key names directly against the producer's return dictionary or model fields.
+
+### 3. Loop State & Accumulator Scope Invariants
+- Per-item state flags (e.g. `used_fallback`, `has_error`) must be instantiated and reset inside the per-item loop.
+- Never test a cumulative run counter (e.g. `fallback_count == 0`) inside a loop to determine the state of a single item.
+
+### 4. Temporal Correctness & Live Pipeline Invariants
+- **No Hardcoded Future/Past Dates in Cron Entrypoints**: Production cron scripts (`run_daily_pipeline.py`, `execute_paper_orders.py`, `ingest_daily_upstox_candles.py`) must NEVER contain hardcoded calendar end-dates. Always use dynamic dates derived from `datetime.now()` or explicit CLI arguments.
+- **Bar Availability Separation (09:16 AM vs 15:35 PM)**:
+  - At 09:16 IST on day T, day T's completed EOD bar does NOT exist in MongoDB.
+  - Morning order fills must query live market opening quotes (via broker API or live ticker feeds), NEVER assume today's EOD bar is already present in historical collections, and NEVER fall back to yesterday's bar for today's orders.
+  - Sizing and mark-to-market NAV calculations at 09:16 AM must use opening/LTP prices, never looking ahead to future 15:30 EOD closing prices.
+- **Live Rebalance Detection**:
+  - Live post-market signal runs occur on day T when tomorrow's session T+1 is not yet in the historical universe.
+  - Rebalance schedules must check if day T is the final trading day of the calendar month (using the market holiday calendar), rather than requiring future bars to exist in the database.
+
+### 5. Quantitative & Portfolio Accounting Invariants
+- **Strategy Rebalance vs. Technical Stop Independence**:
+  - Breakout and trend-following strategies using technical trailing stops (e.g. Donchian 20-day low, ATR stops) must NEVER inherit a default daily rebalance rule that liquidates positions on daily rank drops (`REBALANCE_DROP`).
+  - Held positions must only exit on strategy-defined technical stop breaches (`evaluate_daily_exits()`).
+- **Mark-to-Market Pre-Trade Equity**:
+  - When calculating portfolio equity for sizing (`pretrade_equity = cash + holdings_val`), held positions must be valued at current decision-day close/LTP, NEVER at historical entry price (`entry_raw_price`).
+- **Sizing Friction Buffer Rules**:
+  - Do not apply slippage buffers twice when sizing shares. Once the market open price is known, `fill_price = open * (1 + slippage)` is already slipped; do not add slippage again to the share allocation divisor.
+  - Statutory fees (STT, stamp duty, turnover charges) must be calculated on actual executed value (`shares * fill_price`).
+
+### 6. Security, Privacy, and Zero-Spam Invariants
+- **Zero Secrets & Zero PII in Tracked Files**:
+  - Never commit real Telegram Chat IDs, bot tokens, API keys, or production database hostnames into documentation, guides, tests, or examples.
+  - Always use standardized placeholders (`your_numeric_chat_id`, `<your_cluster>.mongodb.net`, `your_api_key`).
+- **Zero-Spam Notification Policy**:
+  - Notifications must be strictly reserved for actionable events: actual order fills, new trade signals, or critical exceptions.
+  - Never emit routine heartbeats, "market closed" notices, or routine maintenance logs on weekends, holidays, or zero-action market sessions.
+
 ## Trading research invariants
 Before changing an indicator, signal generator, historical-data pipeline, backtester, execution simulator, portfolio accounting, or performance report, read `BACKTEST_VALIDATION.md`.
 
