@@ -23,14 +23,14 @@ data row -> indicator -> signal timestamp -> order eligibility -> fill -> positi
 Record timestamps and formulas. If impossible, mark INCOMPLETE.
 
 
-### Phase 2.5 — Early Defect & Production Crash Checks
-Before evaluating deep statistical models, run these mechanical audits:
-1. **Compilation Check**: Run `python -m py_compile` across all repository scripts. Reject immediately on syntax or indentation errors.
-2. **Cron Script Dates**: Ensure daily cron scripts do not contain hardcoded dates (e.g. `2024-01-01` to `2026-10-24`).
-3. **Bar Temporal Availability**: For any script running at market open (09:16 AM), verify it does not expect end-of-day candles to be present or look ahead to daily close.
-4. **Rebalance Drop Check**: If strategy has `rebalance_frequency="DAILY"`, check whether `evaluate_rebalance_exits()` causes 1-day trade churn on held positions.
-5. **Mark-to-Market Valuation**: Verify sizing equity values active holdings at current decision close, not static `entry_price`.
-6. **Credential & PII Audit**: Scan `.md` documentation and scripts for raw Telegram Chat IDs, database hostnames, or tokens.
+### Phase 2.5 — Real-World Reality, Bias & Anti-Delusion Audit
+Before analyzing statistical returns, audit the implementation against real-world failure modes:
+1. **Falsification & Adversarial Tests**: Do existing tests only test clean happy paths? Actively test missing bars, circuit locks, cash exhaustion, and duplicate cron triggers.
+2. **Bar Temporal Availability**: If a component runs at market open (09:16 AM), does it falsely require or use completed end-of-day candles? Verify that intraday steps operate purely on live quotes.
+3. **Exit Semantics Audit**: Determine whether the strategy uses event-driven technical stops or cross-sectional periodic rebalancing. Verify that held positions are not erroneously liquidated by mismatched rebalance drop logic.
+4. **Mark-to-Market Sizing Audit**: Does pre-trade equity valuation mark open holdings to current market prices, or does it underestimate equity by using stale entry prices?
+5. **Idempotency & Re-Run Audit**: If an execution pipeline runs twice on the same day, does it double-charge cash or duplicate trade entries?
+6. **Hardcoded Pipeline Constraints**: Verify that no production cron scripts or data loaders contain hardcoded past calendar dates.
 
 ### Phase 3 — High-priority bias checks
 Inspect for:

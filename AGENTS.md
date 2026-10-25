@@ -70,49 +70,54 @@ Every nontrivial coding task must report:
 7. Whether the acceptance criteria passed, failed, or remain incomplete.
 
 
-## Automated Static Analysis & Early Detection Gates
-To catch syntax, semantic, temporal, and execution bugs before they reach staging or production, every agent and engineer must adhere to the following automated gates:
+## Real-World Invariance, Anti-Bias & Adversarial Falsification Contract
 
-### 1. Universal Compilation Gate
-- `pytest` alone does NOT execute standalone cron scripts (e.g. `scripts/ingest_daily_upstox_candles.py`, `scripts/run_daily_pipeline.py`).
-- Before completing any task, run `python -m py_compile` across all `.py` files in the repository.
-- An automated test (`tests/test_compilation_and_contracts.py`) enforces that every Python script compiles cleanly on every test run.
+The primary failure mode in quantitative software is producing **biased outputs and false confidence**—code and backtests that pass clean unit tests under artificial assumptions, but catastrophically fail, crash, or bleed capital in the real world.
 
-### 2. Metric & Schema Contract Invariants
-- When consuming outputs from `metrics.calculate_financial_metrics()` or database models, never guess or fabricate dictionary keys (e.g. `cagr_trading_pct` vs `cagr_pct`).
-- Verify key names directly against the producer's return dictionary or model fields.
+To eliminate fake outputs and ensure software survives real-world market reality, all implementations and tests must adhere to the following strategy-agnostic invariants:
 
-### 3. Loop State & Accumulator Scope Invariants
-- Per-item state flags (e.g. `used_fallback`, `has_error`) must be instantiated and reset inside the per-item loop.
-- Never test a cumulative run counter (e.g. `fallback_count == 0`) inside a loop to determine the state of a single item.
+### 1. The Falsification Principle (Testing to Break, Not to Confirm)
+- **Anti-Confirmation Bias**: Writing tests that only verify the "happy path" with clean, complete synthetic data creates dangerous delusion. Tests must actively test real-world failure modes.
+- **Mandatory Failure-Mode Tests**: Every workflow must be tested against:
+  - Missing, dropped, or delayed market data.
+  - Circuit limit locks (upper circuit buy rejections, lower circuit exit deferrals).
+  - Cash exhaustion, unaffordable integer sizing, and cash buffer preservation.
+  - Exchange holiday calendars, shortened market weeks, and non-standard month-ends.
+  - Unintended duplicate triggers (cron retries, network timeouts, server reboots).
+- **Invalid Test Classification**: Any test that passes only by feeding future data, complete end-of-day bars to intraday processes, or swallowing errors into neutral defaults is classified as **biased and defective**.
 
-### 4. Temporal Correctness & Live Pipeline Invariants
-- **No Hardcoded Future/Past Dates in Cron Entrypoints**: Production cron scripts (`run_daily_pipeline.py`, `execute_paper_orders.py`, `ingest_daily_upstox_candles.py`) must NEVER contain hardcoded calendar end-dates. Always use dynamic dates derived from `datetime.now()` or explicit CLI arguments.
-- **Bar Availability Separation (09:16 AM vs 15:35 PM)**:
-  - At 09:16 IST on day T, day T's completed EOD bar does NOT exist in MongoDB.
-  - Morning order fills must query live market opening quotes (via broker API or live ticker feeds), NEVER assume today's EOD bar is already present in historical collections, and NEVER fall back to yesterday's bar for today's orders.
-  - Sizing and mark-to-market NAV calculations at 09:16 AM must use opening/LTP prices, never looking ahead to future 15:30 EOD closing prices.
-- **Live Rebalance Detection**:
-  - Live post-market signal runs occur on day T when tomorrow's session T+1 is not yet in the historical universe.
-  - Rebalance schedules must check if day T is the final trading day of the calendar month (using the market holiday calendar), rather than requiring future bars to exist in the database.
+### 2. Temporal Asymmetry & Bar Availability Invariant
+- **Market Timing Reality**: In the real world, a trading session is chronological. At `09:16 IST`, today's completed daily EOD bar (`15:30 IST`) does **not exist**.
+- **No Intraday Reliance on Future EOD Data**:
+  - Any process executing at market open must operate strictly on information available at that minute (live opening quotes, previous close).
+  - Tests for morning execution engines must actively omit today's EOD bar to ensure the system does not crash or look ahead in live production.
+- **Zero-Lookahead in Signal Generation**: Post-market signal generation on Day $T$ close must never access, infer, or incorporate Day $T+1$'s open, high, low, or volume.
 
-### 5. Quantitative & Portfolio Accounting Invariants
-- **Strategy Rebalance vs. Technical Stop Independence**:
-  - Breakout and trend-following strategies using technical trailing stops (e.g. Donchian 20-day low, ATR stops) must NEVER inherit a default daily rebalance rule that liquidates positions on daily rank drops (`REBALANCE_DROP`).
-  - Held positions must only exit on strategy-defined technical stop breaches (`evaluate_daily_exits()`).
-- **Mark-to-Market Pre-Trade Equity**:
-  - When calculating portfolio equity for sizing (`pretrade_equity = cash + holdings_val`), held positions must be valued at current decision-day close/LTP, NEVER at historical entry price (`entry_raw_price`).
-- **Sizing Friction Buffer Rules**:
-  - Do not apply slippage buffers twice when sizing shares. Once the market open price is known, `fill_price = open * (1 + slippage)` is already slipped; do not add slippage again to the share allocation divisor.
-  - Statutory fees (STT, stamp duty, turnover charges) must be calculated on actual executed value (`shares * fill_price`).
+### 3. Decoupled Exit Semantics (Strategy-Agnostic Invariant)
+Quantitative systems employ two fundamentally distinct exit mechanisms that must never be conflated:
+1. **Periodic Rank-Based Rebalance Liquidation**: Liquidating positions because they fell out of the top $N$ cross-sectional universe rank on scheduled rebalance dates.
+2. **Rule/Event-Driven Technical Exits**: Liquidating positions because an intrinsic technical condition was met (trailing stop, ATR channel, volatility breakout, time stop).
+- **Rule**: Event-driven exit strategies must NEVER inherit default periodic rebalance drop logic that causes 1-day phantom churn on held positions.
+- **Rule**: Periodic rebalancing strategies must NEVER fail to liquidate dropped ranks.
+- The exit semantics of every strategy must be explicit, strategy-agnostic, and verified by tests.
 
-### 6. Security, Privacy, and Zero-Spam Invariants
-- **Zero Secrets & Zero PII in Tracked Files**:
-  - Never commit real Telegram Chat IDs, bot tokens, API keys, or production database hostnames into documentation, guides, tests, or examples.
-  - Always use standardized placeholders (`your_numeric_chat_id`, `<your_cluster>.mongodb.net`, `your_api_key`).
-- **Zero-Spam Notification Policy**:
-  - Notifications must be strictly reserved for actionable events: actual order fills, new trade signals, or critical exceptions.
-  - Never emit routine heartbeats, "market closed" notices, or routine maintenance logs on weekends, holidays, or zero-action market sessions.
+### 4. Idempotency & Re-Run Safety
+- Real-world production servers experience restarts, network retries, and duplicate cron triggers.
+- **Idempotency Invariant**: Executing an order generation or order fill script multiple times on the same session must produce the exact same state:
+  - Never generate duplicate orders.
+  - Never execute duplicate fills.
+  - Never double-decrement cash or corrupt position ledgers.
+
+### 5. Mark-to-Market Valuation & Friction Accounting
+- **No Stale Sizing**: Portfolio equity for position sizing (`pretrade_equity = cash + holdings_val`) must mark existing holdings to current decision-timestamp market prices, never historical entry costs. Sizing on static acquisition costs creates fictional backtest compounding that diverges wildly from real accounts.
+- **True Traded Value Friction**: Statutory transaction fees (STT, stamp duty, exchange turnover charges) must be assessed on actual executed turnover (`shares * fill_price`).
+- **Non-Duplicated Sizing Buffers**: Sizing allocation divisors must not apply slippage buffers twice once the opening price is already known.
+
+### 6. Universal Static Analysis & Contract Gates
+- **Compilation Gate**: `python -m py_compile` must compile all repository scripts with 0 errors (enforced via `test_compilation_and_contracts.py`).
+- **Dynamic Date Invariant**: Production pipelines must never contain hardcoded static past dates in data loading or universe filters.
+- **Contract Schema Integrity**: Consumers of metrics and database models must strictly adhere to producer schemas without guessing or inventing unverified keys.
+- **Fail-Loud Principle**: When data is missing, corrupted, or an API call fails, the system must log complete diagnostic traces, preserve audit ledgers, and fail visibly. Never swallow failures silently into "default success".
 
 ## Trading research invariants
 Before changing an indicator, signal generator, historical-data pipeline, backtester, execution simulator, portfolio accounting, or performance report, read `BACKTEST_VALIDATION.md`.

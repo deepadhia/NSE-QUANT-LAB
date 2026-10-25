@@ -82,11 +82,13 @@ class PaperTradingManager:
             upsert=True
         )
 
-    def get_current_state(self) -> Dict[str, Any]:
-        """Retrieves active positions and current cash balance from MongoDB."""
-        nav_record = self.db.daily_nav.find(
-            {"strategy_id": self.config.strategy_id, "mode": "paper"}
-        ).sort("date", -1).limit(1)
+    def get_current_state(self, as_of_date: Optional[str] = None) -> Dict[str, Any]:
+        """Retrieves active positions and current cash balance from MongoDB up to as_of_date."""
+        query = {"strategy_id": self.config.strategy_id, "mode": "paper"}
+        if as_of_date:
+            query["date"] = {"$lte": as_of_date}
+
+        nav_record = self.db.daily_nav.find(query).sort("date", -1).limit(1)
         nav_list = list(nav_record)
         cash = nav_list[0]["cash"] if nav_list else float(self.config.initial_capital)
 
@@ -138,10 +140,10 @@ class PaperTradingManager:
         3. Saves orders to MongoDB with status='PENDING_OPEN'.
         4. Broadcasts Telegram alert.
         """
-        state = self.get_current_state()
+        date_str = decision_date.strftime("%Y-%m-%d")
+        state = self.get_current_state(as_of_date=date_str)
         cash = state["cash"]
         positions = state["positions"]
-        date_str = decision_date.strftime("%Y-%m-%d")
 
         # 1. Evaluate Daily Exits
         requested_exits = self.strategy.evaluate_daily_exits(universe, decision_date, positions, self.config)
@@ -302,10 +304,10 @@ class PaperTradingManager:
         4. Updates positions, trades, orders, executions, and daily_nav collections in MongoDB.
         5. Emits Telegram execution alert.
         """
-        state = self.get_current_state()
+        date_str = execution_date.strftime("%Y-%m-%d")
+        state = self.get_current_state(as_of_date=date_str)
         cash = state["cash"]
         positions = state["positions"]
-        date_str = execution_date.strftime("%Y-%m-%d")
 
         pending_orders = list(self.db.orders.find({
             "strategy_id": self.config.strategy_id,
