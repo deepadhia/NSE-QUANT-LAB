@@ -100,6 +100,14 @@ class QuantLabScheduler:
                 "script": os.path.join(PROJECT_ROOT, "scripts", "send_periodic_report.py"),
                 "args": ["--period", "monthly"],
                 "day_condition": "MONTH_END_ONLY",
+            },
+            {
+                "id": "semi_annual_sync",
+                "time": "06:00",
+                "description": "Semi-Annual NSE Index Constituent Sync & Warm-Up (April & October)",
+                "script": os.path.join(PROJECT_ROOT, "scripts", "sync_universe_constituents.py"),
+                "args": ["--index", "nifty500", "--fetch-history"],
+                "day_condition": "SEMI_ANNUAL_ONLY",
             }
         ]
 
@@ -143,6 +151,26 @@ class QuantLabScheduler:
                 is_month_end = not remaining_trading
             if not is_month_end:
                 logger.info(f"Skipping {job_id}: today is not the final trading session of the month.")
+                self.completed_today.add(job_id)
+                return
+        elif day_cond == "SEMI_ANNUAL_ONLY":
+            now_dt = get_ist_now()
+            if now_dt.month not in (4, 10):
+                logger.info(f"Skipping {job_id}: month {now_dt.month} is not April or October.")
+                self.completed_today.add(job_id)
+                return
+            
+            # Verify if today is the first trading session of April / October
+            cur = now_dt.replace(day=1)
+            is_first_trading_day = True
+            while cur.date() < now_dt.date():
+                if is_trading_day(cur.strftime("%Y-%m-%d")):
+                    is_first_trading_day = False
+                    break
+                cur += timedelta(days=1)
+            
+            if not is_first_trading_day:
+                logger.info(f"Skipping {job_id}: today is not the first trading day of April/October.")
                 self.completed_today.add(job_id)
                 return
 
@@ -239,7 +267,7 @@ class QuantLabScheduler:
 
 def main():
     parser = argparse.ArgumentParser(description="NSE Quant Lab Background Scheduler")
-    parser.add_argument("--test-job", choices=["morning_execution", "eod_ingestion", "daily_pipeline"],
+    parser.add_argument("--test-job", choices=["morning_execution", "eod_ingestion", "daily_pipeline", "weekly_report", "monthly_report", "semi_annual_sync"],
                         help="Immediately test run a specific job without waiting for its scheduled time.")
     args = parser.parse_args()
 
