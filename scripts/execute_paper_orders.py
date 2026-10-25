@@ -98,7 +98,8 @@ def main():
 
     # Load recent universe for execution
     logger.info(">> Loading recent market universe...")
-    universe = load_clean_universe("2024-01-01", "2026-10-24")
+    target_end = args.date or datetime.now().strftime("%Y-%m-%d")
+    universe = load_clean_universe("2024-01-01", target_end)
     logger.info(f"   Loaded {len(universe)} stocks.")
 
     # Determine execution date
@@ -106,7 +107,7 @@ def main():
     if args.date:
         exec_dt = pd.to_datetime(args.date)
     else:
-        exec_dt = all_dates[-1]
+        exec_dt = pd.to_datetime(datetime.now().strftime("%Y-%m-%d"))
 
     logger.info(f">> Executing morning open fills for: {exec_dt.strftime('%Y-%m-%d')}")
 

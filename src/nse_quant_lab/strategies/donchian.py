@@ -57,6 +57,20 @@ class DonchianBreakoutStrategy(BaseStrategy):
         df_c["rank"] = df_c["score"].rank(ascending=False)
         return df_c.sort_values(by="score", ascending=False).set_index("symbol", drop=False)
 
+    def evaluate_rebalance_exits(
+        self,
+        universe: Dict[str, pd.DataFrame],
+        decision_date: pd.Timestamp,
+        open_positions: Dict[str, Any],
+        target_symbols: List[str],
+        config: Any,
+    ) -> Dict[str, str]:
+        """
+        Donchian breakout positions exit strictly on technical stop breaches (evaluate_daily_exits:
+        close < low_20), never on daily rebalance rank drops.
+        """
+        return {}
+
     def evaluate_daily_exits(
         self,
         universe: Dict[str, pd.DataFrame],

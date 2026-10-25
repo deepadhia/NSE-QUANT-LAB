@@ -65,6 +65,45 @@ class BaseStrategy(ABC):
                 exits[sym] = "REBALANCE_DROP"
         return exits
 
+    def is_rebalance_decision_date(
+        self,
+        timeline: List[pd.Timestamp],
+        decision_date: pd.Timestamp,
+        config: Any,
+    ) -> bool:
+        """
+        Determines if decision_date is a rebalancing decision date (e.g. today at 15:45 IST).
+        Works seamlessly for both historical replay and live/forward paper trading.
+        """
+        freq = str(getattr(self, "rebalance_frequency", None) or getattr(config, "rebalance_frequency", "MONTHLY")).upper()
+        if freq == "DAILY":
+            return True
+
+        if freq == "MONTHLY":
+            sorted_dates = sorted(timeline)
+            # If timeline extends beyond decision_date, check if next session is in a new month
+            if decision_date in sorted_dates:
+                idx = sorted_dates.index(decision_date)
+                if idx + 1 < len(sorted_dates):
+                    return sorted_dates[idx + 1].month != decision_date.month
+
+            # Live/Forward mode: decision_date is the latest available date in universe.
+            # Check if there are any remaining trading days in the current calendar month.
+            try:
+                from nse_quant_lab.holidays import is_trading_day
+                curr_month = decision_date.month
+                test_dt = decision_date + pd.Timedelta(days=1)
+                while test_dt.month == curr_month:
+                    if is_trading_day(test_dt):
+                        return False
+                    test_dt += pd.Timedelta(days=1)
+                return True
+            except Exception:
+                # Conservative fallback: check if decision_date is within last 3 days of month
+                return decision_date.day >= 26
+
+        return False
+
     def get_rebalance_schedule(
         self,
         timeline: List[pd.Timestamp],

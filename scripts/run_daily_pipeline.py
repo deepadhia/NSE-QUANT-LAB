@@ -96,7 +96,8 @@ def main():
 
     # Load recent universe for signal evaluation
     logger.info(">> Loading recent market universe...")
-    universe = load_clean_universe("2024-01-01", "2026-10-24")
+    target_end = args.date or datetime.now().strftime("%Y-%m-%d")
+    universe = load_clean_universe("2024-01-01", target_end)
     logger.info(f"   Loaded {len(universe)} stocks.")
 
     # Determine decision date

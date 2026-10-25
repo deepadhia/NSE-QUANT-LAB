@@ -429,7 +429,14 @@ class BacktestEngine:
                     del open_positions[sym]
 
                 # Rebalance Entries:
-                holdings_est_val = sum(p["shares"] * p["entry_raw_price"] for p in open_positions.values())
+                holdings_est_val = sum(
+                    p["shares"] * (
+                        float(universe[sym].loc[universe[sym]["date"] == d_dec].iloc[0]["close"])
+                        if (sym in universe and not universe[sym].loc[universe[sym]["date"] == d_dec].empty)
+                        else p["entry_raw_price"]
+                    )
+                    for sym, p in open_positions.items()
+                )
                 pretrade_equity = cash + holdings_est_val
                 target_alloc_per_stock = pretrade_equity / float(self.config.portfolio_size)
 
@@ -502,7 +509,7 @@ class BacktestEngine:
                     gross_buy_val = shares_submitted * actual_open
                     slipped_buy_val = shares_submitted * fill_price
                     buy_slip_loss = slipped_buy_val - gross_buy_val
-                    buy_fees = calc_buy_fees_exact(gross_buy_val, current_date, self.config)
+                    buy_fees = calc_buy_fees_exact(slipped_buy_val, current_date, self.config)
                     total_outlay = slipped_buy_val + buy_fees["total"]
 
                     if total_outlay > cash:

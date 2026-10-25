@@ -98,9 +98,19 @@ class PaperTradingManager:
 
     def _ensure_indicators(self, universe: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         enriched = {}
+        # Strategy-aware indicator check
+        req_cols = getattr(self.strategy, "required_indicator_columns", None)
         for sym, df in universe.items():
-            if 'ema100' not in df.columns:
-                enriched[sym] = self.strategy.compute_indicators(df, self.config)
+            needs_compute = False
+            if req_cols:
+                needs_compute = any(c not in df.columns for c in req_cols)
+            elif "_strategy_computed" not in df.columns:
+                needs_compute = True
+            
+            if needs_compute:
+                df_res = self.strategy.compute_indicators(df, self.config)
+                df_res["_strategy_computed"] = True
+                enriched[sym] = df_res
             else:
                 enriched[sym] = df
         return enriched
@@ -159,10 +169,8 @@ class PaperTradingManager:
 
         # 2. Evaluate Rebalance Entries
         cal = sorted(list(set(d for df in universe.values() for d in df["date"])))
-        sched = self.strategy.get_rebalance_schedule(cal, decision_date, decision_date, self.config)
         buys_to_log = []
-
-        is_rebal = len(sched) > 0 or self.config.rebalance_frequency.upper() == "DAILY"
+        is_rebal = self.strategy.is_rebalance_decision_date(cal, decision_date, self.config)
         if is_rebal:
             candidates_df = self.strategy.select_entry_candidates(universe, decision_date, positions, self.config)
             target_symbols = list(candidates_df.head(self.config.portfolio_size).index)
@@ -228,6 +236,46 @@ class PaperTradingManager:
         self.notifier.send_signal_alert(self.config.strategy_id, date_str, buys_to_log, exits_to_log)
         return {"exits": exits_to_log, "buys": buys_to_log}
 
+    def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, float]]:
+        """
+        Retrieves opening price bar for execution date.
+        If today's EOD candle is not in universe (normal at 09:16 AM), queries live market quote.
+        """
+        df = universe.get(sym)
+        prev_rows = df.loc[df["date"] < execution_date] if df is not None else pd.DataFrame()
+        prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else 100.0
+
+        if df is not None:
+            rows = df[df["date"] == execution_date]
+            if not rows.empty:
+                r = rows.iloc[0]
+                return {
+                    "open": float(r["open"]),
+                    "high": float(r["high"]),
+                    "low": float(r["low"]),
+                    "close": float(r["close"]),
+                    "prev_close": prev_close,
+                }
+
+        # Live quote fallback at 09:16 IST
+        try:
+            import yfinance as yf
+            ticker = sym if sym.endswith(".NS") else f"{sym}.NS"
+            fast_info = yf.Ticker(ticker).fast_info
+            open_px = float(getattr(fast_info, "open", None) or getattr(fast_info, "last_price", None) or prev_close)
+            if open_px > 0:
+                return {
+                    "open": open_px,
+                    "high": open_px,
+                    "low": open_px,
+                    "close": open_px,
+                    "prev_close": prev_close,
+                }
+        except Exception:
+            pass
+
+        return None
+
     def execute_morning_fills(self, universe: Dict[str, pd.DataFrame], execution_date: pd.Timestamp) -> Dict[str, Any]:
         # Check strategy status
         strat_entry = self.db.strategies.find_one({
@@ -277,18 +325,15 @@ class PaperTradingManager:
             df = universe.get(sym)
             if df is None:
                 continue
-            rows = df[df["date"] == execution_date]
-            if rows.empty:
+            bar = self._get_execution_bar(sym, execution_date, universe)
+            if bar is None:
                 continue
-            idx = rows.index[0]
-            row = rows.iloc[0]
-
-            prev_rows = df.loc[df["date"] < execution_date]
-            prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else float(row["open"])
-            open_px = float(row["open"])
-            high_px = float(row["high"])
-            low_px = float(row["low"])
-            close_px = float(row["close"])
+            prev_close = bar["prev_close"]
+            open_px = bar["open"]
+            high_px = bar["high"]
+            low_px = bar["low"]
+            close_px = bar["close"]
+            row = bar
 
             # Circuit breaker check
             if is_locked_down(open_px, high_px, low_px, close_px, prev_close):
@@ -383,18 +428,15 @@ class PaperTradingManager:
             df = universe.get(sym)
             if df is None:
                 continue
-            rows = df[df["date"] == execution_date]
-            if rows.empty:
+            bar = self._get_execution_bar(sym, execution_date, universe)
+            if bar is None:
                 continue
-            idx = rows.index[0]
-            row = rows.iloc[0]
-
-            prev_rows = df.loc[df["date"] < execution_date]
-            prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else float(row["open"])
-            open_px = float(row["open"])
-            high_px = float(row["high"])
-            low_px = float(row["low"])
-            close_px = float(row["close"])
+            prev_close = bar["prev_close"]
+            open_px = bar["open"]
+            high_px = bar["high"]
+            low_px = bar["low"]
+            close_px = bar["close"]
+            row = bar
 
             # Circuit breaker check
             if is_locked_up(open_px, high_px, low_px, close_px, prev_close):
@@ -404,8 +446,7 @@ class PaperTradingManager:
                 )
                 continue
 
-            # Gap limit cap check
-            prev_close = float(df.loc[idx - 1, "close"]) if idx > 0 else float(row["open"])
+            # Gap limit cap check (using safely pre-computed prev_close)
             open_price = float(row["open"])
             limit_cap_price = prev_close * (1.0 + self.config.limit_cap_pct)
             if open_price > limit_cap_price:
@@ -416,7 +457,8 @@ class PaperTradingManager:
                 continue
 
             fill_price = open_price * (1.0 + self.config.slippage_pct)
-            buffer_mult = 1.0 + self.config.gap_buffer_pct + self.config.slippage_pct + self.config.fees_buffer_pct
+            # Sizing buffer: open_price and slippage are already known; include statutory fees buffer
+            buffer_mult = 1.0 + self.config.fees_buffer_pct
             est_cost_per_sh = fill_price * buffer_mult
             avail = min(target_alloc, cash)
             shares = int(avail // est_cost_per_sh)
@@ -501,14 +543,19 @@ class PaperTradingManager:
             df = universe.get(sym)
             if df is not None:
                 rows = df[df["date"] == execution_date]
-                if not rows.empty:
-                    last_pr = float(rows.iloc[0]["close"])
-                    pos["last_close"] = last_pr
-                    pos["market_value"] = pos["shares"] * last_pr
-                    self.db.positions.update_one(
-                        {"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym},
-                        {"$set": {"last_close": last_pr, "market_value": pos["market_value"]}}
-                    )
+                last_pr = float(rows.iloc[0]["close"]) if not rows.empty else float(pos.get("last_close", pos["entry_price"]))
+                pos["last_close"] = last_pr
+                pos["market_value"] = pos["shares"] * last_pr
+                entry_outlay = float(pos.get("entry_outlay", pos["shares"] * pos["entry_price"]))
+                pos["unrealized_pnl"] = pos["market_value"] - entry_outlay
+                self.db.positions.update_one(
+                    {"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym},
+                    {"$set": {
+                        "last_close": last_pr,
+                        "market_value": pos["market_value"],
+                        "unrealized_pnl": pos["unrealized_pnl"]
+                    }}
+                )
             current_holdings_val += pos.get("market_value", pos["shares"] * pos["entry_price"])
 
         current_nav = cash + current_holdings_val

@@ -25,12 +25,19 @@ def main():
     universe = load_clean_universe("2017-01-01", "2026-10-24")
     print(f">> Loaded {len(universe)} stocks.")
 
+    if len(universe) < 200:
+        target_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "results", "sample_run"))
+        print(f">> NOTE: Universe contains {len(universe)} symbols (< 200).")
+        print(f"   Saving output to '{target_dir}' to preserve the authoritative 500-stock baseline in results/baseline_reproduced/.")
+    else:
+        target_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "results", "baseline_reproduced"))
+
     metrics, trades, orders, execs, nav = engine.run(
         universe=universe,
         eval_start_date="2019-01-01",
         eval_end_date="2026-10-23",
         save_results=True,
-        output_dir=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "results", "baseline_reproduced")),
+        output_dir=target_dir,
     )
 
     print("\n" + "=" * 70)

@@ -47,7 +47,7 @@ def main():
                 "Capital_INR": cap,
                 "Slots": slots,
                 "Ending_NAV": metrics["ending_nav"],
-                "CAGR_Pct": metrics["cagr_trading_pct"],
+                "CAGR_Pct": metrics["cagr_pct"],
                 "Max_DD_Pct": metrics["max_drawdown_pct"],
                 "Sharpe": metrics["sharpe_ratio"],
                 "Closed_Trades": metrics["total_trades"],

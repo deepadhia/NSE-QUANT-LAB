@@ -59,13 +59,16 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
 
     for idx, sym in enumerate(symbols, start=1):
         clean_sym = sym.replace(".NS", "").replace(".BO", "")
-        # Attempt Upstox API v2 fetch
+        used_fallback = False
         df = None
+
+        # Attempt Upstox API v2 fetch
         if token:
             df = fetch_from_upstox(clean_sym, date_str, date_str, access_token=token)
 
         # Fallback to yfinance if Upstox unavailable or returns empty
         if df is None or df.empty:
+            used_fallback = True
             try:
                 import yfinance as yf
                 ticker = sym if sym.endswith(".NS") else f"{sym}.NS"
@@ -89,11 +92,12 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
                         "close": c,
                         "volume": v,
                     }])
-                    fallback_count += 1
             except Exception:
                 df = None
 
         if df is not None and not df.empty:
+            if used_fallback:
+                fallback_count += 1
             row = df.iloc[-1]
             doc = {
                 "symbol": sym,
@@ -103,7 +107,7 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
                 "low": round(float(row["low"]), 2),
                 "close": round(float(row["close"]), 2),
                 "volume": float(row["volume"]),
-                "source": "upstox" if (token and fallback_count == 0) else "yfinance_fallback",
+                "source": "yfinance_fallback" if used_fallback else "upstox",
                 "updated_at": datetime.utcnow().isoformat(),
             }
             # Idempotent upsert
@@ -141,7 +145,7 @@ def main():
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)
     notifier = TelegramNotifier(cfg.telegram_bot_token, cfg.telegram_chat_id, cfg.telegram_enabled)
 
-        date_str = args.date or datetime.now().strftime("%Y-%m-%d")
+    date_str = args.date or datetime.now().strftime("%Y-%m-%d")
     if not args.force and not is_trading_day(date_str):
         logger.info(f"Target date {date_str} is a weekend or official NSE holiday. Skipping ingestion.")
         sys.exit(0)

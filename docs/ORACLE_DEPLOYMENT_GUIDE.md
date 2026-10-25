@@ -83,7 +83,7 @@ chmod +x deploy/*.sh
    APP_ENV=production
 
    # MongoDB Atlas Connection
-   MONGO_URI=mongodb+srv://<username>:<password>@cluster0.uxg8fc4.mongodb.net/?retryWrites=true&w=majority
+   MONGO_URI=mongodb+srv://<username>:<password>@<your_cluster>.mongodb.net/?retryWrites=true&w=majority
    MONGO_DB_NAME=stock_scanner
 
    # Upstox API
@@ -95,7 +95,7 @@ chmod +x deploy/*.sh
    # Telegram Notifications
    TELEGRAM_ENABLED=true
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-   TELEGRAM_CHAT_ID=766982450
+   TELEGRAM_CHAT_ID=your_numeric_chat_id
    ```
    Save with `Ctrl+O`, then `Ctrl+X`.
 

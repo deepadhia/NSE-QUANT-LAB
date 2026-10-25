@@ -129,8 +129,8 @@ def test_paper_trading_lifecycle():
     universe = {"STOCK1.NS": s1, "STOCK2.NS": s2}
 
     dates = sorted(s1["date"].tolist())
-    decision_date = dates[240]      # month-end close
-    execution_date = dates[241]     # next-day morning open
+    decision_date = dates[239]      # 2024-11-29 month-end close
+    execution_date = dates[240]     # 2024-12-02 next-day morning open
 
     # 3. Post-Market Scan
     sig_res = mgr.generate_post_market_signals(universe, decision_date)
