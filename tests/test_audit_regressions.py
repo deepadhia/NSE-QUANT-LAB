@@ -396,3 +396,119 @@ def test_delisted_stock_forced_liquidation_prevents_zombie_slots():
     # Verify at end of backtest, DYING.NS is not a zombie open position
     final_day = nav.iloc[-1]
     assert final_day["open_positions"] <= 1
+
+
+def test_paper_manager_alert_ticket_and_skipped_orders():
+    """
+    Forensic Audit Regressions:
+    1. 15:45 IST post-market signal alert passes enriched order ticket data (shares, close, limit_price, est_shares, reason).
+    2. 09:16 IST morning execution appends skipped orders (+2% gap-up limit exceeded and upper circuit lock) to deferred_log.
+    """
+    from nse_quant_lab.indicators import compute_indicators
+
+    mock_db = MockMongoDbWrapper()
+    cfg = PaperTradingConfig(
+        initial_capital=500_000.0,
+        portfolio_size=2,
+        strategy_id="test_alert_tickets",
+        limit_cap_pct=0.02,
+        telegram_enabled=False,
+    )
+    strat = TrendMomentumStrategy(cfg)
+    strat.rebalance_frequency = "DAILY"
+    mgr = PaperTradingManager(strategy=strat, config=cfg, db=mock_db)
+    mgr.initialize_portfolio()
+
+    # Track signal alert calls
+    captured_signals = {}
+
+    def mock_send_signal_alert(strategy_id, date_str, buys, exits, active_holdings=None, data_asof=None, notify_empty=False, **kwargs):
+        captured_signals["buys"] = buys
+        captured_signals["exits"] = exits
+        captured_signals["active_holdings"] = active_holdings or []
+        return True
+
+    mgr.notifier.send_signal_alert = mock_send_signal_alert
+
+    # 1. Test Post-Market Scan Enrichments (Exits & Buys)
+    from nse_quant_lab.db.models import PositionModel
+    pos_model = PositionModel(
+        strategy_id="test_alert_tickets",
+        mode="paper",
+        symbol="EXIT_STOCK.NS",
+        shares=100,
+        entry_price=100.0,
+        entry_fill_price=100.0,
+        entry_date="2024-05-14",
+        entry_outlay=10020.0,
+        entry_fees=20.0,
+        last_close=100.0,
+        market_value=10000.0,
+        unrealized_pnl=0.0,
+    )
+    mock_db.positions.insert_one(pos_model.to_dict())
+
+    # Build universe: EXIT_STOCK crashes below EMA100, BUY_STOCK has high momentum
+    s_exit = make_synthetic_stock("EXIT_STOCK.NS", n_days=300, start_price=100.0, daily_ret=-0.002, start_date="2023-01-01")
+    s_buy = make_synthetic_stock("BUY_STOCK.NS", n_days=300, start_price=50.0, daily_ret=0.005, start_date="2023-01-01")
+    s_exit = compute_indicators(s_exit)
+    s_buy = compute_indicators(s_buy)
+    universe = {"EXIT_STOCK.NS": s_exit, "BUY_STOCK.NS": s_buy}
+    dec_dt = s_buy["date"].iloc[-1]
+
+    mgr.generate_post_market_signals(universe, dec_dt)
+
+    # Verify captured exits ticket
+    assert len(captured_signals["exits"]) >= 1
+    ex = captured_signals["exits"][0]
+    assert ex["symbol"] == "EXIT_STOCK.NS"
+    assert ex["shares"] == 100
+    assert "close" in ex
+    assert "reason" in ex
+
+    # Verify captured buys ticket
+    assert len(captured_signals["buys"]) >= 1
+    b = captured_signals["buys"][0]
+    assert b["symbol"] == "BUY_STOCK.NS"
+    assert "close" in b
+    assert "limit_price" in b
+    assert abs(b["limit_price"] - (b["close"] * (1.0 + cfg.limit_cap_pct))) < 1e-4
+    assert "est_shares" in b
+    assert b["est_shares"] > 0
+    assert "reason" in b
+    assert "RANK_" in b["reason"]
+
+    # 2. Test 09:16 Morning Fills: Gap-Up Exceeded Appends to deferred_log
+    yesterday_str = (dec_dt - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    today_dt = dec_dt + pd.Timedelta(days=1)
+    today_str = today_dt.strftime("%Y-%m-%d")
+    buy_order = OrderModel(
+        order_id=f"ORD_BUY_{today_str}_GAPPER",
+        strategy_id="test_alert_tickets",
+        mode="paper",
+        symbol="GAPPER.NS",
+        action="BUY",
+        order_type="ENTRY_AT_OPEN",
+        shares=0,
+        price=100.0,
+        status="PENDING_OPEN",
+        reason="RANK_1",
+        signal_date=yesterday_str,
+    )
+    mock_db.orders.insert_one(buy_order.to_dict())
+
+    # Create GAPPER.NS where today's open gaps up +4% (> +2% cap)
+    s_gapper = make_synthetic_stock("GAPPER.NS", n_days=301, start_price=100.0, daily_ret=0.001, start_date="2023-01-01")
+    s_gapper.loc[s_gapper.index[-1], "date"] = today_dt
+    prev_close = float(s_gapper.iloc[-2]["close"])
+    s_gapper.loc[s_gapper.index[-1], "open"] = prev_close * 1.04  # +4% gap-up
+    s_gapper.loc[s_gapper.index[-1], "high"] = prev_close * 1.05
+    s_gapper.loc[s_gapper.index[-1], "low"] = prev_close * 1.03
+    s_gapper.loc[s_gapper.index[-1], "close"] = prev_close * 1.04
+    universe["GAPPER.NS"] = s_gapper
+
+    exec_res = mgr.execute_morning_fills(universe, today_dt)
+    assert len(exec_res["deferred"]) >= 1
+    skipped_item = [d for d in exec_res["deferred"] if d["symbol"] == "GAPPER.NS"][0]
+    assert "Skipped: Open" in skipped_item["reason"]
+    assert "+2% Cap" in skipped_item["reason"]

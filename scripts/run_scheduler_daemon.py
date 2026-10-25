@@ -8,12 +8,17 @@ Adheres to Zero-Spam Policy: completely silent on holidays, weekends, and routin
 import os
 import sys
 import time
+import html
 import signal
 import logging
 import argparse
 import subprocess
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Ensure environment variables loaded from .env
+load_dotenv()
 
 # Ensure project root in sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -57,7 +62,7 @@ class QuantLabScheduler:
         self.current_date = get_ist_now().strftime("%Y-%m-%d")
         self.notifier = TelegramNotifier()
         
-        # Define schedule (IST times) - Actionable trading jobs only
+        # Define schedule (IST times) - Actionable trading jobs and periodic digests
         self.jobs = [
             {
                 "id": "morning_execution",
@@ -79,6 +84,22 @@ class QuantLabScheduler:
                 "description": "Daily Strategy Signal Generation & Portfolio Rebalance",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "run_daily_pipeline.py"),
                 "args": []
+            },
+            {
+                "id": "weekly_report",
+                "time": "16:05",
+                "description": "Weekly Portfolio Performance Digest (Fridays Only)",
+                "script": os.path.join(PROJECT_ROOT, "scripts", "send_periodic_report.py"),
+                "args": ["--period", "weekly"],
+                "day_condition": "FRIDAY_ONLY",
+            },
+            {
+                "id": "monthly_report",
+                "time": "16:15",
+                "description": "Monthly Performance & Rebalance Report (Month-End Only)",
+                "script": os.path.join(PROJECT_ROOT, "scripts", "send_periodic_report.py"),
+                "args": ["--period", "monthly"],
+                "day_condition": "MONTH_END_ONLY",
             }
         ]
 
@@ -98,6 +119,32 @@ class QuantLabScheduler:
             logger.info(f"Date {today_str} is weekend or holiday. Skipping {job_id} silently.")
             self.completed_today.add(job_id)
             return
+
+        # Check day-specific condition if specified
+        day_cond = job.get("day_condition")
+        if day_cond == "FRIDAY_ONLY":
+            now_dt = get_ist_now()
+            if now_dt.weekday() != 4:  # 4 is Friday
+                logger.info(f"Skipping {job_id}: today is not Friday.")
+                self.completed_today.add(job_id)
+                return
+        elif day_cond == "MONTH_END_ONLY":
+            now_dt = get_ist_now()
+            test_dt = now_dt + timedelta(days=1)
+            is_month_end = test_dt.month != now_dt.month
+            if not is_month_end:
+                curr_month = now_dt.month
+                remaining_trading = False
+                while test_dt.month == curr_month:
+                    if is_trading_day(test_dt.strftime("%Y-%m-%d")):
+                        remaining_trading = True
+                        break
+                    test_dt += timedelta(days=1)
+                is_month_end = not remaining_trading
+            if not is_month_end:
+                logger.info(f"Skipping {job_id}: today is not the final trading session of the month.")
+                self.completed_today.add(job_id)
+                return
 
         logger.info(f"========== DISPATCHING JOB: {job_id} ({job['description']}) ==========")
         cmd = [sys.executable, job["script"]] + job.get("args", [])
@@ -122,24 +169,35 @@ class QuantLabScheduler:
                 logger.error(f"STDOUT:\n{res.stdout[-1000:]}")
                 
                 # Send failure alert to Telegram (genuine critical issue)
-                err_snippet = (res.stderr or res.stdout)[-400:].strip()
+                err_snippet = html.escape((res.stderr or res.stdout)[-400:].strip())
                 fail_msg = (
-                    f"🚨 *ALERT: Job Failure in NSE Quant Lab*\n"
-                    f"Job: `{job_id}`\n"
-                    f"Exit Code: `{res.returncode}`\n"
-                    f"Time: `{get_ist_now().strftime('%H:%M:%S IST')}`\n\n"
-                    f"*Error Snippet:*\n`{err_snippet}`"
+                    f"🚨 <b>ALERT: Job Failure in NSE Quant Lab</b>\n"
+                    f"Job: <code>{html.escape(job_id)}</code>\n"
+                    f"Exit Code: <code>{res.returncode}</code>\n"
+                    f"Time: <code>{get_ist_now().strftime('%H:%M:%S IST')}</code>\n\n"
+                    f"<b>Error Snippet:</b>\n<pre>{err_snippet}</pre>"
                 )
                 self.notifier.send_message(fail_msg)
                 self.completed_today.add(job_id)
 
         except subprocess.TimeoutExpired:
             logger.error(f"TIMEOUT: Job {job_id} exceeded 30 minutes execution limit!")
-            self.notifier.send_message(f"🚨 *ALERT: Job {job_id} TIMED OUT after 30 minutes!*")
+            t_msg = (
+                f"🚨 <b>ALERT: Job Timeout in NSE Quant Lab</b>\n"
+                f"Job: <code>{html.escape(job_id)}</code>\n"
+                f"Status: Timed out after 30 minutes"
+            )
+            self.notifier.send_message(t_msg)
             self.completed_today.add(job_id)
         except Exception as e:
             logger.error(f"Unexpected exception executing {job_id}: {e}", exc_info=True)
-            self.notifier.send_message(f"🚨 *ALERT: Unexpected error executing {job_id}:* {str(e)[:200]}")
+            err_str = html.escape(str(e)[:200])
+            e_msg = (
+                f"🚨 <b>ALERT: Unexpected Error in NSE Quant Lab</b>\n"
+                f"Job: <code>{html.escape(job_id)}</code>\n"
+                f"Error: <pre>{err_str}</pre>"
+            )
+            self.notifier.send_message(e_msg)
             self.completed_today.add(job_id)
 
     def run(self):

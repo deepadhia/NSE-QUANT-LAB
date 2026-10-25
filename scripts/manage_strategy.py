@@ -67,6 +67,41 @@ def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
     print(f">> Strategy '{strategy_id}' initialized in MongoDB with capital: INR {capital:,.2f} (Status: ACTIVE)")
 
 
+
+
+def show_positions(db: MongoDatabase, strategy_id: str = "trend_momentum", mode: str = "paper"):
+    positions = list(db.positions.find({"strategy_id": strategy_id, "mode": mode}))
+    print("=" * 105)
+    print(f"ACTIVE POSITIONS & TRAILING STOPS: {strategy_id.upper()} (Mode: {mode.upper()})")
+    print("=" * 105)
+    if not positions:
+        print("  No open positions currently held in portfolio.")
+        print("=" * 105)
+        return
+
+    from tabulate import tabulate
+    table_data = []
+    for p in positions:
+        sym = p["symbol"]
+        sh = p["shares"]
+        entry_px = p.get("entry_price", 0.0)
+        c_px = p.get("last_close", entry_px)
+        pnl = p.get("unrealized_pnl", 0.0)
+        pnl_pct = ((c_px - entry_px) / entry_px * 100.0) if entry_px > 0 else 0.0
+        stop_px = p.get("stop_loss_price", "N/A")
+        buf = p.get("stop_buffer_pct")
+        buf_str = f"{buf:+.1f}%" if buf is not None else "N/A"
+        warn = " [NEAR STOP]" if buf is not None and buf <= 2.5 else ""
+        table_data.append([
+            sym, sh, f"₹{entry_px:,.2f}", f"₹{c_px:,.2f}",
+            f"{pnl_pct:+.2f}%", f"₹{stop_px:,.2f}" if isinstance(stop_px, (int, float)) else stop_px,
+            buf_str + warn, p.get("entry_date", "N/A")
+        ])
+    headers = ["Symbol", "Shares", "Entry Px", "Last Close", "Unrealized %", "Effective Stop", "Buffer %", "Entry Date"]
+    print(tabulate(table_data, headers=headers, tablefmt="simple"))
+    print("=" * 105)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Manage Strategy Status & Profiles in Database")
     parser.add_argument("--list", action="store_true", help="List all registered strategies and live metrics")
@@ -75,13 +110,19 @@ def main():
     parser.add_argument("--init", action="store_true", help="Initialize a strategy portfolio in MongoDB")
     parser.add_argument("--capital", type=float, default=1_000_000.0, help="Initial capital when using --init")
     parser.add_argument("--mode", default="paper", choices=["paper", "real"], help="Execution mode")
+    parser.add_argument("--positions", action="store_true", help="Display all active positions and dynamic trailing stop levels")
     args = parser.parse_args()
 
     cfg = PaperTradingConfig(strategy_id=args.strategy or "trend_momentum")
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)
+    if not db.ping():
+        print(f">> Error: Cannot connect to MongoDB at {cfg.mongo_uri}. Please verify network connection or MONGO_URI in .env.")
+        sys.exit(1)
 
     if args.list:
         list_all_strategies(db, args.mode)
+    elif args.positions:
+        show_positions(db, args.strategy or "trend_momentum", args.mode)
     elif args.init and args.strategy:
         init_strategy(args.strategy, args.capital, args.mode)
     elif args.status and args.strategy:

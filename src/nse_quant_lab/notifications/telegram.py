@@ -10,6 +10,10 @@ import logging
 from typing import Optional, List, Dict, Any
 import urllib.request
 import urllib.parse
+from dotenv import load_dotenv
+
+# Ensure environment variables loaded
+load_dotenv()
 
 logger = logging.getLogger("telegram_alerts")
 
@@ -93,15 +97,17 @@ class TelegramNotifier:
         date_str: str,
         buys: List[Dict[str, Any]],
         exits: List[Dict[str, Any]],
+        active_holdings: Optional[List[Dict[str, Any]]] = None,
         data_asof: Optional[str] = None,
         notify_empty: bool = False,
     ) -> bool:
         """
         Broadcasts post-market scan alert (15:45 IST) in Alpha-Pulse institutional format.
-        Zero-Spam Policy: Does not send message if there are no new buys and no exits unless notify_empty=True.
+        Zero-Spam Policy: Does not send message if there are no new buys, no exits, and no positions near stop unless notify_empty=True.
         """
-        if not buys and not exits and not notify_empty:
-            logger.info("Zero new buy or exit signals today. Suppressing Telegram alert to prevent spam.")
+        near_stop_holdings = [h for h in (active_holdings or []) if h.get("stop_buffer_pct") is not None and h["stop_buffer_pct"] <= 2.5]
+        if not buys and not exits and not near_stop_holdings and not notify_empty:
+            logger.info("Zero new signals and no positions near stop. Suppressing Telegram alert to prevent spam.")
             return False
         e = html.escape
         asof = data_asof or date_str
@@ -116,7 +122,8 @@ class TelegramNotifier:
             lines.append(f"<b>🛑 STRUCTURAL EXITS ({len(exits)}):</b>")
             for ex in exits:
                 reason = ex.get("reason", "EXIT_SIGNAL")
-                lines.append(f"  🔻 <b>{e(ex['symbol'])}</b>: Triggered {e(reason)} -> <i>Exit at next Open</i>")
+                sh_str = f" ({ex['shares']} sh @ ₹{ex['close']:,.2f})" if ex.get("shares") else ""
+                lines.append(f"  🔻 <b>{e(ex['symbol'])}</b>{sh_str}: {e(reason)} -> <i>Sell at next Open</i>")
         else:
             lines.append("<i>No structural exits triggered.</i>")
 
@@ -126,9 +133,25 @@ class TelegramNotifier:
             for b in buys:
                 alloc = b.get("alloc", 0)
                 reason = b.get("reason", "RANK")
-                lines.append(f"  🟢 <b>{e(b['symbol'])}</b>: Sizing Target ₹{alloc:,.0f} ({e(str(reason))}) -> <i>Buy at next Open</i>")
+                details = f"~{b['est_shares']} sh | Close ₹{b['close']:,.2f} | Max Limit ₹{b['limit_price']:,.2f}" if b.get("close") else f"Target ₹{alloc:,.0f}"
+                lines.append(f"  🟢 <b>{e(b['symbol'])}</b>: {details} ({e(str(reason))})")
         else:
             lines.append("<i>No new buy orders queued.</i>")
+
+        if active_holdings:
+            lines.extend(["", f"<b>🛡️ ACTIVE HOLDINGS & TRAILING STOPS ({len(active_holdings)}):</b>"])
+            for h in active_holdings:
+                sym = h["symbol"]
+                c_px = h.get("close", 0.0)
+                sh = h.get("shares", 0)
+                stop_px = h.get("stop_loss_price")
+                buf = h.get("stop_buffer_pct")
+                if stop_px is not None:
+                    buf_str = f"({buf:+.1f}% cushion)" if buf is not None else ""
+                    warn = " ⚠️ <b>NEAR STOP</b>" if buf is not None and buf <= 2.5 else ""
+                    lines.append(f"  🔹 <b>{e(sym)}</b>: {sh} sh @ ₹{c_px:,.2f} | Stop ₹{stop_px:,.2f} {buf_str}{warn}")
+                else:
+                    lines.append(f"  🔹 <b>{e(sym)}</b>: {sh} sh @ ₹{c_px:,.2f}")
 
         lines.extend([
             "",
@@ -170,13 +193,140 @@ class TelegramNotifier:
             lines.append("<i>No orders filled this session.</i>")
 
         if deferred:
-            lines.extend(["", f"<b>⚠️ CIRCUIT DEFERRALS ({len(deferred)}):</b>"])
+            lines.extend(["", f"<b>⚠️ DEFERRALS & SKIPPED ORDERS ({len(deferred)}):</b>"])
             for d in deferred:
-                days = d.get("days", 1)
-                lines.append(f"  ⚠️ <b>{e(d['symbol'])}</b>: Lower circuit locked (deferral day {days})")
+                if "reason" in d:
+                    lines.append(f"  ⚠️ <b>{e(d['symbol'])}</b>: {e(d['reason'])}")
+                else:
+                    days = d.get("days", 1)
+                    lines.append(f"  ⚠️ <b>{e(d['symbol'])}</b>: Lower circuit locked (deferral day {days})")
 
         lines.extend([
             "",
             f"<b>Portfolio NAV:</b> ₹{nav:,.2f}" + (f"  |  <b>Cash:</b> ₹{cash:,.2f}" if cash is not None else ""),
+        ])
+        return self.send_message("\n".join(lines))
+
+    def send_weekly_summary(
+        self,
+        strategy_id: str,
+        start_date: str,
+        end_date: str,
+        start_nav: float,
+        end_nav: float,
+        cash: float,
+        holdings_val: float,
+        open_positions: List[Dict[str, Any]],
+        closed_trades: List[Dict[str, Any]],
+    ) -> bool:
+        """
+        Broadcasts weekly performance digest (e.g. Friday post-market).
+        """
+        e = html.escape
+        weekly_ret_pct = ((end_nav - start_nav) / start_nav * 100.0) if start_nav > 0 else 0.0
+        ret_badge = "🟢" if weekly_ret_pct >= 0 else "🔴"
+        ret_sign = "+" if weekly_ret_pct >= 0 else ""
+
+        lines = [
+            f"<b>📊 NSE-QUANT-LAB | WEEKLY DIGEST</b>",
+            f"<b>Strategy:</b> <code>{e(strategy_id)}</code>  |  <b>Week:</b> {e(start_date)} to {e(end_date)}",
+            "",
+            f"<b>Portfolio NAV:</b> ₹{end_nav:,.2f}  ({ret_badge} <b>{ret_sign}{weekly_ret_pct:.2f}% this week</b>)",
+            f"<b>Cash:</b> ₹{cash:,.2f}  |  <b>Holdings Value:</b> ₹{holdings_val:,.2f}",
+            f"<b>Active Positions:</b> {len(open_positions)}",
+        ]
+
+        if closed_trades:
+            total_net_pnl = sum(float(t.get("net_pnl", 0.0)) for t in closed_trades)
+            wins = sum(1 for t in closed_trades if float(t.get("net_pnl", 0.0)) > 0)
+            losses = len(closed_trades) - wins
+            pnl_sign = "+" if total_net_pnl >= 0 else ""
+            lines.extend([
+                "",
+                f"<b>🏁 Trades Closed This Week ({len(closed_trades)}):</b>",
+                f"  Win / Loss: {wins}W / {losses}L  |  Realized Net: <b>{pnl_sign}₹{total_net_pnl:,.2f}</b>",
+            ])
+            for t in closed_trades[:5]:
+                sym = t.get("symbol", "")
+                raw_ret = float(t.get("return_pct", 0.0))
+                ret = raw_ret * 100.0 if abs(raw_ret) < 5.0 else raw_ret
+                r_badge = "🟢" if ret >= 0 else "🔴"
+                r_sign = "+" if ret >= 0 else ""
+                lines.append(f"  {r_badge} <b>{e(sym)}</b>: {r_sign}{ret:.2f}% ({e(t.get('exit_reason', 'EXIT'))})")
+        else:
+            lines.extend(["", "<i>No closed trades this week.</i>"])
+
+        if open_positions:
+            lines.extend(["", f"<b>🛡️ Current Holdings ({len(open_positions)}):</b>"])
+            for p in open_positions[:6]:
+                sym = p.get("symbol", "")
+                entry_px = float(p.get("entry_price", 1.0))
+                last_pr = float(p.get("last_close", entry_px))
+                unreal_pct = ((last_pr - entry_px) / entry_px) * 100.0 if entry_px > 0 else 0.0
+                u_badge = "🟢" if unreal_pct >= 0 else "🔴"
+                u_sign = "+" if unreal_pct >= 0 else ""
+                stop_str = f" | Stop ₹{p['stop_loss_price']:,.2f}" if p.get("stop_loss_price") else ""
+                lines.append(f"  {u_badge} <b>{e(sym)}</b>: {u_sign}{unreal_pct:.1f}%{stop_str}")
+            if len(open_positions) > 6:
+                lines.append(f"  <i>...and {len(open_positions) - 6} more positions.</i>")
+
+        return self.send_message("\n".join(lines))
+
+    def send_monthly_summary(
+        self,
+        strategy_id: str,
+        month_str: str,
+        start_nav: float,
+        end_nav: float,
+        initial_capital: float,
+        cash: float,
+        holdings_val: float,
+        closed_trades: List[Dict[str, Any]],
+        ytd_ret_pct: float,
+        benchmark_ret_pct: Optional[float] = None,
+    ) -> bool:
+        """
+        Broadcasts monthly performance & rebalance report.
+        """
+        e = html.escape
+        month_ret_pct = ((end_nav - start_nav) / start_nav * 100.0) if start_nav > 0 else 0.0
+        tot_ret_pct = ((end_nav - initial_capital) / initial_capital * 100.0) if initial_capital > 0 else 0.0
+        m_badge = "🟢" if month_ret_pct >= 0 else "🔴"
+        m_sign = "+" if month_ret_pct >= 0 else ""
+        t_sign = "+" if tot_ret_pct >= 0 else ""
+        ytd_sign = "+" if ytd_ret_pct >= 0 else ""
+
+        lines = [
+            f"<b>🏆 NSE-QUANT-LAB | MONTHLY PERFORMANCE REPORT</b>",
+            f"<b>Strategy:</b> <code>{e(strategy_id)}</code>  |  <b>Month:</b> {e(month_str)}",
+            "",
+            f"<b>Monthly Return:</b> {m_badge} <b>{m_sign}{month_ret_pct:.2f}%</b>",
+            f"<b>YTD Return:</b> <b>{ytd_sign}{ytd_ret_pct:.2f}%</b>  |  <b>Total Cumulative:</b> <b>{t_sign}{tot_ret_pct:.2f}%</b>",
+            f"<b>Portfolio NAV:</b> ₹{end_nav:,.2f}  |  <b>Cash:</b> ₹{cash:,.2f}",
+        ]
+        if benchmark_ret_pct is not None:
+            b_sign = "+" if benchmark_ret_pct >= 0 else ""
+            alpha = month_ret_pct - benchmark_ret_pct
+            a_sign = "+" if alpha >= 0 else ""
+            lines.append(f"<b>Nifty 500:</b> {b_sign}{benchmark_ret_pct:.2f}%  |  <b>Alpha:</b> {a_sign}{alpha:.2f}%")
+
+        if closed_trades:
+            wins = sum(1 for t in closed_trades if float(t.get("net_pnl", 0.0)) > 0)
+            losses = len(closed_trades) - wins
+            win_rate = (wins / len(closed_trades) * 100.0) if closed_trades else 0.0
+            tot_net = sum(float(t.get("net_pnl", 0.0)) for t in closed_trades)
+            net_sign = "+" if tot_net >= 0 else ""
+            lines.extend([
+                "",
+                f"<b>📊 Monthly Trade Statistics:</b>",
+                f"  Closed Trades: {len(closed_trades)} ({wins}W / {losses}L)",
+                f"  Win Rate: <b>{win_rate:.1f}%</b>  |  Net P&L: <b>{net_sign}₹{tot_net:,.2f}</b>",
+            ])
+        else:
+            lines.extend(["", "<i>No trades closed this month.</i>"])
+
+        lines.extend([
+            "",
+            "<i>Monthly rebalance completed. Next rebalance scheduled for next month-end.</i>",
         ])
         return self.send_message("\n".join(lines))

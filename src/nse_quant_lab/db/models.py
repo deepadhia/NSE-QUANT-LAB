@@ -66,6 +66,10 @@ class PositionModel:
     unrealized_pnl: float
     days_held: int = 0
     deferral_days: int = 0
+    stop_loss_price: Optional[float] = None
+    supertrend_stop: Optional[float] = None
+    ema100_stop: Optional[float] = None
+    stop_buffer_pct: Optional[float] = None
     updated_at: str = datetime.utcnow().isoformat()
 
     def to_dict(self) -> Dict[str, Any]:

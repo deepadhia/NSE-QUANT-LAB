@@ -155,18 +155,48 @@ class PaperTradingManager:
             if df_sym is not None and not df_sym.empty:
                 c_rows = df_sym.loc[df_sym["date"] <= decision_date]
                 if not c_rows.empty:
-                    last_pr = float(c_rows.iloc[-1]["close"])
+                    last_row = c_rows.iloc[-1]
+                    last_pr = float(last_row["close"])
                     pos["last_close"] = last_pr
                     pos["market_value"] = pos["shares"] * last_pr
                     entry_outlay = float(pos.get("entry_outlay", pos["shares"] * pos["entry_price"]))
                     pos["unrealized_pnl"] = pos["market_value"] - entry_outlay
+
+                    # Extract dynamic trailing stop levels
+                    ema_stop = float(last_row["ema100"]) if "ema100" in last_row and not np.isnan(last_row["ema100"]) else None
+                    st_stop = float(last_row["supertrend_lower"]) if "supertrend_lower" in last_row and not np.isnan(last_row["supertrend_lower"]) else None
+
+                    effective_stop = None
+                    if ema_stop is not None and st_stop is not None:
+                        effective_stop = max(ema_stop, st_stop)
+                    elif ema_stop is not None:
+                        effective_stop = ema_stop
+                    elif st_stop is not None:
+                        effective_stop = st_stop
+
+                    buffer_pct = None
+                    if effective_stop is not None and last_pr > 0:
+                        buffer_pct = round(((last_pr - effective_stop) / last_pr) * 100.0, 2)
+
+                    pos["ema100_stop"] = round(ema_stop, 2) if ema_stop else None
+                    pos["supertrend_stop"] = round(st_stop, 2) if st_stop else None
+                    pos["stop_loss_price"] = round(effective_stop, 2) if effective_stop else None
+                    pos["stop_buffer_pct"] = buffer_pct
+
+                    update_dict = {
+                        "last_close": last_pr,
+                        "market_value": pos["market_value"],
+                        "unrealized_pnl": pos["unrealized_pnl"],
+                    }
+                    if effective_stop is not None:
+                        update_dict["stop_loss_price"] = round(effective_stop, 2)
+                        update_dict["supertrend_stop"] = round(st_stop, 2) if st_stop else None
+                        update_dict["ema100_stop"] = round(ema_stop, 2) if ema_stop else None
+                        update_dict["stop_buffer_pct"] = buffer_pct
+
                     self.db.positions.update_one(
                         {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "symbol": sym},
-                        {"$set": {
-                            "last_close": last_pr,
-                            "market_value": pos["market_value"],
-                            "unrealized_pnl": pos["unrealized_pnl"]
-                        }}
+                        {"$set": update_dict}
                     )
             current_holdings_val += pos.get("market_value", pos["shares"] * pos.get("last_close", pos["entry_price"]))
 
@@ -208,7 +238,12 @@ class PaperTradingManager:
                 signal_date=date_str,
             )
             self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
-            exits_to_log.append({"symbol": sym, "reason": reason})
+            exits_to_log.append({
+                "symbol": sym,
+                "shares": pos["shares"],
+                "close": pos.get("last_close", 0.0),
+                "reason": reason,
+            })
 
         # 2. Evaluate Rebalance Entries
         cal = sorted(list(set(d for df in universe.values() for d in df["date"])))
@@ -238,7 +273,12 @@ class PaperTradingManager:
                         signal_date=date_str,
                     )
                     self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
-                    exits_to_log.append({"symbol": sym, "reason": reason})
+                    exits_to_log.append({
+                        "symbol": sym,
+                        "shares": pos["shares"],
+                        "close": pos.get("last_close", 0.0),
+                        "reason": reason,
+                    })
 
             # New candidate buys
             open_slots = self.config.portfolio_size - len(positions) + len(exits_to_log)
@@ -249,6 +289,12 @@ class PaperTradingManager:
 
             for sym in new_buys:
                 ord_id = f"ORD_BUY_{date_str}_{sym}"
+                c_px = float(candidates_df.loc[sym, "close"])
+                lim_px = c_px * (1.0 + self.config.limit_cap_pct)
+                denom = c_px * (1.0 + self.config.slippage_pct + self.config.fees_buffer_pct)
+                est_sh = int(target_alloc // denom) if denom > 0 else 0
+                rk = f"RANK_{candidates_df.loc[sym, 'rank'] if 'rank' in candidates_df.columns else 1}"
+
                 order = OrderModel(
                     order_id=ord_id,
                     strategy_id=self.config.strategy_id,
@@ -256,14 +302,21 @@ class PaperTradingManager:
                     symbol=sym,
                     action="BUY",
                     shares=0,  # Sized dynamically at open fill
-                    price=float(candidates_df.loc[sym, "close"]),
+                    price=c_px,
                     order_type="ENTRY_AT_OPEN",
                     status="PENDING_OPEN",
-                    reason=f"RANK_{candidates_df.loc[sym, 'rank'] if 'rank' in candidates_df.columns else 1}",
+                    reason=rk,
                     signal_date=date_str,
                 )
                 self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
-                buys_to_log.append({"symbol": sym, "alloc": target_alloc})
+                buys_to_log.append({
+                    "symbol": sym,
+                    "alloc": target_alloc,
+                    "close": c_px,
+                    "limit_price": lim_px,
+                    "est_shares": est_sh,
+                    "reason": rk,
+                })
 
         # Update strategies collection with full post-market mark-to-market metadata
         unrealized_pnl = sum(float(p.get("unrealized_pnl", p.get("market_value", 0.0) - p.get("entry_outlay", 0.0))) for p in positions.values())
@@ -284,9 +337,29 @@ class PaperTradingManager:
             }}
         )
 
+        # Collect active continuing holdings (those not exited today)
+        active_holdings_to_log = []
+        for sym, pos in positions.items():
+            if sym not in requested_exits and sym not in rebal_drops:
+                active_holdings_to_log.append({
+                    "symbol": sym,
+                    "shares": pos["shares"],
+                    "close": pos.get("last_close", 0.0),
+                    "stop_loss_price": pos.get("stop_loss_price"),
+                    "supertrend_stop": pos.get("supertrend_stop"),
+                    "ema100_stop": pos.get("ema100_stop"),
+                    "stop_buffer_pct": pos.get("stop_buffer_pct"),
+                })
+
         # Broadcast Telegram
-        self.notifier.send_signal_alert(self.config.strategy_id, date_str, buys_to_log, exits_to_log)
-        return {"exits": exits_to_log, "buys": buys_to_log}
+        self.notifier.send_signal_alert(
+            self.config.strategy_id,
+            date_str,
+            buys_to_log,
+            exits_to_log,
+            active_holdings=active_holdings_to_log,
+        )
+        return {"exits": exits_to_log, "buys": buys_to_log, "active_holdings": active_holdings_to_log}
 
     def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, Any]]:
         """
@@ -509,6 +582,7 @@ class PaperTradingManager:
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_LOCKED_UP", "execution_date": date_str}}
                 )
+                deferred_log.append({"symbol": sym, "reason": f"Skipped: Upper Circuit Lock (Open ₹{open_px:.2f})"})
                 continue
 
             # Gap limit cap check (using safely pre-computed prev_close)
@@ -519,6 +593,7 @@ class PaperTradingManager:
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_GAP_LIMIT_EXCEEDED", "execution_date": date_str}}
                 )
+                deferred_log.append({"symbol": sym, "reason": f"Skipped: Open ₹{open_price:.2f} > +2% Cap ₹{limit_cap_price:.2f}"})
                 continue
 
             fill_price = open_price * (1.0 + self.config.slippage_pct)
