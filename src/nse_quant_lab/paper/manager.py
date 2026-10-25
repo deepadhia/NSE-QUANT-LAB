@@ -3,6 +3,7 @@ manager.py -- Forward Paper Trading Engine & Database Lifecycle Manager
 """
 
 from __future__ import annotations
+import logging
 import math
 import uuid
 from typing import Dict, List, Optional, Any
@@ -17,6 +18,8 @@ from ..db.models import OrderModel, ExecutionModel, PositionModel, TradeModel, D
 from ..execution import is_locked_down, is_locked_up
 from ..fees import calc_buy_fees_exact, calc_sell_fees_exact
 from ..notifications.telegram import TelegramNotifier
+
+logger = logging.getLogger(__name__)
 
 
 class PaperTradingManager:
@@ -145,6 +148,44 @@ class PaperTradingManager:
         cash = state["cash"]
         positions = state["positions"]
 
+        # Mark open positions to today's EOD close from universe
+        current_holdings_val = 0.0
+        for sym, pos in list(positions.items()):
+            df_sym = universe.get(sym)
+            if df_sym is not None and not df_sym.empty:
+                c_rows = df_sym.loc[df_sym["date"] <= decision_date]
+                if not c_rows.empty:
+                    last_pr = float(c_rows.iloc[-1]["close"])
+                    pos["last_close"] = last_pr
+                    pos["market_value"] = pos["shares"] * last_pr
+                    entry_outlay = float(pos.get("entry_outlay", pos["shares"] * pos["entry_price"]))
+                    pos["unrealized_pnl"] = pos["market_value"] - entry_outlay
+                    self.db.positions.update_one(
+                        {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "symbol": sym},
+                        {"$set": {
+                            "last_close": last_pr,
+                            "market_value": pos["market_value"],
+                            "unrealized_pnl": pos["unrealized_pnl"]
+                        }}
+                    )
+            current_holdings_val += pos.get("market_value", pos["shares"] * pos.get("last_close", pos["entry_price"]))
+
+        current_nav = cash + current_holdings_val
+        nav_model = DailyNavModel(
+            strategy_id=self.config.strategy_id,
+            mode=getattr(self.config, "mode", "paper"),
+            date=date_str,
+            cash=round(cash, 2),
+            holdings_val=round(current_holdings_val, 2),
+            nav=round(current_nav, 2),
+            open_positions_count=len(positions),
+        )
+        self.db.daily_nav.replace_one(
+            {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
+            nav_model.to_dict(),
+            upsert=True
+        )
+
         # 1. Evaluate Daily Exits
         requested_exits = self.strategy.evaluate_daily_exits(universe, decision_date, positions, self.config)
         exits_to_log = []
@@ -228,6 +269,7 @@ class PaperTradingManager:
         self.db.strategies.update_one(
             {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
             {"$set": {
+                "current_nav": round(current_nav, 2),
                 "last_signal_date": date_str,
                 "last_run_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
@@ -238,43 +280,56 @@ class PaperTradingManager:
         self.notifier.send_signal_alert(self.config.strategy_id, date_str, buys_to_log, exits_to_log)
         return {"exits": exits_to_log, "buys": buys_to_log}
 
-    def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, float]]:
+    def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, Any]]:
         """
         Retrieves opening price bar for execution date.
         If today's EOD candle is not in universe (normal at 09:16 AM), queries live market quote.
+        Never invents prev_close or 100.0 if data is absent.
         """
         df = universe.get(sym)
-        prev_rows = df.loc[df["date"] < execution_date] if df is not None else pd.DataFrame()
-        prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else 100.0
+        if df is None or df.empty:
+            return None
+        prev_rows = df.loc[df["date"] < execution_date]
+        if prev_rows.empty:
+            logger.warning("No previous close found for symbol %s before %s; cannot execute order", sym, execution_date)
+            return None
+        prev_close = float(prev_rows.iloc[-1]["close"])
 
-        if df is not None:
-            rows = df[df["date"] == execution_date]
-            if not rows.empty:
-                r = rows.iloc[0]
-                return {
-                    "open": float(r["open"]),
-                    "high": float(r["high"]),
-                    "low": float(r["low"]),
-                    "close": float(r["close"]),
-                    "prev_close": prev_close,
-                }
+        rows = df[df["date"] == execution_date]
+        if not rows.empty:
+            r = rows.iloc[0]
+            return {
+                "open": float(r["open"]),
+                "high": float(r["high"]),
+                "low": float(r["low"]),
+                "close": float(r["close"]),
+                "prev_close": prev_close,
+                "is_live_quote": False,
+            }
 
-        # Live quote fallback at 09:16 IST
+        # Live quote fallback at 09:16 IST (never fallback to prev_close as open_px)
         try:
             import yfinance as yf
             ticker = sym if sym.endswith(".NS") else f"{sym}.NS"
             fast_info = yf.Ticker(ticker).fast_info
-            open_px = float(getattr(fast_info, "open", None) or getattr(fast_info, "last_price", None) or prev_close)
-            if open_px > 0:
+            open_val = getattr(fast_info, "open", None) or getattr(fast_info, "last_price", None)
+            if open_val is not None and float(open_val) > 0:
+                open_px = float(open_val)
+                high_px = float(getattr(fast_info, "day_high", None) or open_px)
+                low_px = float(getattr(fast_info, "day_low", None) or open_px)
+                last_px = float(getattr(fast_info, "last_price", None) or open_px)
                 return {
                     "open": open_px,
-                    "high": open_px,
-                    "low": open_px,
-                    "close": open_px,
+                    "high": max(open_px, high_px, last_px),
+                    "low": min(open_px, low_px, last_px),
+                    "close": last_px,
                     "prev_close": prev_close,
+                    "is_live_quote": True,
                 }
-        except Exception:
-            pass
+            else:
+                logger.error("Live quote for %s returned empty/zero open price at 09:16 IST", ticker)
+        except Exception as exc:
+            logger.error("Failed to fetch live quote for %s at 09:16 IST: %s", sym, exc)
 
         return None
 

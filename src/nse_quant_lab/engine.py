@@ -105,6 +105,89 @@ class BacktestEngine:
             date_str = current_date.strftime("%Y-%m-%d")
 
             # ------------------------------------------------------------------
+            # STEP 0: FORCE-LIQUIDATE DELISTED / CEASED SERIES HOLDINGS
+            # ------------------------------------------------------------------
+            for sym in sorted(list(open_positions.keys())):
+                df_sym = universe_ind.get(sym)
+                if df_sym is not None and not df_sym.empty and current_date > df_sym["date"].max():
+                    pos = open_positions[sym]
+                    last_row = df_sym.iloc[-1]
+                    raw_exit_price = float(last_row["close"])
+                    fill_price = raw_exit_price * (1.0 - self.config.slippage_pct)
+                    shares = pos["shares"]
+                    gross_proceeds = shares * raw_exit_price
+                    net_proceeds_slip = shares * fill_price
+                    slip_loss = gross_proceeds - net_proceeds_slip
+
+                    sell_fees = calc_sell_fees_exact(net_proceeds_slip, current_date, self.config)
+                    cash_received = net_proceeds_slip - sell_fees["total"]
+                    cash += cash_received
+
+                    total_brokerage += sell_fees["brokerage"]
+                    total_stt += sell_fees["stt"]
+                    total_exchange_txn += sell_fees["exchange_txn"]
+                    total_sebi += sell_fees["sebi"]
+                    total_gst += sell_fees["gst"]
+                    total_dp_charges += sell_fees["dp_charges"]
+                    total_slippage += slip_loss
+                    total_turnover += gross_proceeds
+
+                    order_id_counter += 1
+                    order_ledger.append({
+                        "order_id": order_id_counter,
+                        "date": date_str,
+                        "symbol": sym,
+                        "action": "SELL",
+                        "shares": shares,
+                        "order_type": "EXIT_AT_OPEN",
+                        "status": "FILLED",
+                        "reason": "DATA_ENDED_FORCED_EXIT",
+                        "deferral_days": 0,
+                    })
+
+                    exec_id_counter += 1
+                    execution_ledger.append({
+                        "exec_id": exec_id_counter,
+                        "order_id": order_id_counter,
+                        "date": date_str,
+                        "symbol": sym,
+                        "action": "SELL",
+                        "shares": shares,
+                        "raw_price": raw_exit_price,
+                        "fill_price": fill_price,
+                        "gross_val": gross_proceeds,
+                        "net_cash": cash_received,
+                        "fees": sell_fees["total"],
+                        "slippage": slip_loss,
+                    })
+
+                    gross_pnl = (raw_exit_price - pos["entry_raw_price"]) * shares
+                    net_pnl = cash_received - pos["total_entry_outlay"]
+                    closed_trades.append({
+                        "symbol": sym,
+                        "entry_date": pos["entry_date"].strftime("%Y-%m-%d"),
+                        "entry_price": pos["entry_raw_price"],
+                        "entry_fill_price": pos["entry_fill_price"],
+                        "exit_date": date_str,
+                        "exit_price": raw_exit_price,
+                        "exit_fill_price": fill_price,
+                        "shares": shares,
+                        "hold_days": (current_date - pos["entry_date"]).days,
+                        "gross_pnl": gross_pnl,
+                        "net_pnl": net_pnl,
+                        "total_fees": pos["buy_fees"]["total"] + sell_fees["total"],
+                        "total_slippage": pos["entry_slip_loss"] + slip_loss,
+                        "exit_reason": "DATA_ENDED_FORCED_EXIT",
+                        "deferral_days": 0,
+                    })
+
+                    del open_positions[sym]
+                    if sym in pending_circuit_exits:
+                        del pending_circuit_exits[sym]
+                    if sym in queued_structural_exits:
+                        queued_structural_exits.discard(sym)
+
+            # ------------------------------------------------------------------
             # STEP 1: RETRY LOWER-CIRCUIT DEFERRED EXITS AT TODAY'S OPEN
             # ------------------------------------------------------------------
             for sym in sorted(list(pending_circuit_exits.keys())):
@@ -147,7 +230,7 @@ class BacktestEngine:
                 net_proceeds_slip = shares * fill_price
                 slip_loss = gross_proceeds - net_proceeds_slip
 
-                sell_fees = calc_sell_fees_exact(gross_proceeds, current_date, self.config)
+                sell_fees = calc_sell_fees_exact(net_proceeds_slip, current_date, self.config)
                 cash_received = net_proceeds_slip - sell_fees["total"]
                 cash += cash_received
 
@@ -242,7 +325,7 @@ class BacktestEngine:
                 net_proceeds_slip = shares * fill_price
                 slip_loss = gross_proceeds - net_proceeds_slip
 
-                sell_fees = calc_sell_fees_exact(gross_proceeds, current_date, self.config)
+                sell_fees = calc_sell_fees_exact(net_proceeds_slip, current_date, self.config)
                 cash_received = net_proceeds_slip - sell_fees["total"]
                 cash += cash_received
 
@@ -364,7 +447,7 @@ class BacktestEngine:
                     net_proceeds_slip = shares * fill_price
                     slip_loss = gross_proceeds - net_proceeds_slip
 
-                    sell_fees = calc_sell_fees_exact(gross_proceeds, current_date, self.config)
+                    sell_fees = calc_sell_fees_exact(net_proceeds_slip, current_date, self.config)
                     cash_received = net_proceeds_slip - sell_fees["total"]
                     cash += cash_received
 
@@ -443,7 +526,7 @@ class BacktestEngine:
                 new_buys = [s for s in target_symbols_list if s not in open_positions and s not in pending_circuit_exits]
 
                 for sym in new_buys:
-                    if cash < 1000.0:
+                    if len(open_positions) >= self.config.portfolio_size or cash < 1000.0:
                         break
 
                     row_c = ranked_df.loc[sym]
@@ -452,6 +535,8 @@ class BacktestEngine:
                         1.0 + self.config.gap_buffer_pct + self.config.slippage_pct + self.config.fees_buffer_pct
                     )
                     alloc = min(target_alloc_per_stock, cash)
+                    if alloc < 0.25 * target_alloc_per_stock:
+                        continue
                     shares_submitted = int(np.floor(alloc / est_max_fill))
 
                     if shares_submitted <= 0:
