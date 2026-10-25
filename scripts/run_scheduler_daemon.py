@@ -73,21 +73,21 @@ class QuantLabScheduler:
             },
             {
                 "id": "eod_ingestion",
-                "time": "15:35",
-                "description": "EOD Daily Candle Ingestion from Upstox",
+                "time": "17:45",
+                "description": "EOD Daily Candle Ingestion from Upstox (Settled & Reconciled)",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "ingest_daily_upstox_candles.py"),
                 "args": []
             },
             {
                 "id": "daily_pipeline",
-                "time": "15:45",
+                "time": "18:00",
                 "description": "Daily Strategy Signal Generation & Portfolio Rebalance",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "run_daily_pipeline.py"),
                 "args": []
             },
             {
                 "id": "weekly_report",
-                "time": "16:05",
+                "time": "18:15",
                 "description": "Weekly Portfolio Performance Digest (Fridays Only)",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "send_periodic_report.py"),
                 "args": ["--period", "weekly"],
@@ -95,7 +95,7 @@ class QuantLabScheduler:
             },
             {
                 "id": "monthly_report",
-                "time": "16:15",
+                "time": "18:20",
                 "description": "Monthly Performance & Rebalance Report (Month-End Only)",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "send_periodic_report.py"),
                 "args": ["--period", "monthly"],
