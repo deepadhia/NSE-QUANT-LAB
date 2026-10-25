@@ -307,6 +307,13 @@ def test_generate_post_market_signals_marks_open_positions_to_eod_close():
     assert nav_rec is not None
     assert nav_rec["holdings_val"] == 12000.0
 
+    strat_entry = mock_db.strategies.find_one({"strategy_id": "test_mtm"})
+    assert strat_entry is not None
+    assert strat_entry["holdings_val"] == 12000.0
+    assert strat_entry["unrealized_pnl"] == 12000.0 - 10020.0
+    assert strat_entry["open_positions_count"] == 1
+    assert "total_return_pct" in strat_entry
+
 
 def test_backtest_engine_strictly_enforces_portfolio_size_and_no_dust():
     """

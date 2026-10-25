@@ -83,9 +83,9 @@ def main():
             if yr_trades > 0:
                 wins = t_sub[t_sub["net_pnl"] > 0]
                 yr_win_rate = len(wins) / yr_trades * 100.0
-                gross_wins = t_sub[t_sub["gross_pnl"] > 0]["gross_pnl"].sum()
-                gross_losses = abs(t_sub[t_sub["gross_pnl"] < 0]["gross_pnl"].sum())
-                yr_pf = gross_wins / gross_losses if gross_losses > 0 else (np.inf if gross_wins > 0 else 0.0)
+                net_wins = t_sub[t_sub["net_pnl"] > 0]["net_pnl"].sum()
+                net_losses = abs(t_sub[t_sub["net_pnl"] < 0]["net_pnl"].sum())
+                yr_pf = net_wins / net_losses if net_losses > 0 else (999.0 if net_wins > 0 else 0.0)
 
         annual_stats.append({
             "Year": yr,

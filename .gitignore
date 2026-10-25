@@ -30,3 +30,6 @@ Thumbs.db
 
 # Ephemeral backtest run outputs
 results/backtests/
+
+# Archives
+*.zip

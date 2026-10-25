@@ -265,11 +265,19 @@ class PaperTradingManager:
                 self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
                 buys_to_log.append({"symbol": sym, "alloc": target_alloc})
 
-        # Update strategies collection with latest post-market scan metadata
+        # Update strategies collection with full post-market mark-to-market metadata
+        unrealized_pnl = sum(float(p.get("unrealized_pnl", p.get("market_value", 0.0) - p.get("entry_outlay", 0.0))) for p in positions.values())
+        tot_ret_pct = ((current_nav - float(self.config.initial_capital)) / float(self.config.initial_capital)) * 100.0
+
         self.db.strategies.update_one(
             {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
             {"$set": {
                 "current_nav": round(current_nav, 2),
+                "cash": round(cash, 2),
+                "holdings_val": round(current_holdings_val, 2),
+                "unrealized_pnl": round(unrealized_pnl, 2),
+                "total_return_pct": round(tot_ret_pct, 4),
+                "open_positions_count": len(positions),
                 "last_signal_date": date_str,
                 "last_run_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
