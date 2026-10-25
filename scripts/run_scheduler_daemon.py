@@ -2,6 +2,7 @@
 NSE Quant Lab - Production Background Scheduler Daemon
 Runs 24/7 as a systemd service on Oracle Cloud VM.
 Dispatches scheduled jobs at exact IST market times with automated holiday checks.
+Adheres to Zero-Spam Policy: completely silent on holidays, weekends, and routine operations.
 """
 
 import os
@@ -47,6 +48,7 @@ class QuantLabScheduler:
     """
     Autonomous Scheduler Daemon for NSE Quant Lab.
     Handles exact-time job dispatching, holiday avoidance, and failure notifications.
+    Zero-Spam: Operates silently. Alerts sent ONLY for actual trade fills, trade signals, or critical failures.
     """
 
     def __init__(self):
@@ -55,19 +57,12 @@ class QuantLabScheduler:
         self.current_date = get_ist_now().strftime("%Y-%m-%d")
         self.notifier = TelegramNotifier()
         
-        # Define schedule (IST times)
+        # Define schedule (IST times) - Actionable trading jobs only
         self.jobs = [
-            {
-                "id": "morning_heartbeat",
-                "time": "08:30",
-                "description": "Pre-Market Status & Heartbeat Check",
-                "type": "internal_heartbeat",
-            },
             {
                 "id": "morning_execution",
                 "time": "09:16",
                 "description": "Morning Market Open Order Execution",
-                "type": "command",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "execute_paper_orders.py"),
                 "args": []
             },
@@ -75,7 +70,6 @@ class QuantLabScheduler:
                 "id": "eod_ingestion",
                 "time": "15:35",
                 "description": "EOD Daily Candle Ingestion from Upstox",
-                "type": "command",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "ingest_daily_upstox_candles.py"),
                 "args": []
             },
@@ -83,7 +77,6 @@ class QuantLabScheduler:
                 "id": "daily_pipeline",
                 "time": "15:45",
                 "description": "Daily Strategy Signal Generation & Portfolio Rebalance",
-                "type": "command",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "run_daily_pipeline.py"),
                 "args": []
             }
@@ -95,49 +88,18 @@ class QuantLabScheduler:
         logger.info(f"Received signal {sig_name}. Stopping scheduler daemon gracefully...")
         self.running = False
 
-    def send_heartbeat(self, today_str: str):
-        """Send daily morning Telegram heartbeat."""
-        trading = is_trading_day(today_str)
-        if trading:
-            msg = (
-                f"🟢 *NSE Quant Lab Online - {today_str}*\n"
-                f"Market Status: *TRADING SESSION OPEN*\n\n"
-                f"⏰ *Schedule for Today:*\n"
-                f"• `09:16 IST`: Morning Order Execution\n"
-                f"• `15:35 IST`: Daily Candle Ingestion\n"
-                f"• `15:45 IST`: Strategy Scanning & Signals\n\n"
-                f"_System running on Oracle Cloud VM._"
-            )
-        else:
-            msg = (
-                f"⏸️ *NSE Quant Lab Notice - {today_str}*\n"
-                f"Market Status: *CLOSED (Weekend / NSE Holiday)*\n\n"
-                f"Automated execution pipelines are paused for today.\n"
-                f"Next check tomorrow morning."
-            )
-        logger.info(f"Sending daily heartbeat for {today_str} (Trading Day: {trading})")
-        self.notifier.send_message(msg)
-
     def execute_job(self, job: Dict[str, Any], today_str: str):
         """Execute a scheduled task with full error handling and Telegram alerting."""
         job_id = job["id"]
-        logger.info(f"========== DISPATCHING JOB: {job_id} ({job['description']}) ==========")
 
-        if job["type"] == "internal_heartbeat":
-            try:
-                self.send_heartbeat(today_str)
-                self.completed_today.add(job_id)
-                logger.info(f"Job {job_id} completed successfully.")
-            except Exception as e:
-                logger.error(f"Error sending heartbeat: {e}")
-            return
-
-        # For command jobs, check if today is trading day first
+        # Check if today is a trading day first.
+        # Zero-Spam: Silently skip weekends and official holidays without sending any messages.
         if not is_trading_day(today_str):
-            logger.info(f"Date {today_str} is weekend or holiday. Skipping {job_id}.")
+            logger.info(f"Date {today_str} is weekend or holiday. Skipping {job_id} silently.")
             self.completed_today.add(job_id)
             return
 
+        logger.info(f"========== DISPATCHING JOB: {job_id} ({job['description']}) ==========")
         cmd = [sys.executable, job["script"]] + job.get("args", [])
         start_t = time.time()
         
@@ -159,7 +121,7 @@ class QuantLabScheduler:
                 logger.error(f"STDERR:\n{res.stderr[-1000:]}")
                 logger.error(f"STDOUT:\n{res.stdout[-1000:]}")
                 
-                # Send failure alert to Telegram
+                # Send failure alert to Telegram (genuine critical issue)
                 err_snippet = (res.stderr or res.stdout)[-400:].strip()
                 fail_msg = (
                     f"🚨 *ALERT: Job Failure in NSE Quant Lab*\n"
@@ -169,7 +131,6 @@ class QuantLabScheduler:
                     f"*Error Snippet:*\n`{err_snippet}`"
                 )
                 self.notifier.send_message(fail_msg)
-                # Still mark completed to prevent rapid retry loops
                 self.completed_today.add(job_id)
 
         except subprocess.TimeoutExpired:
@@ -192,18 +153,6 @@ class QuantLabScheduler:
         logger.info(f"Monitoring schedule for date: {self.current_date}")
         for j in self.jobs:
             logger.info(f"  • [{j['time']} IST] {j['id']}: {j['description']}")
-
-        # Startup notification
-        try:
-            startup_msg = (
-                f"🚀 *NSE Quant Lab Daemon Started*\n"
-                f"Host: Oracle Cloud VM\n"
-                f"Time: `{get_ist_now().strftime('%Y-%m-%d %H:%M:%S IST')}`\n"
-                f"Scheduler is active and monitoring market sessions."
-            )
-            self.notifier.send_message(startup_msg)
-        except Exception as e:
-            logger.warning(f"Could not send startup notification: {e}")
 
         while self.running:
             now_ist = get_ist_now()
@@ -232,7 +181,7 @@ class QuantLabScheduler:
 
 def main():
     parser = argparse.ArgumentParser(description="NSE Quant Lab Background Scheduler")
-    parser.add_argument("--test-job", choices=["morning_heartbeat", "morning_execution", "eod_ingestion", "daily_pipeline"],
+    parser.add_argument("--test-job", choices=["morning_execution", "eod_ingestion", "daily_pipeline"],
                         help="Immediately test run a specific job without waiting for its scheduled time.")
     args = parser.parse_args()
 

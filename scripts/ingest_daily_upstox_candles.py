@@ -126,14 +126,8 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
     logger.info(f"   Failed Count:  {len(failed_symbols)}")
     logger.info("=" * 70)
 
-    # Optional Telegram notification
-    msg = (
-        f"<b>EOD Market Data Ingestion Completed</b>\n"
-        f"Date: <code>{date_str}</code>\n"
-        f"Saved Candles: <b>{success_count}/{len(symbols)}</b>\n"
-        f"Upstox API: {success_count - fallback_count} | Fallbacks: {fallback_count}"
-    )
-    notifier.send_message(msg)
+    # Routine EOD data maintenance: log to file only (Zero-Spam: no Telegram alert for routine data maintenance)
+    logger.info(f"Ingestion finished successfully: {success_count}/{len(symbols)} saved.")
 
 
 def main():

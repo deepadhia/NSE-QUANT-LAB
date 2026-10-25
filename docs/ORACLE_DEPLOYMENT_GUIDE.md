@@ -16,7 +16,6 @@ This guide walks you through setting up, deploying, and maintaining **NSE Quant 
                                       │  │ (Scheduler Daemon)       │  │
                                       │  └─────────────┬────────────┘  │
                                       │                │               │
-                                      │     08:30 IST  │ Heartbeat     │
                                       │     09:16 IST  │ Morning Fills │
                                       │     15:35 IST  │ EOD Ingest    │
                                       │     15:45 IST  │ Strategy Scan │
@@ -165,8 +164,8 @@ The system is equipped with **zero-maintenance holiday & weekend protection**:
 2. **Official NSE Calendar**: Includes official NSE trading holiday calendars for 2024, 2025, 2026, and 2027.
 3. **Dynamic API & Cache**: Syncs with Upstox `/v2/market/holidays` API when available and caches holidays in MongoDB.
 4. **Daemon Behavior on Non-Trading Days**:
-   - At `08:30 IST`: Sends a Telegram heartbeat confirming market is closed for the holiday/weekend.
-   - At `09:16 IST`, `15:35 IST`, and `15:45 IST`: Safely skips order execution, candle ingestion, and signal scans.
+   - All pipelines safely skip execution completely silently on weekends and official exchange holidays.
+   - Zero spam: No messages or alerts are sent when markets are closed.
    - Zero unnecessary API queries or corrupted holiday data.
 
 To force run a script on a holiday (for manual backtesting or testing), use the `--force` flag:
@@ -185,7 +184,6 @@ To force run a script on a holiday (for manual backtesting or testing), use the 
 | `./deploy/manage_daemon.sh restart` | Restart the scheduler daemon |
 | `./deploy/manage_daemon.sh stop` | Stop the scheduler daemon |
 | `./deploy/manage_daemon.sh start` | Start the scheduler daemon |
-| `./deploy/manage_daemon.sh test-job morning_heartbeat` | Send an immediate test heartbeat to Telegram |
 | `./deploy/manage_daemon.sh test-job eod_ingestion` | Run candle ingestion immediately |
 | `./deploy/manage_daemon.sh test-job daily_pipeline` | Run post-market signal scan immediately |
 | `./deploy/manage_daemon.sh test-job morning_execution` | Run morning order fills immediately |

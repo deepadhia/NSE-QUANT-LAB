@@ -54,7 +54,7 @@ case "$action" in
         ;;
 
     test-job)
-        job="${2:-morning_heartbeat}"
+        job="${2:-eod_ingestion}"
         echo "--> Running immediate test of job: ${job}..."
         "${APP_DIR}/venv/bin/python" "${APP_DIR}/scripts/run_scheduler_daemon.py" --test-job "${job}"
         ;;
@@ -72,7 +72,6 @@ case "$action" in
         echo "Usage: $0 {install-service|start|stop|restart|status|logs|test-job <job_name>|uninstall-service}"
         echo ""
         echo "Available test jobs:"
-        echo "  • morning_heartbeat"
         echo "  • morning_execution"
         echo "  • eod_ingestion"
         echo "  • daily_pipeline"

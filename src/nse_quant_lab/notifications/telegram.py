@@ -94,10 +94,15 @@ class TelegramNotifier:
         buys: List[Dict[str, Any]],
         exits: List[Dict[str, Any]],
         data_asof: Optional[str] = None,
+        notify_empty: bool = False,
     ) -> bool:
         """
         Broadcasts post-market scan alert (15:45 IST) in Alpha-Pulse institutional format.
+        Zero-Spam Policy: Does not send message if there are no new buys and no exits unless notify_empty=True.
         """
+        if not buys and not exits and not notify_empty:
+            logger.info("Zero new buy or exit signals today. Suppressing Telegram alert to prevent spam.")
+            return False
         e = html.escape
         asof = data_asof or date_str
         lines = [
@@ -139,10 +144,15 @@ class TelegramNotifier:
         deferred: List[Dict[str, Any]],
         nav: float,
         cash: Optional[float] = None,
+        notify_empty: bool = False,
     ) -> bool:
         """
         Broadcasts morning open execution alert (09:16 IST) in Alpha-Pulse institutional format.
+        Zero-Spam Policy: Does not send message if there are no fills and no circuit deferrals unless notify_empty=True.
         """
+        if not fills and not deferred and not notify_empty:
+            logger.info("Zero order fills or deferrals today. Suppressing Telegram alert to prevent spam.")
+            return False
         e = html.escape
         lines = [
             f"<b>📈 NSE-QUANT-LAB | MORNING EXECUTIONS</b>",
