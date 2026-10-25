@@ -36,6 +36,7 @@ def auto_refresh_upstox_token() -> Optional[str]:
         "Accept": "application/json",
         "Api-Version": "2.0",
         "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
     data = urllib.parse.urlencode({
         "client_id": client_id,
@@ -100,9 +101,10 @@ def fetch_from_upstox(
         "Accept": "application/json",
         "Api-Version": "2.0",
         "Authorization": f"Bearer {token}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
-    url = f"{api_base}/historical-candle/{instrument_key}/day/{end_date}/{start_date}"
+    url = f"{api_base}/historical-candle/{urllib.parse.quote(instrument_key)}/day/{end_date}/{start_date}"
 
     # Global rate limit delay: 100ms
     time.sleep(0.10)
