@@ -28,6 +28,7 @@ git fetch origin main
 CURRENT_COMMIT=$(git rev-parse --short HEAD)
 git reset --hard origin/main
 NEW_COMMIT=$(git rev-parse --short HEAD)
+chmod +x "$SCRIPT_DIR"/*.sh 2>/dev/null || true
 echo "Commit status: $CURRENT_COMMIT -> $NEW_COMMIT"
 
 # 2. Conditional Python Package Installation
