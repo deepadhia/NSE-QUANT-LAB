@@ -59,11 +59,28 @@ def set_strategy_status(db: MongoDatabase, strategy_id: str, status: str, mode: 
 
 
 def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
-    cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode)
+    cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode, portfolio_size=6, rebalance_hold_rank_buffer=15, unaffordable_policy="TRY_NEXT")
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)
     strat = get_strategy(strategy_id, cfg)
     mgr = PaperTradingManager(strategy=strat, config=cfg, db=db)
     mgr.initialize_portfolio()
+    db.strategies.update_one(
+        {"strategy_id": strategy_id, "mode": mode},
+        {"$set": {
+            "initial_capital": float(capital),
+            "current_nav": float(capital),
+            "cash": float(capital),
+            "portfolio_size": 6,
+            "rebalance_hold_rank_buffer": 15,
+            "unaffordable_policy": "TRY_NEXT",
+            "updated_at": datetime.utcnow().isoformat(),
+        }}
+    )
+    if db.positions.count_documents({"strategy_id": strategy_id, "mode": mode}) == 0:
+        db.daily_nav.update_many(
+            {"strategy_id": strategy_id, "mode": mode},
+            {"$set": {"cash": float(capital), "nav": float(capital), "holdings_val": 0.0}}
+        )
     print(f">> Strategy '{strategy_id}' initialized in MongoDB with capital: INR {capital:,.2f} (Status: ACTIVE)")
 
 
@@ -108,7 +125,7 @@ def main():
     parser.add_argument("--strategy", default=None, help=f"Target strategy ID. Available: {list_strategies()}")
     parser.add_argument("--status", choices=["ACTIVE", "PAUSED", "ARCHIVED"], default=None, help="Update strategy status")
     parser.add_argument("--init", action="store_true", help="Initialize a strategy portfolio in MongoDB")
-    parser.add_argument("--capital", type=float, default=1_000_000.0, help="Initial capital when using --init")
+    parser.add_argument("--capital", type=float, default=100_000.0, help="Initial capital when using --init")
     parser.add_argument("--mode", default="paper", choices=["paper", "real"], help="Execution mode")
     parser.add_argument("--positions", action="store_true", help="Display all active positions and dynamic trailing stop levels")
     args = parser.parse_args()

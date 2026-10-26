@@ -112,7 +112,7 @@ def test_paper_trading_lifecycle():
     4. Verify DB persistence with mode='paper'
     """
     mock_db = MockMongoDbWrapper()
-    cfg = PaperTradingConfig(initial_capital=500_000.0, portfolio_size=2, strategy_id="trend_momentum", telegram_enabled=False)
+    cfg = PaperTradingConfig(initial_capital=500_000.0, portfolio_size=2, strategy_id="trend_momentum", telegram_enabled=False, min_turnover_50d=0.0, min_price=0.0, enforce_pit_universe=False)
     strat = TrendMomentumStrategy(cfg)
     mgr = PaperTradingManager(strategy=strat, config=cfg, db=mock_db)
 
@@ -176,3 +176,62 @@ def test_paper_trading_lifecycle():
     assert "total_return_pct" in strat_doc
     assert "realized_pnl" in strat_doc
     assert strat_doc["open_positions_count"] > 0
+
+
+def test_paper_manager_v6_enhancements():
+    mock_db = MockMongoDbWrapper()
+    cfg = PaperTradingConfig(
+        initial_capital=100_000.0,
+        portfolio_size=5,
+        strategy_id='trend_momentum',
+        unaffordable_policy='TRY_NEXT',
+        telegram_enabled=False,
+        min_turnover_50d=0.0,
+        min_price=0.0,
+        enforce_pit_universe=False
+    )
+    strat = TrendMomentumStrategy(cfg)
+    mgr = PaperTradingManager(strategy=strat, config=cfg, db=mock_db)
+    mgr.initialize_portfolio()
+
+    s1 = make_synthetic_stock('STOCK1.NS', n_days=300, start_price=100.0, daily_ret=0.002, start_date='2024-01-01')
+    s2 = make_synthetic_stock('STOCK2.NS', n_days=300, start_price=200.0, daily_ret=0.001, start_date='2024-01-01')
+    s3 = make_synthetic_stock('STOCK3.NS', n_days=300, start_price=300.0, daily_ret=0.003, start_date='2024-01-01')
+    universe = {'STOCK1.NS': s1, 'STOCK2.NS': s2, 'STOCK3.NS': s3}
+
+    dates = sorted(s1['date'].tolist())
+    decision_date = dates[239]
+    execution_date = dates[240]
+
+    bar = mgr._get_execution_bar('STOCK1.NS', execution_date, universe)
+    assert bar is not None
+    assert 'turnover_50d' in bar
+    assert bar['turnover_50d'] > 0
+
+    sig_res = mgr.generate_post_market_signals(universe, decision_date)
+    assert len(sig_res['buys']) > 0
+
+    mock_db.orders.insert_one({
+        'order_id': 'ORDER_EXTRA_BACKUP',
+        'strategy_id': 'trend_momentum',
+        'mode': 'paper',
+        'symbol': 'EXTRA.NS',
+        'action': 'BUY',
+        'status': 'PENDING_OPEN',
+        'created_at': decision_date.isoformat(),
+    })
+
+    exec_res = mgr.execute_morning_fills(universe, execution_date)
+
+    expired_order = mock_db.orders.find_one({'order_id': 'ORDER_EXTRA_BACKUP'})
+    assert expired_order is not None
+    assert expired_order['status'] == 'SKIPPED_EXPIRED'
+
+    remaining_pending = list(mock_db.orders.find({'mode': 'paper', 'status': 'PENDING_OPEN'}))
+    assert len(remaining_pending) == 0, 'No orders should remain PENDING_OPEN after morning execution'
+
+    pos_docs = list(mock_db.positions.find({'mode': 'paper'}))
+    assert len(pos_docs) > 0
+    for pos in pos_docs:
+        if pos.get('ema100_stop') is not None:
+            assert pos['stop_loss_price'] == pos['ema100_stop']

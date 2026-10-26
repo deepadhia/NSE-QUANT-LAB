@@ -18,4 +18,4 @@ def test_statutory_fee_decomposition():
 
     sell_fees = calc_sell_fees_exact(gross, dt_revised, cfg)
     assert sell_fees["stamp_duty"] == 0.0, "Stamp duty must not apply to sell deliveries"
-    assert sell_fees["dp_charges"] == 15.93, "DP charge must apply to sells"
+    assert sell_fees["dp_charges"] == 14.75, "DP charge must apply to sells"

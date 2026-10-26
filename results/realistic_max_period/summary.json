@@ -1,0 +1,29 @@
+{
+  "evaluation_period": "2005-01-03 to 2026-10-23",
+  "duration_years": 21.8,
+  "liquidity_filter_cr": 1.0,
+  "slippage_bps": 20,
+  "initial_capital": 1000000.0,
+  "strategy": {
+    "gross_final_equity": 273294142.38,
+    "post_tax_final_equity": 114126750.01,
+    "gross_cagr_pct": 29.35,
+    "net_post_tax_cagr_pct": 24.27,
+    "max_drawdown_pct": -49.53,
+    "win_rate_pct": 44.39,
+    "closed_trades": 1773,
+    "tax_stcg": 159167392.37,
+    "tax_ltcg": 0.0
+  },
+  "benchmarks": {
+    "nifty50_cagr_pct": 11.48,
+    "nifty50_max_dd_pct": -59.86,
+    "nifty500_cagr_pct": 11.93,
+    "nifty500_max_dd_pct": -64.26
+  },
+  "alpha": {
+    "gross_vs_nifty50_bps": 1787.0,
+    "net_post_tax_vs_nifty50_bps": 1279.0,
+    "net_post_tax_vs_nifty500_bps": 1234.0
+  }
+}

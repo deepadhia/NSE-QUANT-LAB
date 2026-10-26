@@ -17,6 +17,7 @@ import sys
 import argparse
 import logging
 from datetime import datetime
+from pymongo import UpdateOne
 import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
@@ -110,6 +111,76 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
                 "source": "yfinance_fallback" if used_fallback else "upstox",
                 "updated_at": datetime.utcnow().isoformat(),
             }
+            # Check for overnight split / corporate action drop (>25% gap down vs previous close)
+            prev_bar = col.find_one({"symbol": sym, "date": {"$lt": date_str}}, sort=[("date", -1)])
+            if prev_bar and prev_bar.get("close", 0) > 0:
+                prev_c = float(prev_bar["close"])
+                ratio = float(row["open"]) / prev_c
+                if ratio < 0.75:  # Over 25% overnight price reduction indicates split/bonus
+                    logger.warning(
+                        f"[CORPORATE ACTION DETECTED] {sym}: Open Rs {float(row['open']):.2f} vs Prev Close Rs {prev_c:.2f} "
+                        f"(drop of {(1.0 - ratio)*100:.1f}%). Triggering 250-day adjusted historical refresh..."
+                    )
+                    start_lb = (pd.to_datetime(date_str) - pd.Timedelta(days=420)).strftime("%Y-%m-%d")
+                    refreshed = None
+                    if token:
+                        refreshed = fetch_from_upstox(clean_sym, start_lb, date_str, access_token=token)
+                    if refreshed is not None and not refreshed.empty:
+                        bulk_ops = []
+                        for _, r_bar in refreshed.iterrows():
+                            b_date = pd.to_datetime(r_bar["date"]).strftime("%Y-%m-%d")
+                            bulk_ops.append(UpdateOne(
+                                {"symbol": sym, "date": b_date},
+                                {"$set": {
+                                    "symbol": sym,
+                                    "date": b_date,
+                                    "open": round(float(r_bar["open"]), 2),
+                                    "high": round(float(r_bar["high"]), 2),
+                                    "low": round(float(r_bar["low"]), 2),
+                                    "close": round(float(r_bar["close"]), 2),
+                                    "volume": float(r_bar["volume"]),
+                                    "source": "split_adjusted_refresh",
+                                    "updated_at": datetime.utcnow().isoformat(),
+                                }},
+                                upsert=True
+                            ))
+                        if bulk_ops:
+                            col.bulk_write(bulk_ops, ordered=False)
+                            logger.info(f"   [SPLIT REFRESH] Updated {len(bulk_ops)} adjusted bars for {sym}.")
+
+                            # Adjust open positions in db["positions"] to prevent fake NAV loss
+                            try:
+                                new_prev_row = refreshed[pd.to_datetime(refreshed["date"]).dt.strftime("%Y-%m-%d") == prev_bar["date"]]
+                                if not new_prev_row.empty:
+                                    new_prev_c = float(new_prev_row.iloc[0]["close"])
+                                    if new_prev_c > 0:
+                                        factor = prev_c / new_prev_c
+                                        if factor > 1.05 or factor < 0.95:
+                                            pos_col = db.positions
+                                            open_positions = list(pos_col.find({"symbol": sym}))
+                                            for p in open_positions:
+                                                old_sh = p.get("shares", 0)
+                                                old_entry = p.get("entry_price", 0.0)
+                                                new_sh = int(round(old_sh * factor))
+                                                new_entry = round(old_entry / factor, 4)
+                                                new_fill = round(p.get("entry_fill_price", old_entry) / factor, 4)
+                                                pos_col.update_one(
+                                                    {"_id": p["_id"]},
+                                                    {"$set": {
+                                                        "shares": new_sh,
+                                                        "entry_price": new_entry,
+                                                        "entry_fill_price": new_fill,
+                                                        "split_adjusted_factor": factor,
+                                                        "updated_at": datetime.utcnow().isoformat(),
+                                                    }}
+                                                )
+                                                logger.info(
+                                                    f"   [POSITION SPLIT ADJUSTED] {sym}: Shares {old_sh} -> {new_sh}, "
+                                                    f"Entry Px Rs {old_entry:.2f} -> Rs {new_entry:.2f} (Factor {factor:.2f})"
+                                                )
+                            except Exception as split_err:
+                                logger.error(f"Failed to adjust open positions for split in {sym}: {split_err}")
+
             # Idempotent upsert
             col.update_one(
                 {"symbol": sym, "date": date_str},

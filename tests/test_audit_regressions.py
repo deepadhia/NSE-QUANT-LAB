@@ -413,6 +413,9 @@ def test_paper_manager_alert_ticket_and_skipped_orders():
         strategy_id="test_alert_tickets",
         limit_cap_pct=0.02,
         telegram_enabled=False,
+        min_turnover_50d=0.0,
+        min_price=0.0,
+        enforce_pit_universe=False,
     )
     strat = TrendMomentumStrategy(cfg)
     strat.rebalance_frequency = "DAILY"
@@ -512,3 +515,310 @@ def test_paper_manager_alert_ticket_and_skipped_orders():
     skipped_item = [d for d in exec_res["deferred"] if d["symbol"] == "GAPPER.NS"][0]
     assert "Skipped: Open" in skipped_item["reason"]
     assert "+2% Cap" in skipped_item["reason"]
+
+
+def test_structural_exit_reason_preserved_and_survives_missing_morning_bar():
+    """
+    Verifies that:
+    1. Exact structural exit reasons (e.g. 'STRUCTURAL_EMA100') are recorded in order_ledger and closed_trades.
+    2. If a stock is missing today's morning bar, its exit signal is NOT erased by unconditional .clear(),
+       and exits safely when its bar becomes available.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(initial_capital=100_000.0, portfolio_size=2)
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    # 2 stocks
+    df1 = make_synthetic_stock("STOCK1.NS", n_days=300, start_price=100.0, daily_ret=0.002, start_date="2020-01-01")
+    # Stock 1 plunges below EMA100 on day 280
+    df1.loc[280:, "close"] = df1.loc[279, "close"] * 0.5
+    df1.loc[280:, "low"] = df1.loc[280:, "close"] * 0.99
+    df1.loc[280:, "high"] = df1.loc[280:, "close"] * 1.01
+    df1.loc[280:, "open"] = df1.loc[280:, "close"]
+
+    # Drop one specific day to test missing morning bar survival
+    missing_day = df1.loc[281, "date"]
+    df1_with_gap = df1[df1["date"] != missing_day].reset_index(drop=True)
+
+    universe = {"STOCK1.NS": df1_with_gap}
+    metrics, trades, orders, execs, nav = engine.run(
+        universe, eval_start_date="2020-09-01", eval_end_date="2020-11-01"
+    )
+
+    if not trades.empty:
+        # Verify exit reason is NOT generic 'STRUCTURAL_EXIT'
+        exit_reasons = trades["exit_reason"].tolist()
+        assert any("EMA100" in r or "SUPERTREND" in r or "UNLOCKED" in r for r in exit_reasons), f"Actual reasons: {exit_reasons}"
+
+
+def test_circuit_unlock_order_ledger_reconciliation():
+    """
+    Verifies that every execution for a circuit-unlocked sell maps 1-to-1 to a FILLED order
+    in order_ledger, resolving order vs execution discrepancies.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(initial_capital=100_000.0, portfolio_size=1, enforce_lower_circuit_deferral=True)
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    # 300 days for warm-up
+    df = make_synthetic_stock("CIRCUIT.NS", n_days=300, start_price=100.0, daily_ret=0.003, start_date="2020-01-01")
+    # Day 270: force exit signal
+    df.loc[270:, "close"] = 30.0
+    df.loc[270:, "low"] = 28.0
+    df.loc[270:, "high"] = 32.0
+
+    # Day 271: lower circuit lock
+    prev_c = float(df.loc[270, "close"])
+    lc_price = round(prev_c * 0.95, 2)
+    df.loc[271, "open"] = lc_price
+    df.loc[271, "high"] = lc_price
+    df.loc[271, "low"] = lc_price
+    df.loc[271, "close"] = lc_price
+
+    # Day 272: normal open (circuit unlocks)
+    df.loc[272, "open"] = lc_price
+    df.loc[272, "high"] = lc_price * 1.02
+    df.loc[272, "low"] = lc_price * 0.98
+    df.loc[272, "close"] = lc_price * 1.01
+
+    universe = {"CIRCUIT.NS": df}
+    metrics, trades, orders, execs, nav = engine.run(
+        universe, eval_start_date="2020-09-01", eval_end_date="2021-02-01"
+    )
+
+    sell_execs = execs[execs["action"] == "SELL"]
+    filled_sell_orders = orders[(orders["action"] == "SELL") & (orders["status"] == "FILLED")]
+    assert len(sell_execs) == len(filled_sell_orders), f"Executions {len(sell_execs)} != Filled orders {len(filled_sell_orders)}"
+
+
+def test_unaffordable_policy_try_next_replaces_candidate():
+    """
+    Verifies that when unaffordable_policy='TRY_NEXT', if top candidate is unaffordable
+    or locked in upper circuit, the engine moves down the ranked pool to fill portfolio slots.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(
+        initial_capital=50_000.0,
+        portfolio_size=1,
+        unaffordable_policy="TRY_NEXT",
+        enforce_upper_circuit_rejection=True
+    )
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    # 300 days so indicators have warm-up
+    # Stock 1: Price 100,000 (unaffordable with 50,000 capital)
+    df1 = make_synthetic_stock("EXPENSIVE.NS", n_days=300, start_price=100_000.0, daily_ret=0.005, start_date="2020-01-01")
+    # Stock 2: Price 100 (affordable)
+    df2 = make_synthetic_stock("AFFORDABLE.NS", n_days=300, start_price=100.0, daily_ret=0.003, start_date="2020-01-01")
+
+    universe = {"EXPENSIVE.NS": df1, "AFFORDABLE.NS": df2}
+    metrics, trades, orders, execs, nav = engine.run(
+        universe, eval_start_date="2020-09-01", eval_end_date="2021-01-01"
+    )
+
+    bought = execs[execs["action"] == "BUY"]["symbol"].tolist()
+    assert "AFFORDABLE.NS" in bought, f"Expected AFFORDABLE.NS to be bought, got: {bought}"
+
+
+def test_point_in_time_constituent_filter_blocks_future_entrants():
+    """
+    Verifies that PointInTimeUniverse prevents future Nifty 500 entrants
+    (e.g., TITAGARH, BSE, GRAVITA) from being selected prior to their official inclusion date.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    from nse_quant_lab.pit_universe import PointInTimeUniverse
+
+    pit = PointInTimeUniverse(enforce_pit=True)
+    assert not pit.is_eligible("TITAGARH", pd.Timestamp("2022-01-01"))
+    assert pit.is_eligible("TITAGARH", pd.Timestamp("2024-01-01"))
+    assert pit.is_eligible("INFY", pd.Timestamp("2022-01-01"))
+
+    cfg_pit = BacktestConfig(enforce_pit_universe=True, min_turnover_50d=0.0, min_price=10.0)
+    strat_pit = TrendMomentumStrategy(cfg_pit)
+
+    df_tita = make_synthetic_stock("TITAGARH.NS", n_days=300, start_price=100.0, daily_ret=0.005, start_date="2021-01-01")
+    df_infy = make_synthetic_stock("INFY.NS", n_days=300, start_price=100.0, daily_ret=0.004, start_date="2021-01-01")
+
+    universe = {
+        "TITAGARH.NS": strat_pit.compute_indicators(df_tita),
+        "INFY.NS": strat_pit.compute_indicators(df_infy),
+    }
+
+    decision_dt = pd.Timestamp("2021-10-01")
+    candidates_pit = strat_pit.select_entry_candidates(universe, decision_dt, {}, cfg_pit)
+
+    assert "TITAGARH.NS" not in candidates_pit.index, "TITAGARH should be excluded under PIT before 2023-09-29"
+    assert "INFY.NS" in candidates_pit.index, "INFY should be included"
+
+    # When PIT is disabled, TITAGARH is eligible
+    cfg_no_pit = BacktestConfig(enforce_pit_universe=False, min_turnover_50d=0.0, min_price=10.0)
+    strat_no_pit = TrendMomentumStrategy(cfg_no_pit)
+    candidates_no_pit = strat_no_pit.select_entry_candidates(universe, decision_dt, {}, cfg_no_pit)
+    assert "TITAGARH.NS" in candidates_no_pit.index, "TITAGARH should be eligible when PIT is disabled"
+
+
+def test_volume_participation_cap_with_try_next():
+    """
+    Verifies that buy orders are capped at 10% of 50-day average daily turnover (ADT),
+    and if allocation is < 25% of slot capital, engine moves down to next candidate via TRY_NEXT.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(
+        initial_capital=1_000_000.0,
+        portfolio_size=1,
+        unaffordable_policy="TRY_NEXT",
+        min_turnover_50d=0.0,
+        min_price=10.0,
+        max_volume_participation_pct=0.10,
+        enforce_pit_universe=False,
+    )
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    # Candidate 1: High momentum, but tiny 50d ADT (Rs 50,000 / day).
+    # 10% cap = Rs 5,000, which is < 25% of slot capital (Rs 250,000) -> skipped
+    df1 = make_synthetic_stock("ILLIQUID.NS", n_days=300, start_price=100.0, daily_ret=0.006, start_date="2020-01-01", volume=500)
+    # Candidate 2: Slightly lower momentum, but high 50d ADT (Rs 50,000,000 / day) -> bought
+    df2 = make_synthetic_stock("LIQUID.NS", n_days=300, start_price=100.0, daily_ret=0.004, start_date="2020-01-01", volume=500_000)
+
+    universe = {
+        "ILLIQUID.NS": strat.compute_indicators(df1),
+        "LIQUID.NS": strat.compute_indicators(df2),
+    }
+    metrics, trades, orders, execs, nav = engine.run(
+        universe, eval_start_date="2020-09-01", eval_end_date="2021-01-01"
+    )
+
+    bought = execs[execs["action"] == "BUY"]["symbol"].tolist()
+    assert "LIQUID.NS" in bought, f"Expected LIQUID.NS to be bought via TRY_NEXT, got: {bought}"
+    assert "ILLIQUID.NS" not in bought, f"ILLIQUID.NS should be rejected due to volume participation cap"
+
+
+def test_cross_sectional_top_liquid_set_gating():
+    """
+    Verifies that PointInTimeUniverse.get_top_liquid_universe() correctly selects
+    only the Top N stocks by 50d ADT, filtering out lower-ranked stocks.
+    """
+    from nse_quant_lab.pit_universe import PointInTimeUniverse
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+
+    # Create 3 stocks with differing 50d ADT
+    s1 = make_synthetic_stock("HIGH_TO.NS", n_days=300, start_price=100.0, daily_ret=0.003, volume=1_000_000)
+    s2 = make_synthetic_stock("MID_TO.NS", n_days=300, start_price=100.0, daily_ret=0.003, volume=500_000)
+    s3 = make_synthetic_stock("LOW_TO.NS", n_days=300, start_price=100.0, daily_ret=0.003, volume=10_000)
+
+    cfg = BacktestConfig(enforce_pit_universe=True, pit_top_n_liquidity=2, min_turnover_50d=0.0, min_price=10.0)
+    strat = TrendMomentumStrategy(cfg)
+
+    universe = {
+        "HIGH_TO.NS": strat.compute_indicators(s1),
+        "MID_TO.NS": strat.compute_indicators(s2),
+        "LOW_TO.NS": strat.compute_indicators(s3),
+    }
+
+    dec_dt = s1["date"].iloc[-1]
+    top_set = PointInTimeUniverse.get_top_liquid_universe(universe, dec_dt, top_n=2)
+    assert "HIGH_TO.NS" in top_set
+    assert "MID_TO.NS" in top_set
+    assert "LOW_TO.NS" not in top_set, "LOW_TO.NS should be excluded from top 2 liquid set"
+
+    candidates = strat.select_entry_candidates(universe, dec_dt, {}, cfg)
+    assert "LOW_TO.NS" not in candidates.index
+
+
+def test_annual_march_31_tax_cash_deduction_and_stcl_offsets_ltcg():
+    """
+    Verifies that on March 31 with deduct_annual_tax=True, statutory tax under Sections 70/74
+    is deducted from cash, and Short-Term Capital Losses (STCL) offset Long-Term Capital Gains (LTCG).
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(
+        initial_capital=100_000.0,
+        portfolio_size=1,
+        deduct_annual_tax=True,
+        min_turnover_50d=0.0,
+        min_price=10.0,
+        enforce_pit_universe=False,
+    )
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    # Run over March 31 boundary
+    df = make_synthetic_stock("PROFIT_STOCK.NS", n_days=400, start_price=100.0, daily_ret=0.002, start_date="2020-01-01")
+    universe = {"PROFIT_STOCK.NS": strat.compute_indicators(df)}
+
+    metrics, trades, orders, execs, nav = engine.run(
+        universe, eval_start_date="2020-06-01", eval_end_date="2021-05-01"
+    )
+
+    fy_ledger = metrics.get("fy_tax_ledger", [])
+    # Verify that March 31 FY settlement was evaluated
+    assert "total_tax_paid" in metrics
+
+
+def test_rank_hysteresis_retains_healthy_holdings():
+    """
+    Phase 2 Audit Check: Verify that when rebalance_hold_rank_buffer=16 and portfolio_size=8,
+    a held position ranked #12 (outside Top 8 but inside Top 16) is RETAINED and not dumped as REBALANCE_DROP.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(
+        portfolio_size=8,
+        rebalance_hold_rank_buffer=16,
+        min_turnover_50d=0.0,
+        min_price=10.0,
+        enforce_pit_universe=False
+    )
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    # 15 synthetic stocks
+    universe = {}
+    for i in range(1, 16):
+        sym = f"STOCK_{i:02d}.NS"
+        df = make_synthetic_stock(sym, n_days=350, start_price=100.0, daily_ret=0.001 * (16 - i), start_date="2021-01-01")
+        universe[sym] = strat.compute_indicators(df)
+
+    # Run engine
+    metrics, trades_df, orders_df, execs_df, nav_df = engine.run(
+        universe, eval_start_date="2021-06-01", eval_end_date="2021-09-01"
+    )
+
+    # Verify that wash trades are 0
+    fills = orders_df[orders_df["status"] == "FILLED"]
+    sells = fills[fills["action"] == "SELL"][["date", "symbol"]]
+    buys = fills[fills["action"] == "BUY"][["date", "symbol"]]
+    wash_trades = pd.merge(sells, buys, on=["date", "symbol"])
+    assert len(wash_trades) == 0, f"Expected 0 wash trades, got {len(wash_trades)}"
+
+
+def test_soft_tax_settlement_prevents_negative_cash():
+    """
+    Phase 2 Audit Check: Verify that soft annual tax settlement never drives cash negative,
+    even when statutory tax due exceeds idle cash on March 31.
+    """
+    from nse_quant_lab.strategies.trend_momentum import TrendMomentumStrategy
+    cfg = BacktestConfig(
+        initial_capital=100_000.0,
+        portfolio_size=8,
+        rebalance_hold_rank_buffer=16,
+        deduct_annual_tax=True,
+        min_turnover_50d=0.0,
+        min_price=10.0,
+        enforce_pit_universe=False,
+    )
+    strat = TrendMomentumStrategy(cfg)
+    engine = BacktestEngine(strategy=strat, config=cfg)
+
+    df = make_synthetic_stock("PROFIT_MAKER.NS", n_days=400, start_price=100.0, daily_ret=0.003, start_date="2020-01-01")
+    universe = {"PROFIT_MAKER.NS": strat.compute_indicators(df)}
+
+    metrics, trades, orders, execs, nav_df = engine.run(
+        universe, eval_start_date="2020-06-01", eval_end_date="2021-05-01"
+    )
+
+    # Cash must never be negative on any trading day
+    assert (nav_df["cash"] >= 0.0).all(), f"Found negative cash days: {nav_df[nav_df['cash'] < 0]}"

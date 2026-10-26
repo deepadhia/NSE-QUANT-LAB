@@ -225,7 +225,15 @@ def sync_constituents(index_type: str = "nifty500", dry_run: bool = False, fetch
                                 "updated_at": now_utc.isoformat()
                             })
                         if rows:
-                            ohlcv_col.insert_many(rows, ordered=False)
+                            upsert_ops = [
+                                UpdateOne(
+                                    {"symbol": r["symbol"], "date": r["date"]},
+                                    {"$set": r},
+                                    upsert=True
+                                ) for r in rows
+                            ]
+                            if upsert_ops:
+                                ohlcv_col.bulk_write(upsert_ops, ordered=False)
                             warmed_up += 1
                 except Exception as e:
                     logger.warning(f"Failed fallback warm-up for {sym}: {e}")
@@ -242,7 +250,15 @@ def sync_constituents(index_type: str = "nifty500", dry_run: bool = False, fetch
                         "updated_at": now_utc.isoformat()
                     })
                 if rows:
-                    ohlcv_col.insert_many(rows, ordered=False)
+                    upsert_ops = [
+                        UpdateOne(
+                            {"symbol": r["symbol"], "date": r["date"]},
+                            {"$set": r},
+                            upsert=True
+                        ) for r in rows
+                    ]
+                    if upsert_ops:
+                        ohlcv_col.bulk_write(upsert_ops, ordered=False)
                     warmed_up += 1
 
             if idx % 10 == 0 or idx == len(newly_added):

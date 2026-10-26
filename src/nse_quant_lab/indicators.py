@@ -102,14 +102,25 @@ def compute_indicators(df: pd.DataFrame, config: Optional[Any] = None) -> pd.Dat
     out["supertrend_lower"] = st_lower
     out["supertrend_upper"] = st_upper
 
-    # 4. 6-Month Momentum
+    # 4. Institutional Risk-Adjusted Momentum Score (6M/12M Blended Return / 6M Annualized Volatility)
     mom_lookback = getattr(config, "mom_lookback", 126)
-    mom_6m = np.full(n, np.nan)
-    for i in range(mom_lookback, n):
-        p_base = c[i - mom_lookback]
-        if p_base > 0:
-            mom_6m[i] = (c[i] / p_base) - 1.0
-    out["mom_6m"] = mom_6m
+    mom_12m_lookback = getattr(config, "mom_12m_lookback", 252)
+
+    close_series = out["close"]
+    raw_mom_6m = close_series.pct_change(mom_lookback)
+    mom_12m = close_series.pct_change(mom_12m_lookback)
+
+    daily_ret = close_series.pct_change()
+    vol_6m = daily_ret.rolling(mom_lookback, min_periods=mom_lookback).std() * np.sqrt(252)
+
+    # Blended 6M + 12M Return (fall back to 6M if 12M not yet available)
+    blended_return = 0.5 * raw_mom_6m + 0.5 * mom_12m.fillna(raw_mom_6m)
+
+    # Risk-Adjusted Momentum Score: Blended Return / Annualized Daily Return Volatility
+    mom_score = np.where(vol_6m > 0, blended_return / vol_6m, raw_mom_6m)
+    out["mom_6m"] = mom_score
+    out["raw_mom_6m"] = raw_mom_6m.values
+    out["vol_6m"] = vol_6m.values
 
     # 5. 50-day Turnover
     to = c * out["volume"].values

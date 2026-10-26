@@ -32,8 +32,10 @@ logger = logging.getLogger("morning_execution")
 
 def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.Timestamp, db: MongoDatabase):
     strategy_id = strat_doc["strategy_id"]
-    portfolio_size = int(strat_doc.get("portfolio_size", 12))
-    initial_capital = float(strat_doc.get("initial_capital", 1000000.0))
+    portfolio_size = int(strat_doc.get("portfolio_size", 6))
+    initial_capital = float(strat_doc.get("initial_capital", 100000.0))
+    hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 15))
+    unaffordable_pol = strat_doc.get("unaffordable_policy", "TRY_NEXT")
     mode = strat_doc.get("mode", "paper")
     rebal_freq = strat_doc.get("rebalance_frequency", "MONTHLY")
 
@@ -46,6 +48,10 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
         strategy_id=strategy_id,
         portfolio_size=portfolio_size,
         initial_capital=initial_capital,
+        rebalance_hold_rank_buffer=hold_buffer,
+        unaffordable_policy=unaffordable_pol,
+        brokerage_per_order=0.0,
+        dp_charge_sell=14.75,
         mode=mode,
         rebalance_frequency=rebal_freq,
     )
@@ -89,10 +95,10 @@ def main():
         strat_docs = list(db.strategies.find({"status": "ACTIVE"}))
         if not strat_docs:
             logger.info("No active strategies found in DB. Defaulting to 'trend_momentum'...")
-            strat_docs = [{"strategy_id": "trend_momentum", "portfolio_size": 12, "initial_capital": 1000000.0, "mode": "paper"}]
+            strat_docs = [{"strategy_id": "trend_momentum", "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}]
     else:
         doc = db.strategies.find_one({"strategy_id": args.strategy})
-        strat_docs = [doc] if doc else [{"strategy_id": args.strategy, "portfolio_size": 12, "initial_capital": 1000000.0, "mode": "paper"}]
+        strat_docs = [doc] if doc else [{"strategy_id": args.strategy, "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}]
 
     logger.info(f">> Active strategies to process: {[d['strategy_id'] for d in strat_docs]}")
 

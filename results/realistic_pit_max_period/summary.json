@@ -1,0 +1,29 @@
+{
+  "evaluation_period": "2005-01-03 to 2026-10-23",
+  "duration_years": 21.8,
+  "liquidity_filter_cr": 1.0,
+  "pit_top_n_liquidity": 200,
+  "max_volume_participation_pct": 0.1,
+  "deduct_annual_tax": true,
+  "slippage_bps": 20,
+  "enforce_pit_universe": true,
+  "initial_capital": 1000000.0,
+  "strategy": {
+    "post_tax_final_equity": 33953149.64,
+    "net_post_tax_cagr_pct": 17.55,
+    "max_drawdown_pct": -60.74,
+    "win_rate_pct": 41.56,
+    "closed_trades": 681,
+    "total_tax_paid": 8897260.54
+  },
+  "benchmarks": {
+    "nifty50_cagr_pct": 11.48,
+    "nifty50_max_dd_pct": -59.86,
+    "nifty500_cagr_pct": 11.93,
+    "nifty500_max_dd_pct": -64.26
+  },
+  "alpha": {
+    "net_post_tax_vs_nifty50_bps": 607.0,
+    "net_post_tax_vs_nifty500_bps": 562.0
+  }
+}

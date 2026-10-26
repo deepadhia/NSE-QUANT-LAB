@@ -143,6 +143,7 @@ def load_clean_universe(
     db_name: str = "stock_scanner",
     collection_name: str = "upstox_daily_ohlcv",
     parquet_path: Optional[str] = None,
+    active_only: bool = False,
 ) -> Dict[str, pd.DataFrame]:
     """
     Loads daily OHLCV dataset.
@@ -154,20 +155,31 @@ def load_clean_universe(
 
     try:
         from pymongo import MongoClient
-        client = MongoClient(uri, serverSelectionTimeoutMS=1500)
+        client = MongoClient(uri, serverSelectionTimeoutMS=15000)
         client.admin.command("ping")
         col = client[db_n][coll_n]
 
+        query_filter: Dict[str, Any] = {
+            "date": {"$gte": start_date, "$lte": end_date},
+            "symbol": {"$nin": ["^NSEI", "NIFTY 50", "^CRSLDX", "NIFTY 500"]},
+            "open": {"$gt": 0},
+            "high": {"$gt": 0},
+            "low": {"$gt": 0},
+            "close": {"$gt": 0},
+            "volume": {"$gte": 0},
+        }
+        if active_only:
+            try:
+                active_syms = [
+                    d["symbol"] for d in client[db_n]["symbols"].find({"is_active": True}, {"symbol": 1})
+                ]
+                if active_syms:
+                    query_filter["symbol"] = {"$in": active_syms}
+            except Exception as e:
+                logger.warning(f"Failed to query active symbols for filter: {e}")
+
         cursor = col.find(
-            {
-                "date": {"$gte": start_date, "$lte": end_date},
-                "symbol": {"$nin": ["^NSEI", "NIFTY 50", "^CRSLDX", "NIFTY 500"]},
-                "open": {"$gt": 0},
-                "high": {"$gt": 0},
-                "low": {"$gt": 0},
-                "close": {"$gt": 0},
-                "volume": {"$gte": 0},
-            },
+            query_filter,
             {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
         )
         raw_df = pd.DataFrame(list(cursor))

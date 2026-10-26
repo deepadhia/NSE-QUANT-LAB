@@ -11,6 +11,7 @@ from ..base_strategy import BaseStrategy
 from ..config import BacktestConfig
 from ..indicators import compute_indicators
 from ..registry import register_strategy
+from ..pit_universe import PointInTimeUniverse
 
 
 @register_strategy("trend_momentum")
@@ -28,6 +29,7 @@ class TrendMomentumStrategy(BaseStrategy):
 
     def __init__(self, config: Optional[Any] = None, **kwargs):
         super().__init__(config=config, **kwargs)
+        self.pit_universe = PointInTimeUniverse(enforce_pit=True)
 
     def compute_indicators(self, df: pd.DataFrame, config: Optional[Any] = None) -> pd.DataFrame:
         return compute_indicators(df, config or self.config)
@@ -41,11 +43,20 @@ class TrendMomentumStrategy(BaseStrategy):
     ) -> pd.DataFrame:
         candidates = []
         cfg = config or self.config
-        min_price = getattr(cfg, "min_price", 50.0)
+        min_price = getattr(cfg, "min_price", 20.0)
         min_to = getattr(cfg, "min_turnover_50d", 10_000_000.0)
         ema_buf = getattr(cfg, "ema_buffer_pct", 0.03)
+        enforce_pit = getattr(cfg, "enforce_pit_universe", True)
+        top_n = getattr(cfg, "pit_top_n_liquidity", 200)
+        max_pct = getattr(cfg, "pit_max_universe_pct", 0.45)
+
+        top_liquid_set = None
+        if enforce_pit and top_n > 0:
+            top_liquid_set = self.pit_universe.get_top_liquid_universe(universe, decision_date, top_n=top_n, max_universe_pct=max_pct)
 
         for sym, df in universe.items():
+            if enforce_pit and not self.pit_universe.is_eligible(sym, decision_date, top_liquid_set=top_liquid_set):
+                continue
             if df.empty:
                 continue
             sub = df.loc[df["date"] == decision_date]
@@ -105,10 +116,9 @@ class TrendMomentumStrategy(BaseStrategy):
             if np.isnan(close_today) or np.isnan(ema_today):
                 continue
 
+            # Structural Exit: Close below 100-day EMA (removes tight 10-day Supertrend whipsaw)
             if close_today < ema_today:
                 exits[sym] = "STRUCTURAL_EMA100"
-            elif st_dir_today == -1:
-                exits[sym] = "STRUCTURAL_SUPERTREND"
         return exits
 
     def evaluate_rebalance_exits(

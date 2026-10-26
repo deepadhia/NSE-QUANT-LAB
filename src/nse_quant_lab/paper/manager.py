@@ -51,39 +51,47 @@ class PaperTradingManager:
                 "updated_at": datetime.utcnow().isoformat(),
             })
 
-        # Register strategy metadata for dashboard listing (preserving existing status)
+        # Register strategy metadata for dashboard listing (preserving existing cumulative metrics & status)
         s_name = getattr(self.strategy, "name", self.config.strategy_id).replace("_", " ").title()
         existing_strat = self.db.strategies.find_one({
             "strategy_id": self.config.strategy_id,
             "mode": getattr(self.config, "mode", "paper")
         })
-        curr_status = existing_strat.get("status", "ACTIVE") if existing_strat else "ACTIVE"
 
-        strat_doc = StrategyModel(
-            strategy_id=self.config.strategy_id,
-            name=s_name,
-            description=getattr(self.strategy, "__doc__", "Quantitative Strategy").strip(),
-            mode=getattr(self.config, "mode", "paper"),
-            rebalance_frequency=getattr(self.strategy, "rebalance_frequency", "MONTHLY"),
-            portfolio_size=int(self.config.portfolio_size),
-            initial_capital=float(self.config.initial_capital),
-            current_nav=float(self.config.initial_capital),
-            cash=float(self.config.initial_capital),
-            holdings_val=0.0,
-            unrealized_pnl=0.0,
-            realized_pnl=0.0,
-            total_return_pct=0.0,
-            open_positions_count=0,
-            closed_trades_count=0,
-            win_rate_pct=0.0,
-            status=curr_status,
-            last_run_at=datetime.utcnow().isoformat(),
-        )
-        self.db.strategies.replace_one(
-            {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
-            strat_doc.to_dict(),
-            upsert=True
-        )
+        if not existing_strat:
+            strat_doc = StrategyModel(
+                strategy_id=self.config.strategy_id,
+                name=s_name,
+                description=getattr(self.strategy, "__doc__", "Quantitative Strategy").strip(),
+                mode=getattr(self.config, "mode", "paper"),
+                rebalance_frequency=getattr(self.strategy, "rebalance_frequency", "MONTHLY"),
+                portfolio_size=int(self.config.portfolio_size),
+                initial_capital=float(self.config.initial_capital),
+                current_nav=float(self.config.initial_capital),
+                cash=float(self.config.initial_capital),
+                holdings_val=0.0,
+                unrealized_pnl=0.0,
+                realized_pnl=0.0,
+                total_return_pct=0.0,
+                open_positions_count=0,
+                closed_trades_count=0,
+                win_rate_pct=0.0,
+                status="ACTIVE",
+                last_run_at=datetime.utcnow().isoformat(),
+            )
+            self.db.strategies.insert_one(strat_doc.to_dict())
+        else:
+            # Update only structural metadata without wiping cumulative realized P&L, trades, or nav
+            self.db.strategies.update_one(
+                {"_id": existing_strat["_id"]},
+                {"$set": {
+                    "name": s_name,
+                    "description": getattr(self.strategy, "__doc__", "Quantitative Strategy").strip(),
+                    "portfolio_size": int(self.config.portfolio_size),
+                    "rebalance_frequency": getattr(self.strategy, "rebalance_frequency", "MONTHLY"),
+                    "updated_at": datetime.utcnow().isoformat(),
+                }}
+            )
 
     def get_current_state(self, as_of_date: Optional[str] = None) -> Dict[str, Any]:
         """Retrieves active positions and current cash balance from MongoDB up to as_of_date."""
@@ -166,13 +174,8 @@ class PaperTradingManager:
                     ema_stop = float(last_row["ema100"]) if "ema100" in last_row and not np.isnan(last_row["ema100"]) else None
                     st_stop = float(last_row["supertrend_lower"]) if "supertrend_lower" in last_row and not np.isnan(last_row["supertrend_lower"]) else None
 
-                    effective_stop = None
-                    if ema_stop is not None and st_stop is not None:
-                        effective_stop = max(ema_stop, st_stop)
-                    elif ema_stop is not None:
-                        effective_stop = ema_stop
-                    elif st_stop is not None:
-                        effective_stop = st_stop
+                    # Structural trailing stop: TrendMomentumStrategy exits strictly on Close < EMA(100)
+                    effective_stop = ema_stop if ema_stop is not None else st_stop
 
                     buffer_pct = None
                     if effective_stop is not None and last_pr > 0:
@@ -223,6 +226,25 @@ class PaperTradingManager:
             pos = positions.get(sym)
             if not pos:
                 continue
+
+            # Prevent duplicate exit orders if already pending or deferred in lower circuit
+            existing_exit = self.db.orders.find_one({
+                "strategy_id": self.config.strategy_id,
+                "mode": getattr(self.config, "mode", "paper"),
+                "symbol": sym,
+                "action": "SELL",
+                "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}
+            })
+            if existing_exit:
+                logger.info(f"Exit order for {sym} already pending ({existing_exit['order_id']}, status={existing_exit['status']}). Skipping duplicate.")
+                exits_to_log.append({
+                    "symbol": sym,
+                    "shares": pos["shares"],
+                    "close": pos.get("last_close", 0.0),
+                    "reason": reason,
+                })
+                continue
+
             ord_id = f"ORD_EXIT_{date_str}_{sym}"
             order = OrderModel(
                 order_id=ord_id,
@@ -248,13 +270,18 @@ class PaperTradingManager:
         # 2. Evaluate Rebalance Entries
         cal = sorted(list(set(d for df in universe.values() for d in df["date"])))
         buys_to_log = []
+        rebal_drops: Dict[str, str] = {}
         is_rebal = self.strategy.is_rebalance_decision_date(cal, decision_date, self.config)
         if is_rebal:
             candidates_df = self.strategy.select_entry_candidates(universe, decision_date, positions, self.config)
             target_symbols = list(candidates_df.head(self.config.portfolio_size).index)
 
-            # Rebalance drops
-            rebal_drops = self.strategy.evaluate_rebalance_exits(universe, decision_date, positions, target_symbols, self.config)
+            # Rank Hysteresis / Hold Buffer:
+            hold_buf = getattr(self.config, "rebalance_hold_rank_buffer", self.config.portfolio_size)
+            allowed_hold_symbols = list(candidates_df.head(hold_buf).index)
+
+            # Rebalance drops: retain positions if rank <= hold_buffer and trend intact
+            rebal_drops = self.strategy.evaluate_rebalance_exits(universe, decision_date, positions, allowed_hold_symbols, self.config)
             for sym, reason in rebal_drops.items():
                 if sym not in requested_exits and sym in positions:
                     pos = positions[sym]
@@ -282,7 +309,11 @@ class PaperTradingManager:
 
             # New candidate buys
             open_slots = self.config.portfolio_size - len(positions) + len(exits_to_log)
-            new_buys = [s for s in target_symbols if s not in positions][:max(0, open_slots)]
+            # Wash trade prevention: do not rebuy dropped stocks on the same rebalance session
+            candidate_pool = [s for s in list(candidates_df.index) if s not in positions and s not in rebal_drops]
+            # Queue primary open slots + up to 4 backup candidates so morning execution fills empty slots if top picks gap > 2%
+            backup_slots = 4 if getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT" else 0
+            new_buys = candidate_pool[:max(0, open_slots + backup_slots)]
             holdings_est_val = sum(p["shares"] * p.get("last_close", 0.0) for p in positions.values())
             est_total_equity = cash + holdings_est_val
             target_alloc = est_total_equity / float(self.config.portfolio_size)
@@ -376,15 +407,28 @@ class PaperTradingManager:
             return None
         prev_close = float(prev_rows.iloc[-1]["close"])
 
+        # Compute or extract 50-day average daily turnover from recent history
+        to50 = None
+        if "turnover_50d" in prev_rows.iloc[-1] and not pd.isna(prev_rows.iloc[-1]["turnover_50d"]):
+            to50 = float(prev_rows.iloc[-1]["turnover_50d"])
+        elif "close" in prev_rows and "volume" in prev_rows:
+            tail50 = prev_rows.tail(50)
+            if not tail50.empty:
+                to50 = float((tail50["close"] * tail50["volume"]).mean())
+
         rows = df[df["date"] == execution_date]
         if not rows.empty:
             r = rows.iloc[0]
+            # If today's row already has turnover_50d, prefer it
+            if "turnover_50d" in r and not pd.isna(r["turnover_50d"]):
+                to50 = float(r["turnover_50d"])
             return {
                 "open": float(r["open"]),
                 "high": float(r["high"]),
                 "low": float(r["low"]),
                 "close": float(r["close"]),
                 "prev_close": prev_close,
+                "turnover_50d": to50,
                 "is_live_quote": False,
             }
 
@@ -405,6 +449,7 @@ class PaperTradingManager:
                     "low": min(open_px, low_px, last_px),
                     "close": last_px,
                     "prev_close": prev_close,
+                    "turnover_50d": to50,
                     "is_live_quote": True,
                 }
             else:
@@ -460,6 +505,15 @@ class PaperTradingManager:
         # 1. Execute Sells First
         for order in sell_orders:
             sym = order["symbol"]
+            # Guard against double-sell / phantom cash if position already sold
+            if sym not in positions:
+                logger.warning(f"Position {sym} already closed or not found. Cancelling orphan/duplicate sell order {order['order_id']}.")
+                self.db.orders.update_one(
+                    {"order_id": order["order_id"]},
+                    {"$set": {"status": "CANCELLED", "cancel_reason": "POSITION_ALREADY_CLOSED", "execution_date": date_str}}
+                )
+                continue
+
             df = universe.get(sym)
             if df is None:
                 continue
@@ -511,7 +565,7 @@ class PaperTradingManager:
                 gross_val=gross_val,
                 net_cash=net_proceeds,
                 fees=fees_dict["total"],
-                slippage=open_price - fill_price,
+                slippage=round((open_price - fill_price) * shares, 2),
             )
             self.db.executions.insert_one(exec_model.to_dict())
 
@@ -526,6 +580,9 @@ class PaperTradingManager:
                 net_pnl = gross_pnl - total_fees
                 outlay = float(pos.get("entry_outlay", shares * entry_price))
                 ret_pct = (net_pnl / outlay) * 100.0 if outlay > 0 else 0.0
+                
+                pos_entry_slip = float(pos.get("entry_slip_loss", (float(pos.get("entry_fill_price", entry_price)) - entry_price) * shares))
+                exit_slip = (open_price - fill_price) * shares
 
                 trade_model = TradeModel(
                     strategy_id=self.config.strategy_id,
@@ -540,7 +597,7 @@ class PaperTradingManager:
                     gross_pnl=round(gross_pnl, 2),
                     net_pnl=round(net_pnl, 2),
                     total_fees=round(total_fees, 2),
-                    total_slippage=round((open_price - fill_price) * shares, 2),
+                    total_slippage=round(pos_entry_slip + exit_slip, 2),
                     return_pct=round(ret_pct, 4),
                     exit_reason=order["reason"],
                 )
@@ -563,6 +620,16 @@ class PaperTradingManager:
 
         for order in buy_orders:
             sym = order["symbol"]
+            
+            # Enforce max portfolio size
+            if len(positions) >= self.config.portfolio_size:
+                logger.info(f"Portfolio size limit reached ({len(positions)}/{self.config.portfolio_size}). Skipping buy for {sym}.")
+                self.db.orders.update_one(
+                    {"order_id": order["order_id"]},
+                    {"$set": {"status": "SKIPPED_PORTFOLIO_FULL", "execution_date": date_str}}
+                )
+                continue
+
             df = universe.get(sym)
             if df is None:
                 continue
@@ -600,7 +667,13 @@ class PaperTradingManager:
             # Sizing buffer: open_price and slippage are already known; include statutory fees buffer
             buffer_mult = 1.0 + self.config.fees_buffer_pct
             est_cost_per_sh = fill_price * buffer_mult
-            avail = min(target_alloc, cash)
+
+            # Volume participation cap: max 10% of 50-day average daily turnover
+            max_vol_pct = getattr(self.config, "max_volume_participation_pct", 0.10)
+            to50 = float(bar["turnover_50d"]) if (hasattr(bar, "__getitem__") and "turnover_50d" in bar and not pd.isna(bar["turnover_50d"])) else float("inf")
+            max_exec_val = to50 * max_vol_pct if to50 > 0 else float("inf")
+
+            avail = min(target_alloc, cash, max_exec_val)
             shares = int(avail // est_cost_per_sh)
 
             if shares <= 0:
@@ -620,7 +693,7 @@ class PaperTradingManager:
                 buy_fees = calc_buy_fees_exact(gross_val, execution_date, self.config)
                 total_outlay = gross_val + buy_fees["total"]
 
-            if shares <= 0:
+            if shares <= 0 or gross_val < 0.25 * target_alloc:
                 self.db.orders.update_one(
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_UNAFFORDABLE", "execution_date": date_str}}
@@ -628,6 +701,7 @@ class PaperTradingManager:
                 continue
 
             cash -= total_outlay
+            buy_slip_total = round((fill_price - open_price) * shares, 2)
 
             # Record Execution
             exec_id = f"EXEC_{date_str}_{sym}_{uuid.uuid4().hex[:6]}"
@@ -644,7 +718,7 @@ class PaperTradingManager:
                 gross_val=gross_val,
                 net_cash=-total_outlay,
                 fees=buy_fees["total"],
-                slippage=fill_price - open_price,
+                slippage=buy_slip_total,
             )
             self.db.executions.insert_one(exec_model.to_dict())
 
@@ -654,7 +728,7 @@ class PaperTradingManager:
                 mode="paper",
                 symbol=sym,
                 shares=shares,
-                entry_price=fill_price,
+                entry_price=open_price,
                 entry_fill_price=fill_price,
                 entry_date=date_str,
                 entry_outlay=total_outlay,
@@ -676,6 +750,35 @@ class PaperTradingManager:
                 {"$set": {"status": "FILLED", "shares": shares, "execution_date": date_str}}
             )
             fills_log.append({"action": "BUY", "symbol": sym, "shares": shares, "fill_price": fill_price})
+
+        # Expire any leftover PENDING_OPEN buy orders from this batch (e.g. unreached backup slots)
+        if hasattr(self.db.orders, "update_many"):
+            self.db.orders.update_many(
+                {
+                    "strategy_id": self.config.strategy_id,
+                    "mode": "paper",
+                    "action": "BUY",
+                    "status": "PENDING_OPEN",
+                },
+                {
+                    "$set": {
+                        "status": "SKIPPED_EXPIRED",
+                        "execution_date": date_str,
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }
+                }
+            )
+        else:
+            for pending_o in list(self.db.orders.find({
+                "strategy_id": self.config.strategy_id,
+                "mode": "paper",
+                "action": "BUY",
+                "status": "PENDING_OPEN",
+            })):
+                self.db.orders.update_one(
+                    {"order_id": pending_o["order_id"]},
+                    {"$set": {"status": "SKIPPED_EXPIRED", "execution_date": date_str}}
+                )
 
         # 3. Update NAV Record
         current_holdings_val = 0.0
