@@ -6,6 +6,7 @@ writing; see `research/audit_2026-10/HANDOFF_2026-10-31.md` section 17 for the c
 ## [Unreleased] - 2026-10-31
 
 ### Added
+- Upstox full-tier daily feed (verified live 2026-10-31: 1,108 of 1,108 stocks fetched, closes identical to the bhavcopy): `src/nse_quant_lab/upstox_feed.py` (ISIN-based instrument keys, V3 daily candles at a safe request pace, batched market quotes with bid/ask, `UpstoxQuoteProvider`), `scripts/ingest_upstox_fulltier.py` (`--dry-run`, `--limit`, `--symbols`, `--anchors`; coverage gate; split/gap flags), live-bar join with a session-coverage gate and history re-anchoring in `data_loader.load_pit_universe`, broker-quote opening price for 09:16 fills in the paper manager. 20 new tests.
 - `src/nse_quant_lab/tax_india.py`: dated Indian capital-gains tax for listed equity (STCG 10% / 15% / 20% by sale date; LTCG exempt before 2018-04-01, then 10% over Rs 1 L and 12.5% over Rs 1.25 L; cess; loss set-off and 8-year carry-forward; STT add-back). 11 tests.
 - `src/nse_quant_lab/cost_model.py`: liquidity-tiered, order-size-aware slippage (spread tiers, tick floor, square-root impact) using previous-close inputs only. Tier values and the 0.7 impact coefficient are ASSUMED, not measured. 5 tests.
 - `src/nse_quant_lab/strategies/trend_momentum_pit.py` (registered `trend_momentum_pit`): production version of the researched strategy. EQ stocks with 50-session median turnover >= Rs 10 Cr and 226+ sessions of history as of the date; close >= 1.03 x EMA100 with a bullish Supertrend; risk-adjusted momentum rank; 15 slots; monthly entries; daily EMA100 exit; no rank-based drops; Nifty 500 200-day regime filter on new entries that fails safe when the benchmark bar is missing. 9 tests, including a real-data parity test against the research harness.
@@ -23,12 +24,16 @@ writing; see `research/audit_2026-10/HANDOFF_2026-10-31.md` section 17 for the c
 - Dev Mongo: old `trend_momentum` record set to ARCHIVED (backup JSON kept locally); `trend_momentum_pit` inserted ACTIVE.
 
 ### Fixed (found by running the pipeline end to end in scratch databases)
+- Upstox full-tier ingestion now rescales open paper positions and pending sell orders when a split/bonus is flagged (the old ingestion script did this; the new one had dropped it).
+- Upstox requests identify honestly as `nse-quant-lab/1.0`; Python's default signature is blocked by Cloudflare (error 1010) in front of the API, and auth failures now print Upstox's own error message.
 - Paper manager crashed when registering a strategy whose class has no docstring.
 - Morning execution asked the loader for data up to the current day, which does not exist at 09:16.
 - Cost-model inputs arrived as NaN in the morning flow, so fills were charged 175-415 bps; they are now rebuilt from raw bars (about 9 bps for the liquid tier).
 - Paper queued only 4 backup candidates and filled 10 of 15 slots; the strategy now asks for 60 backups so unused orders expire, matching the backtest's TRY_NEXT.
 
 ### Known issues / not done
+- The Upstox target list is computed from the bhavcopy panel as of its last date and does NOT refresh on its own; a monthly instrument-master refresh is designed but not built (see handoff section 19).
+- Not yet exercised live: a new session's bars (first possible 2026-11-02), the gap/split flag path and the 09:16 quote provider. The earlier HTTP 403 was a Cloudflare signature block on Python's default client (fixed by an honest User-Agent), not a token problem.
 - `scripts/ingest_nse_bhavcopy.py` downloads from NSE with a spoofed browser User-Agent. It was not run and should not be scheduled or committed without a decision (use manually placed bhavcopy files or an authorised broker feed).
 - No gated daily operator exists yet; `deploy/crontab.txt` still schedules the old flow and will fail loudly for the new strategy.
 - No live quote provider, no corporate-action updater, no automated benchmark refresh; real fill costs are unmeasured.

@@ -253,20 +253,39 @@ def make_synthetic_stock(
     })
 
 
+def _mongo_live_source(uri: str = "mongodb://localhost:27017/", db_name: str = "stock_scanner", collection: str = "upstox_fulltier_daily"):
+    """Default live-bar reader: bars written by scripts/ingest_upstox_fulltier.py."""
+    def read(from_date: str, to_date: str) -> pd.DataFrame:
+        from pymongo import MongoClient
+
+        col = MongoClient(uri, serverSelectionTimeoutMS=5000)[db_name][collection]
+        docs = list(col.find({"date": {"$gte": from_date, "$lte": to_date}}, {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1,
+                                                                              "low": 1, "close": 1, "volume": 1}))
+        return pd.DataFrame(docs, columns=["symbol", "date", "open", "high", "low", "close", "volume"])
+    return read
+
+
 def load_pit_universe(
     end_date: Optional[str] = None,
     panel_path: Optional[str] = None,
     min_adt_ever: float = 1.5e6,
     min_rows: int = 226,
+    include_live: bool = True,
+    live_source=None,
+    live_coverage_gate: float = 0.90,
 ) -> Dict[str, pd.DataFrame]:
     """
     Full-market, split-adjusted daily universe for the researched strategy (trend_momentum_pit).
-    Reads data/external/nse_archive/clean_panel.parquet, which research/audit_2026-10/scripts/build_clean_panel.py
-    rebuilds from the NSE bhavcopy archive (all series, delisted names included, ETFs removed, official split/bonus
-    factors applied). Fails loudly if the panel is missing or stale relative to end_date.
-    Columns per symbol: date, open, high, low, close, volume, turnover (Rs), series. Only symbols that ever reached a
-    50-session median turnover of `min_adt_ever` are returned (cannot affect eligibility at the strategy's Rs 25 L floor).
+    History: data/external/nse_archive/clean_panel.parquet (rebuilt by research/audit_2026-10/scripts/build_clean_panel.py from the NSE
+    bhavcopy archive: all series, delisted names included, ETFs removed, official split/bonus factors applied).
+    Live segment: for sessions AFTER the panel's last date, bars from Mongo `upstox_fulltier_daily` (scripts/ingest_upstox_fulltier.py) are appended
+    with turnover = close x volume and the symbol's last known series. Fails loudly (ValueError) if a required session is missing for
+    more than (1 - live_coverage_gate) of the liquid tier, instead of trading on stale data. When the live bars carry the panel's last date
+    (anchor bar) and its close differs from the panel's by more than 5%, the panel history is re-scaled to Upstox's (split-adjusted) basis.
+    Columns per symbol: date, open, high, low, close, volume, turnover (Rs), series.
     """
+    import datetime as _dt
+
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     path = panel_path or os.path.join(base, "data", "external", "nse_archive", "clean_panel.parquet")
     if not os.path.exists(path):
@@ -274,21 +293,68 @@ def load_pit_universe(
     panel = pd.read_parquet(path)
     panel["series"] = panel["series"].astype(str)
     panel["date"] = pd.to_datetime(panel["date"])
-    last = panel["date"].max()
-    if end_date is not None:
-        end = pd.to_datetime(end_date)
-        if last < end:
-            raise ValueError(
-                f"clean panel ends {last.date()} but {end.date()} was requested: ingest the bhavcopy and rebuild the panel first"
-            )
+    panel_last = panel["date"].max()
+    end = pd.to_datetime(end_date) if end_date is not None else None
+    need_live = include_live and (end is None or end > panel_last)
+    if end is not None and end > panel_last and not include_live:
+        raise ValueError(f"clean panel ends {panel_last.date()} but {end.date()} was requested: ingest the bhavcopy and rebuild the panel first")
+    if end is not None:
         panel = panel[panel["date"] <= end]
     universe: Dict[str, pd.DataFrame] = {}
+    liquid: set = set()
     for sym, g in panel.groupby("symbol", sort=False):
         if len(g) < min_rows:
             continue
         g = g.sort_values("date").reset_index(drop=True)
-        if not (g["turnover"].rolling(50, min_periods=50).median() >= min_adt_ever).any():
+        med = g["turnover"].rolling(50, min_periods=50).median()
+        if not (med >= min_adt_ever).any():
             continue
         universe[str(sym)] = g
-    logger.info("PIT universe: %d symbols, last bar %s", len(universe), panel["date"].max().date())
+        if g["date"].iloc[-1] == panel_last and med.iloc[-1] >= 1.0e8 and g["series"].iloc[-1] == "EQ":
+            liquid.add(str(sym))
+
+    if need_live:
+        src = live_source or _mongo_live_source()
+        live = src(panel_last.strftime("%Y-%m-%d"), (end or pd.Timestamp("2100-01-01")).strftime("%Y-%m-%d"))
+        live["date"] = pd.to_datetime(live["date"])
+        new = live[live["date"] > panel_last]
+        anchors = live[live["date"] == panel_last].set_index("symbol")["close"].to_dict()
+        # session gate: every NSE trading day after the panel (up to the requested date, or up to yesterday) needs near-full coverage
+        from .holidays import is_trading_day
+
+        last_needed = end.date() if end is not None else (_dt.datetime.now().date() - _dt.timedelta(days=1))
+        day, expected = panel_last.date() + _dt.timedelta(days=1), []
+        while day <= last_needed:
+            if is_trading_day(day):
+                expected.append(day)
+            day += _dt.timedelta(days=1)
+        have = new[new["symbol"].isin(liquid)].groupby(new["date"].dt.date)["symbol"].nunique() if len(new) else pd.Series(dtype=int)
+        short = [str(d) for d in expected if liquid and have.get(d, 0) < live_coverage_gate * len(liquid)]
+        if short:
+            raise ValueError(f"live data incomplete for sessions {short}: Upstox bars cover < {live_coverage_gate:.0%} of the {len(liquid)} liquid-tier "
+                             f"names. Run scripts/ingest_upstox_fulltier.py (and check its coverage) before trading.")
+        by_sym = {k: v for k, v in new.groupby("symbol")}
+        rescaled = 0
+        for sym, g in list(universe.items()):
+            ratio = None
+            if sym in anchors and g["date"].iloc[-1] == panel_last and g["close"].iloc[-1] > 0:
+                r = float(anchors[sym]) / float(g["close"].iloc[-1])
+                if abs(r - 1.0) > 0.05:
+                    ratio = r
+            if ratio is not None:
+                for col in ("open", "high", "low", "close"):
+                    g[col] = g[col] * ratio
+                g["volume"] = g["volume"] / ratio
+                rescaled += 1
+            add = by_sym.get(sym)
+            if add is not None and len(add):
+                add = add.sort_values("date")[["date", "open", "high", "low", "close", "volume"]].copy()
+                add["turnover"] = add["close"] * add["volume"]
+                add["series"] = g["series"].iloc[-1]
+                add.insert(0, "symbol", sym)
+                g = pd.concat([g, add[g.columns.intersection(add.columns)]], ignore_index=True)[list(g.columns)]
+            universe[sym] = g
+        logger.info("PIT universe: live bars appended through %s; %d histories re-scaled to Upstox's adjusted basis",
+                    live["date"].max().date() if len(live) else panel_last.date(), rescaled)
+    logger.info("PIT universe: %d symbols, last bar %s", len(universe), max(g["date"].iloc[-1] for g in universe.values()).date())
     return universe

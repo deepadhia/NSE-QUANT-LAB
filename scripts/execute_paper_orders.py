@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("morning_execution")
 
 
-def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.Timestamp, db: MongoDatabase):
+def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.Timestamp, db: MongoDatabase, quote_provider=None):
     strategy_id = strat_doc["strategy_id"]
     portfolio_size = int(strat_doc.get("portfolio_size", 6))
     initial_capital = float(strat_doc.get("initial_capital", 100000.0))
@@ -57,6 +57,8 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
     )
     strategy = get_strategy(strategy_id, cfg)
     manager = PaperTradingManager(strategy=strategy, config=cfg, db=db)
+    if quote_provider is not None and strategy_id == "trend_momentum_pit":
+        manager.quote_provider = quote_provider  # real 09:16 opening price + bid/ask logged to fill_audit
 
     res = manager.execute_morning_fills(universe, exec_dt)
     if res.get("status") in ("PAUSED", "ARCHIVED"):
@@ -127,9 +129,28 @@ def main():
 
     logger.info(f">> Executing morning open fills for: {exec_dt.strftime('%Y-%m-%d')}")
 
+    quote_provider = None
+    if pit_ids and not args.date:  # live morning run (a dated --date run is a replay from the stored bars)
+        try:
+            from nse_quant_lab import upstox_feed as uf
+            from nse_quant_lab.data_loader import auto_refresh_upstox_token
+
+            token = auto_refresh_upstox_token()
+            if token:
+                arch = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "external", "nse_archive", "parquet")
+                isins = uf.symbol_isin_map(arch, [exec_dt.year - 1, exec_dt.year])
+                quote_provider = uf.UpstoxQuoteProvider(token, isins)
+                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": "trend_momentum_pit", "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
+                logger.info(">> Upstox quote provider attached for the 09:16 fills")
+            else:
+                logger.warning(">> No Upstox token: morning fills will use the yfinance fallback (unreliable).")
+        except Exception as exc:
+            logger.error(">> Could not attach the Upstox quote provider (%s); using the yfinance fallback.", exc)
+            quote_provider = None
+
     for s_doc in strat_docs:
         try:
-            execute_strategy_morning_fills(s_doc, universe, exec_dt, db)
+            execute_strategy_morning_fills(s_doc, universe, exec_dt, db, quote_provider)
         except Exception as e:
             logger.error(f"Error executing morning fills for {s_doc.get('strategy_id')}: {e}", exc_info=True)
 

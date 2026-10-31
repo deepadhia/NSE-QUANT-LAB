@@ -42,3 +42,20 @@ def test_liquid_stock_gets_a_realistic_cost_after_the_fix():
 
 def test_strategy_asks_for_many_paper_backups():
     assert TrendMomentumPITStrategy.paper_backup_slots >= 30
+
+
+def test_morning_bar_uses_the_broker_quote_when_the_day_has_no_bar_yet():
+    from unittest.mock import MagicMock
+
+    from nse_quant_lab.config import PaperTradingConfig
+
+    strat = TrendMomentumPITStrategy()
+    cfg = PaperTradingConfig(strategy_id="x", telegram_enabled=False)
+    mgr = PaperTradingManager(strategy=strat, config=cfg, db=MagicMock())
+    d = bars(n=80)
+    d["series"] = "EQ"
+    mgr.quote_provider = lambda sym: {"open": 123.4, "high": 125.0, "low": 122.0, "ltp": 124.0, "bid": 124.0, "ask": 124.1}
+    exec_day = d["date"].iloc[-1] + pd.Timedelta(days=1)
+    bar = mgr._get_execution_bar("X", exec_day, {"X": d})
+    assert bar["open"] == 123.4 and bar["is_live_quote"] is True and bar["close"] == 124.0
+    assert bar["prev_close"] == pytest.approx(float(d["close"].iloc[-1])) and bar["adt_prev"] > 0

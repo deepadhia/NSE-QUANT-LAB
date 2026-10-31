@@ -480,6 +480,29 @@ class PaperTradingManager:
                 **self._cost_inputs(prev_rows),
             }
 
+        # Preferred morning source: the injected broker quote (e.g. UpstoxQuoteProvider): the real opening price at 09:16 IST
+        provider = getattr(self, "quote_provider", None)
+        if provider is not None:
+            try:
+                q = provider(sym)
+            except Exception as exc:
+                logger.error("quote_provider failed for %s: %s", sym, exc)
+                q = None
+            if q and float(q.get("open") or 0.0) > 0:
+                o = float(q["open"])
+                ltp = float(q.get("ltp") or o)
+                return {
+                    "open": o,
+                    "high": max(o, float(q.get("high") or o), ltp),
+                    "low": min(o, float(q.get("low") or o), ltp),
+                    "close": ltp,
+                    "prev_close": prev_close,
+                    "turnover_50d": to50,
+                    "is_live_quote": True,
+                    **self._cost_inputs(prev_rows),
+                }
+            logger.error("no usable broker quote for %s at execution time; falling back to the yfinance quote", sym)
+
         # Live quote fallback at 09:16 IST (never fallback to prev_close as open_px)
         try:
             import yfinance as yf
