@@ -1,0 +1,454 @@
+{
+  "slots_15": {
+    "run_name": "pit_20yr_slots15_1L",
+    "slots": 15,
+    "initial_capital": 100000.0,
+    "total_trades": 1526,
+    "top10_share_pct": 63.0,
+    "unaffordable_rejected_orders": 0,
+    "circuit_deferred_orders": 0,
+    "forced_delisted_exits": 6,
+    "forced_delisted_symbols": [
+      "BANKRAJAS",
+      "CAIRN",
+      "ESSAROIL",
+      "GSKCONS",
+      "RANBAXY",
+      "SATYAMCOMP"
+    ],
+    "window_stats": {
+      "Full 20-Year (2007-2026)": {
+        "start": "2007-01-01",
+        "end": "2026-10-23",
+        "years": 19.81,
+        "cagr_pct": 17.16,
+        "n500_cagr_pct": 9.87,
+        "alpha_cagr_pct": 7.29,
+        "max_drawdown_pct": -56.51,
+        "n500_max_drawdown_pct": -64.26,
+        "annual_vol_pct": 25.02,
+        "info_ratio": 0.382,
+        "excess_t_stat": 1.7,
+        "final_nav": 2349075.9
+      },
+      "Decade 1 (2007-2015)": {
+        "start": "2007-01-01",
+        "end": "2015-12-31",
+        "years": 8.99,
+        "cagr_pct": 17.22,
+        "n500_cagr_pct": 8.15,
+        "alpha_cagr_pct": 9.07,
+        "max_drawdown_pct": -56.51,
+        "n500_max_drawdown_pct": -64.26,
+        "annual_vol_pct": 25.96,
+        "info_ratio": 0.407,
+        "excess_t_stat": 1.21,
+        "final_nav": 425743.74
+      },
+      "Decade 2 (2016-2026)": {
+        "start": "2016-01-01",
+        "end": "2026-10-23",
+        "years": 10.81,
+        "cagr_pct": 17.0,
+        "n500_cagr_pct": 11.27,
+        "alpha_cagr_pct": 5.73,
+        "max_drawdown_pct": -34.15,
+        "n500_max_drawdown_pct": -38.3,
+        "annual_vol_pct": 24.01,
+        "info_ratio": 0.401,
+        "excess_t_stat": 1.31,
+        "final_nav": 2349075.9
+      },
+      "Recent 5-Year (2021-2026)": {
+        "start": "2021-10-01",
+        "end": "2026-10-23",
+        "years": 5.06,
+        "cagr_pct": 12.21,
+        "n500_cagr_pct": 7.28,
+        "alpha_cagr_pct": 4.92,
+        "max_drawdown_pct": -34.06,
+        "n500_max_drawdown_pct": -18.84,
+        "annual_vol_pct": 23.59,
+        "info_ratio": 0.351,
+        "excess_t_stat": 0.79,
+        "final_nav": 2349075.9
+      }
+    },
+    "yearly_returns": [
+      {
+        "year": 2007,
+        "strategy_return_pct": 140.99,
+        "nifty500_return_pct": 61.14,
+        "alpha_pct": 79.85,
+        "ending_nav": 240985.88
+      },
+      {
+        "year": 2008,
+        "strategy_return_pct": -51.56,
+        "nifty500_return_pct": -57.13,
+        "alpha_pct": 5.57,
+        "ending_nav": 116739.4
+      },
+      {
+        "year": 2009,
+        "strategy_return_pct": 56.29,
+        "nifty500_return_pct": 88.57,
+        "alpha_pct": -32.28,
+        "ending_nav": 182456.26
+      },
+      {
+        "year": 2010,
+        "strategy_return_pct": 5.5,
+        "nifty500_return_pct": 14.13,
+        "alpha_pct": -8.64,
+        "ending_nav": 192487.96
+      },
+      {
+        "year": 2011,
+        "strategy_return_pct": -26.73,
+        "nifty500_return_pct": -27.19,
+        "alpha_pct": 0.46,
+        "ending_nav": 141041.21
+      },
+      {
+        "year": 2012,
+        "strategy_return_pct": 30.31,
+        "nifty500_return_pct": 31.84,
+        "alpha_pct": -1.54,
+        "ending_nav": 183784.83
+      },
+      {
+        "year": 2013,
+        "strategy_return_pct": 8.23,
+        "nifty500_return_pct": 3.61,
+        "alpha_pct": 4.61,
+        "ending_nav": 198902.29
+      },
+      {
+        "year": 2014,
+        "strategy_return_pct": 88.52,
+        "nifty500_return_pct": 37.82,
+        "alpha_pct": 50.7,
+        "ending_nav": 374971.69
+      },
+      {
+        "year": 2015,
+        "strategy_return_pct": 13.54,
+        "nifty500_return_pct": -0.72,
+        "alpha_pct": 14.26,
+        "ending_nav": 425743.74
+      },
+      {
+        "year": 2016,
+        "strategy_return_pct": -25.71,
+        "nifty500_return_pct": 3.84,
+        "alpha_pct": -29.55,
+        "ending_nav": 316285.24
+      },
+      {
+        "year": 2017,
+        "strategy_return_pct": 99.84,
+        "nifty500_return_pct": 35.91,
+        "alpha_pct": 63.92,
+        "ending_nav": 632051.88
+      },
+      {
+        "year": 2018,
+        "strategy_return_pct": -19.35,
+        "nifty500_return_pct": -3.38,
+        "alpha_pct": -15.97,
+        "ending_nav": 509746.78
+      },
+      {
+        "year": 2019,
+        "strategy_return_pct": 4.01,
+        "nifty500_return_pct": 7.66,
+        "alpha_pct": -3.65,
+        "ending_nav": 530198.96
+      },
+      {
+        "year": 2020,
+        "strategy_return_pct": 37.05,
+        "nifty500_return_pct": 16.67,
+        "alpha_pct": 20.38,
+        "ending_nav": 726633.2
+      },
+      {
+        "year": 2021,
+        "strategy_return_pct": 94.24,
+        "nifty500_return_pct": 30.19,
+        "alpha_pct": 64.04,
+        "ending_nav": 1411394.17
+      },
+      {
+        "year": 2022,
+        "strategy_return_pct": -0.82,
+        "nifty500_return_pct": 3.02,
+        "alpha_pct": -3.83,
+        "ending_nav": 1399875.09
+      },
+      {
+        "year": 2023,
+        "strategy_return_pct": 50.65,
+        "nifty500_return_pct": 25.76,
+        "alpha_pct": 24.88,
+        "ending_nav": 2108882.66
+      },
+      {
+        "year": 2024,
+        "strategy_return_pct": 44.37,
+        "nifty500_return_pct": 15.16,
+        "alpha_pct": 29.21,
+        "ending_nav": 3044671.16
+      },
+      {
+        "year": 2025,
+        "strategy_return_pct": -24.35,
+        "nifty500_return_pct": 6.69,
+        "alpha_pct": -31.04,
+        "ending_nav": 2303173.31
+      },
+      {
+        "year": 2026,
+        "strategy_return_pct": 1.99,
+        "nifty500_return_pct": -10.24,
+        "alpha_pct": 12.23,
+        "ending_nav": 2349075.9
+      }
+    ]
+  },
+  "slots_6": {
+    "run_name": "pit_20yr_slots6_1L",
+    "slots": 6,
+    "initial_capital": 100000.0,
+    "total_trades": 688,
+    "top10_share_pct": 100.6,
+    "unaffordable_rejected_orders": 0,
+    "circuit_deferred_orders": 0,
+    "forced_delisted_exits": 2,
+    "forced_delisted_symbols": [
+      "ESSAROIL",
+      "GSKCONS"
+    ],
+    "window_stats": {
+      "Full 20-Year (2007-2026)": {
+        "start": "2007-01-01",
+        "end": "2026-10-23",
+        "years": 19.81,
+        "cagr_pct": 17.13,
+        "n500_cagr_pct": 9.87,
+        "alpha_cagr_pct": 7.26,
+        "max_drawdown_pct": -70.91,
+        "n500_max_drawdown_pct": -64.26,
+        "annual_vol_pct": 30.75,
+        "info_ratio": 0.359,
+        "excess_t_stat": 1.6,
+        "final_nav": 2303146.25
+      },
+      "Decade 1 (2007-2015)": {
+        "start": "2007-01-01",
+        "end": "2015-12-31",
+        "years": 8.99,
+        "cagr_pct": 14.22,
+        "n500_cagr_pct": 8.15,
+        "alpha_cagr_pct": 6.06,
+        "max_drawdown_pct": -70.91,
+        "n500_max_drawdown_pct": -64.26,
+        "annual_vol_pct": 31.13,
+        "info_ratio": 0.266,
+        "excess_t_stat": 0.79,
+        "final_nav": 332200.87
+      },
+      "Decade 2 (2016-2026)": {
+        "start": "2016-01-01",
+        "end": "2026-10-23",
+        "years": 10.81,
+        "cagr_pct": 19.5,
+        "n500_cagr_pct": 11.27,
+        "alpha_cagr_pct": 8.23,
+        "max_drawdown_pct": -52.81,
+        "n500_max_drawdown_pct": -38.3,
+        "annual_vol_pct": 30.26,
+        "info_ratio": 0.475,
+        "excess_t_stat": 1.56,
+        "final_nav": 2303146.25
+      },
+      "Recent 5-Year (2021-2026)": {
+        "start": "2021-10-01",
+        "end": "2026-10-23",
+        "years": 5.06,
+        "cagr_pct": 14.3,
+        "n500_cagr_pct": 7.28,
+        "alpha_cagr_pct": 7.02,
+        "max_drawdown_pct": -43.67,
+        "n500_max_drawdown_pct": -18.84,
+        "annual_vol_pct": 29.92,
+        "info_ratio": 0.391,
+        "excess_t_stat": 0.88,
+        "final_nav": 2303146.25
+      }
+    },
+    "yearly_returns": [
+      {
+        "year": 2007,
+        "strategy_return_pct": 185.43,
+        "nifty500_return_pct": 61.14,
+        "alpha_pct": 124.3,
+        "ending_nav": 285433.27
+      },
+      {
+        "year": 2008,
+        "strategy_return_pct": -65.98,
+        "nifty500_return_pct": -57.13,
+        "alpha_pct": -8.85,
+        "ending_nav": 97108.99
+      },
+      {
+        "year": 2009,
+        "strategy_return_pct": 84.62,
+        "nifty500_return_pct": 88.57,
+        "alpha_pct": -3.95,
+        "ending_nav": 179286.47
+      },
+      {
+        "year": 2010,
+        "strategy_return_pct": -8.99,
+        "nifty500_return_pct": 14.13,
+        "alpha_pct": -23.13,
+        "ending_nav": 163161.3
+      },
+      {
+        "year": 2011,
+        "strategy_return_pct": -33.22,
+        "nifty500_return_pct": -27.19,
+        "alpha_pct": -6.04,
+        "ending_nav": 108953.86
+      },
+      {
+        "year": 2012,
+        "strategy_return_pct": 45.16,
+        "nifty500_return_pct": 31.84,
+        "alpha_pct": 13.31,
+        "ending_nav": 158155.95
+      },
+      {
+        "year": 2013,
+        "strategy_return_pct": 19.99,
+        "nifty500_return_pct": 3.61,
+        "alpha_pct": 16.38,
+        "ending_nav": 189775.0
+      },
+      {
+        "year": 2014,
+        "strategy_return_pct": 62.61,
+        "nifty500_return_pct": 37.82,
+        "alpha_pct": 24.79,
+        "ending_nav": 308596.74
+      },
+      {
+        "year": 2015,
+        "strategy_return_pct": 7.65,
+        "nifty500_return_pct": -0.72,
+        "alpha_pct": 8.37,
+        "ending_nav": 332200.87
+      },
+      {
+        "year": 2016,
+        "strategy_return_pct": -14.42,
+        "nifty500_return_pct": 3.84,
+        "alpha_pct": -18.26,
+        "ending_nav": 284288.46
+      },
+      {
+        "year": 2017,
+        "strategy_return_pct": 119.08,
+        "nifty500_return_pct": 35.91,
+        "alpha_pct": 83.17,
+        "ending_nav": 622832.29
+      },
+      {
+        "year": 2018,
+        "strategy_return_pct": -35.7,
+        "nifty500_return_pct": -3.38,
+        "alpha_pct": -32.32,
+        "ending_nav": 400508.21
+      },
+      {
+        "year": 2019,
+        "strategy_return_pct": 4.21,
+        "nifty500_return_pct": 7.66,
+        "alpha_pct": -3.45,
+        "ending_nav": 417362.95
+      },
+      {
+        "year": 2020,
+        "strategy_return_pct": 46.3,
+        "nifty500_return_pct": 16.67,
+        "alpha_pct": 29.63,
+        "ending_nav": 610585.58
+      },
+      {
+        "year": 2021,
+        "strategy_return_pct": 129.81,
+        "nifty500_return_pct": 30.19,
+        "alpha_pct": 99.62,
+        "ending_nav": 1403200.38
+      },
+      {
+        "year": 2022,
+        "strategy_return_pct": 4.36,
+        "nifty500_return_pct": 3.02,
+        "alpha_pct": 1.34,
+        "ending_nav": 1464352.98
+      },
+      {
+        "year": 2023,
+        "strategy_return_pct": 22.65,
+        "nifty500_return_pct": 25.76,
+        "alpha_pct": -3.12,
+        "ending_nav": 1795978.32
+      },
+      {
+        "year": 2024,
+        "strategy_return_pct": 35.62,
+        "nifty500_return_pct": 15.16,
+        "alpha_pct": 20.45,
+        "ending_nav": 2435674.12
+      },
+      {
+        "year": 2025,
+        "strategy_return_pct": -20.61,
+        "nifty500_return_pct": 6.69,
+        "alpha_pct": -27.29,
+        "ending_nav": 1933725.79
+      },
+      {
+        "year": 2026,
+        "strategy_return_pct": 19.1,
+        "nifty500_return_pct": -10.24,
+        "alpha_pct": 29.34,
+        "ending_nav": 2303146.25
+      }
+    ]
+  },
+  "no_skill_baselines": {
+    "20yr": {
+      "window": "2007-01-01..2026-10-23",
+      "months": 237,
+      "basket_cagr_last_price": 9.17,
+      "basket_cagr_dead_to_zero": 8.41
+    },
+    "decade1": {
+      "window": "2007-01-01..2015-12-31",
+      "months": 107,
+      "basket_cagr_last_price": 6.23,
+      "basket_cagr_dead_to_zero": 5.32
+    },
+    "decade2": {
+      "window": "2016-01-01..2026-10-23",
+      "months": 129,
+      "basket_cagr_last_price": 11.68,
+      "basket_cagr_dead_to_zero": 11.05
+    }
+  }
+}

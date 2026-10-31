@@ -27,9 +27,29 @@ htmlcov/
 *.log
 .DS_Store
 Thumbs.db
+scratch/
 
 # Ephemeral backtest run outputs
 results/backtests/
+results/realistic_pit_*/
+results/true_pit_*/
+
+# Binary datasets & caches
+*.parquet
+*.pkl
+
+# Raw third-party data (downloaded manually; see data/external/README.md)
+data/external/*
+!data/external/README.md
 
 # Archives
 *.zip
+
+# Bulk per-run research outputs (summary JSON tables stay tracked; rerun alpha_lab.py to regenerate these)
+research/audit_2026-10/results/**/nav_*.csv
+research/audit_2026-10/results/**/trades_*.csv
+research/audit_2026-10/results/**/orders_*.csv
+research/audit_2026-10/results/**/signals.pkl
+research/audit_2026-10/results/mongo_backup_*.json
+research/audit_2026-10/results/**/delisted_inclusive_trades_*.csv
+research/audit_2026-10/results/**/basket_monthly_*.csv

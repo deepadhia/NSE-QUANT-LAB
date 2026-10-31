@@ -822,3 +822,31 @@ def test_soft_tax_settlement_prevents_negative_cash():
 
     # Cash must never be negative on any trading day
     assert (nav_df["cash"] >= 0.0).all(), f"Found negative cash days: {nav_df[nav_df['cash'] < 0]}"
+
+
+def test_point_in_time_reentrant_state_machine():
+    """
+    Verifies that PointInTimeUniverse correctly handles stocks that exit and later re-enter the index
+    (e.g., GVT and D, SUZLON, FORTIS) without permanent collision bans.
+    """
+    from nse_quant_lab.pit_universe import PointInTimeUniverse
+    import pandas as pd
+
+    pit = PointInTimeUniverse(enforce_pit=True)
+
+    # GVT and D: Excluded 2016-04-01, Re-included 2024-03-28
+    assert pit.is_eligible('GVT&D.NS', pd.Timestamp('2016-01-01')), 'GVT&D should be eligible before 2016 exclusion'
+    assert not pit.is_eligible('GVT&D.NS', pd.Timestamp('2016-05-01')), 'GVT&D should be ineligible after 2016 exclusion'
+    assert not pit.is_eligible('GVT&D.NS', pd.Timestamp('2023-01-01')), 'GVT&D should be ineligible prior to 2024 re-entry'
+    assert pit.is_eligible('GVT&D.NS', pd.Timestamp('2024-04-01')), 'GVT&D MUST be eligible after 2024-03-28 re-entry'
+
+    # SUZLON: Excluded 2018-09-28, Re-included 2023-09-29
+    assert pit.is_eligible('SUZLON.NS', pd.Timestamp('2016-01-01')), 'SUZLON should be eligible in 2016'
+    assert not pit.is_eligible('SUZLON.NS', pd.Timestamp('2019-01-01')), 'SUZLON should be ineligible after 2018 exclusion'
+    assert pit.is_eligible('SUZLON.NS', pd.Timestamp('2023-10-01')), 'SUZLON MUST be eligible after 2023-09-29 re-entry'
+
+    # FORTIS: Included 2016-04-01, Excluded 2018-02-05, Re-included 2019-12-27
+    assert not pit.is_eligible('FORTIS.NS', pd.Timestamp('2016-01-01')), 'FORTIS should be ineligible before 2016 inclusion'
+    assert pit.is_eligible('FORTIS.NS', pd.Timestamp('2016-05-01')), 'FORTIS should be eligible after 2016 inclusion'
+    assert not pit.is_eligible('FORTIS.NS', pd.Timestamp('2018-03-01')), 'FORTIS should be ineligible after 2018 exclusion'
+    assert pit.is_eligible('FORTIS.NS', pd.Timestamp('2020-01-01')), 'FORTIS MUST be eligible after 2019-12-27 re-entry'

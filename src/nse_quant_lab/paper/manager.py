@@ -62,7 +62,7 @@ class PaperTradingManager:
             strat_doc = StrategyModel(
                 strategy_id=self.config.strategy_id,
                 name=s_name,
-                description=getattr(self.strategy, "__doc__", "Quantitative Strategy").strip(),
+                description=(getattr(self.strategy, "__doc__", None) or "Quantitative Strategy").strip(),
                 mode=getattr(self.config, "mode", "paper"),
                 rebalance_frequency=getattr(self.strategy, "rebalance_frequency", "MONTHLY"),
                 portfolio_size=int(self.config.portfolio_size),
@@ -86,7 +86,7 @@ class PaperTradingManager:
                 {"_id": existing_strat["_id"]},
                 {"$set": {
                     "name": s_name,
-                    "description": getattr(self.strategy, "__doc__", "Quantitative Strategy").strip(),
+                    "description": (getattr(self.strategy, "__doc__", None) or "Quantitative Strategy").strip(),
                     "portfolio_size": int(self.config.portfolio_size),
                     "rebalance_frequency": getattr(self.strategy, "rebalance_frequency", "MONTHLY"),
                     "updated_at": datetime.utcnow().isoformat(),
@@ -312,7 +312,7 @@ class PaperTradingManager:
             # Wash trade prevention: do not rebuy dropped stocks on the same rebalance session
             candidate_pool = [s for s in list(candidates_df.index) if s not in positions and s not in rebal_drops]
             # Queue primary open slots + up to 4 backup candidates so morning execution fills empty slots if top picks gap > 2%
-            backup_slots = 4 if getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT" else 0
+            backup_slots = int(getattr(self.strategy, "paper_backup_slots", 4)) if getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT" else 0
             new_buys = candidate_pool[:max(0, open_slots + backup_slots)]
             holdings_est_val = sum(p["shares"] * p.get("last_close", 0.0) for p in positions.values())
             est_total_equity = cash + holdings_est_val
@@ -392,6 +392,53 @@ class PaperTradingManager:
         )
         return {"exits": exits_to_log, "buys": buys_to_log, "active_holdings": active_holdings_to_log}
 
+    @staticmethod
+    def _cost_inputs(prev_rows: pd.DataFrame) -> Dict[str, Any]:
+        """Point-in-time inputs for the cost model, taken from bars strictly BEFORE the execution session."""
+        last = prev_rows.iloc[-1]
+        if "adt50m" in prev_rows.columns and not pd.isna(last["adt50m"]):
+            adt = float(last["adt50m"])
+        else:  # morning universe is not indicator-enriched: rebuild the 50-session median turnover from raw bars before the fill
+            tail = prev_rows.tail(50)
+            turnover = tail["turnover"] if "turnover" in tail.columns else tail["close"] * tail["volume"]
+            adt = float(turnover.median()) if len(tail) >= 20 else float("nan")
+        sig = float(prev_rows["close"].pct_change().tail(20).std()) if len(prev_rows) > 5 else float("nan")
+        return {"adt_prev": adt, "sig_prev": sig, "series": str(last["series"]) if "series" in prev_rows.columns else "EQ"}
+
+    def _slip(self, sym: str, bar: Dict[str, Any], price: float, shares: int, side: str) -> float:
+        """Per-leg slippage fraction: the strategy's liquidity-tiered model when it defines one, else flat config."""
+        fn = getattr(self.strategy, "slippage_pct_for", None)
+        if fn is None:
+            return self.config.slippage_pct
+        return float(fn(sym, bar, float(price), int(shares), side))
+
+    def _audit_fill(self, order: Dict[str, Any], sym: str, side: str, shares: int, bar: Dict[str, Any],
+                    open_price: float, fill_price: float, date_str: str) -> None:
+        """Log model fill next to an optional live bid/ask quote so real execution cost can be measured and the
+        cost tiers recalibrated. quote_provider(sym) -> {'bid','ask','ltp'} or None (set it at ~09:16 IST)."""
+        quote = None
+        provider = getattr(self, "quote_provider", None)
+        if provider is not None:
+            try:
+                quote = provider(sym)
+            except Exception as exc:  # audit only: never block paper execution, but say so loudly
+                logger.error("quote_provider failed for %s: %s", sym, exc)
+        doc = {
+            "strategy_id": self.config.strategy_id, "mode": "paper", "date": date_str, "symbol": sym, "side": side,
+            "shares": shares, "order_id": order["order_id"], "open_price": open_price, "fill_price": fill_price,
+            "model_slip_bps": round((fill_price / open_price - 1.0) * 1e4 * (1 if side == "BUY" else -1), 2),
+            "adt_prev": bar.get("adt_prev"), "sig_prev": bar.get("sig_prev"), "series": bar.get("series"),
+            "quote": quote, "ts": datetime.utcnow().isoformat(),
+        }
+        if quote and quote.get("ask") and quote.get("bid"):
+            ref = quote["ask"] if side == "BUY" else quote["bid"]
+            doc["quote_vs_open_bps"] = round((ref / open_price - 1.0) * 1e4 * (1 if side == "BUY" else -1), 2)
+            doc["half_spread_bps"] = round((quote["ask"] - quote["bid"]) / (quote["ask"] + quote["bid"]) * 1e4, 2)
+        try:
+            self.db.get_collection("fill_audit").insert_one(doc)
+        except Exception as exc:
+            logger.error("fill_audit insert failed: %s", exc)
+
     def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, Any]]:
         """
         Retrieves opening price bar for execution date.
@@ -430,6 +477,7 @@ class PaperTradingManager:
                 "prev_close": prev_close,
                 "turnover_50d": to50,
                 "is_live_quote": False,
+                **self._cost_inputs(prev_rows),
             }
 
         # Live quote fallback at 09:16 IST (never fallback to prev_close as open_px)
@@ -451,6 +499,7 @@ class PaperTradingManager:
                     "prev_close": prev_close,
                     "turnover_50d": to50,
                     "is_live_quote": True,
+                    **self._cost_inputs(prev_rows),
                 }
             else:
                 logger.error("Live quote for %s returned empty/zero open price at 09:16 IST", ticker)
@@ -543,7 +592,7 @@ class PaperTradingManager:
                 continue
 
             open_price = float(row["open"])
-            fill_price = open_price * (1.0 - self.config.slippage_pct)
+            fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, int(order["shares"]), "SELL"))
             shares = int(order["shares"])
             gross_val = shares * fill_price
             fees_dict = calc_sell_fees_exact(gross_val, execution_date, self.config)
@@ -568,6 +617,7 @@ class PaperTradingManager:
                 slippage=round((open_price - fill_price) * shares, 2),
             )
             self.db.executions.insert_one(exec_model.to_dict())
+            self._audit_fill(order, sym, "SELL", shares, bar, open_price, fill_price, date_str)
 
             # Close Position & Record Trade
             pos = positions.get(sym)
@@ -663,17 +713,17 @@ class PaperTradingManager:
                 deferred_log.append({"symbol": sym, "reason": f"Skipped: Open ₹{open_price:.2f} > +2% Cap ₹{limit_cap_price:.2f}"})
                 continue
 
-            fill_price = open_price * (1.0 + self.config.slippage_pct)
-            # Sizing buffer: open_price and slippage are already known; include statutory fees buffer
-            buffer_mult = 1.0 + self.config.fees_buffer_pct
-            est_cost_per_sh = fill_price * buffer_mult
-
             # Volume participation cap: max 10% of 50-day average daily turnover
             max_vol_pct = getattr(self.config, "max_volume_participation_pct", 0.10)
             to50 = float(bar["turnover_50d"]) if (hasattr(bar, "__getitem__") and "turnover_50d" in bar and not pd.isna(bar["turnover_50d"])) else float("inf")
             max_exec_val = to50 * max_vol_pct if to50 > 0 else float("inf")
-
             avail = min(target_alloc, cash, max_exec_val)
+
+            # Order size is set from the pre-slippage open (as the backtest engine does), then the cost model prices it
+            buffer_mult = 1.0 + self.config.fees_buffer_pct
+            sized_shares = int(avail // (open_price * buffer_mult))
+            fill_price = open_price * (1.0 + self._slip(sym, bar, open_price, max(sized_shares, 1), "BUY"))
+            est_cost_per_sh = fill_price * buffer_mult
             shares = int(avail // est_cost_per_sh)
 
             if shares <= 0:
@@ -721,6 +771,7 @@ class PaperTradingManager:
                 slippage=buy_slip_total,
             )
             self.db.executions.insert_one(exec_model.to_dict())
+            self._audit_fill(order, sym, "BUY", shares, bar, open_price, fill_price, date_str)
 
             # Add Position
             pos_model = PositionModel(

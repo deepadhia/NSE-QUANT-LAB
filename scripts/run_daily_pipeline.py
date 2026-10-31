@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from nse_quant_lab.config import PaperTradingConfig
 from nse_quant_lab.registry import get_strategy, list_strategies
-from nse_quant_lab.data_loader import load_clean_universe
+from nse_quant_lab.data_loader import load_clean_universe, load_pit_universe
 from nse_quant_lab.paper.manager import PaperTradingManager
 from nse_quant_lab.db.mongo_client import MongoDatabase
 from nse_quant_lab.holidays import is_trading_day
@@ -96,14 +96,23 @@ def main():
             strat_docs = [{"strategy_id": "trend_momentum", "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}]
     else:
         doc = db.strategies.find_one({"strategy_id": args.strategy})
-        strat_docs = [doc] if doc else [{"strategy_id": args.strategy, "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}]
+        default_doc = {"strategy_id": args.strategy, "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}
+        if args.strategy == "trend_momentum_pit":  # researched setting: 15 slots, no rank-based drops (buffer = 100 x slots)
+            default_doc.update(portfolio_size=15, rebalance_hold_rank_buffer=1500)
+        strat_docs = [doc] if doc else [default_doc]
 
     logger.info(f">> Active strategies to process: {[d['strategy_id'] for d in strat_docs]}")
 
     # Load recent universe for signal evaluation
     logger.info(">> Loading recent market universe...")
     target_end = args.date or datetime.now().strftime("%Y-%m-%d")
-    universe = load_clean_universe("2024-01-01", target_end, active_only=True)
+    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] == "trend_momentum_pit"]
+    if pit_ids and len(pit_ids) != len(strat_docs):
+        raise SystemExit("trend_momentum_pit needs the full-market PIT universe; run it separately from other strategies (--strategy trend_momentum_pit)")
+    if pit_ids:
+        universe = load_pit_universe(target_end)   # full market, split-adjusted, series-aware (same data as the research)
+    else:
+        universe = load_clean_universe("2024-01-01", target_end, active_only=True)
     logger.info(f"   Loaded {len(universe)} stocks.")
 
     # Determine decision date

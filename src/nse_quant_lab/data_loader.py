@@ -144,10 +144,13 @@ def load_clean_universe(
     collection_name: str = "upstox_daily_ohlcv",
     parquet_path: Optional[str] = None,
     active_only: bool = False,
+    allow_sample_fallback: bool = False,
 ) -> Dict[str, pd.DataFrame]:
     """
-    Loads daily OHLCV dataset.
-    Tries MongoDB first; if unavailable, seamlessly falls back to local sample parquet.
+    Loads daily OHLCV dataset from MongoDB.
+    Fails loudly (ConnectionError) if MongoDB is unreachable, the query errors, or no
+    candles are returned. The local sample parquet is used only when the caller
+    explicitly opts in with allow_sample_fallback=True, and that switch is logged.
     """
     uri = mongo_uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
     db_n = os.environ.get("MONGO_DB", db_name)
@@ -183,23 +186,29 @@ def load_clean_universe(
             {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
         )
         raw_df = pd.DataFrame(list(cursor))
-        if not raw_df.empty:
-            raw_df = raw_df[
-                (raw_df["high"] >= raw_df["low"]) &
-                (raw_df["high"] >= raw_df["open"]) &
-                (raw_df["high"] >= raw_df["close"]) &
-                (raw_df["low"] <= raw_df["open"]) &
-                (raw_df["low"] <= raw_df["close"])
-            ]
-            raw_df["date"] = pd.to_datetime(raw_df["date"])
-            universe: Dict[str, pd.DataFrame] = {}
-            for sym, group in raw_df.groupby("symbol"):
-                universe[str(sym)] = group.sort_values("date").reset_index(drop=True)
-            return universe
-    except Exception:
-        pass
+        if raw_df.empty:
+            raise ValueError(f"no candles returned from {db_n}.{coll_n} for {start_date} to {end_date}")
+        raw_df = raw_df[
+            (raw_df["high"] >= raw_df["low"]) &
+            (raw_df["high"] >= raw_df["open"]) &
+            (raw_df["high"] >= raw_df["close"]) &
+            (raw_df["low"] <= raw_df["open"]) &
+            (raw_df["low"] <= raw_df["close"])
+        ]
+        raw_df["date"] = pd.to_datetime(raw_df["date"])
+        universe: Dict[str, pd.DataFrame] = {}
+        for sym, group in raw_df.groupby("symbol"):
+            universe[str(sym)] = group.sort_values("date").reset_index(drop=True)
+        return universe
+    except Exception as exc:
+        # Never include the URI in the message: it may carry credentials.
+        msg = f"Failed to load market data from MongoDB ({db_n}.{coll_n}): {type(exc).__name__}: {exc}"
+        if not allow_sample_fallback:
+            logger.error(msg)
+            raise ConnectionError(msg) from exc
+        logger.warning("%s -- SAMPLE DATA MODE: falling back to local sample parquet (NOT the full market universe).", msg)
 
-    # Offline Parquet Fallback
+    # Explicit opt-in sample parquet fallback
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     pq_path = parquet_path or os.path.join(base_dir, "data", "sample", "nifty500_sample.parquet")
     if os.path.exists(pq_path):
@@ -213,9 +222,10 @@ def load_clean_universe(
         universe = {}
         for sym, g in df_pq.groupby("symbol"):
             universe[str(sym)] = g.sort_values("date").reset_index(drop=True)
+        logger.warning("SAMPLE DATA MODE: loaded %d symbols from %s", len(universe), pq_path)
         return universe
 
-    raise ConnectionError("Failed to load market data: MongoDB unavailable and sample parquet not found.")
+    raise ConnectionError(f"Failed to load market data: MongoDB unavailable and sample parquet not found at {pq_path}.")
 
 
 def make_synthetic_stock(
@@ -241,3 +251,44 @@ def make_synthetic_stock(
         "close": prices,
         "volume": [volume] * n_days,
     })
+
+
+def load_pit_universe(
+    end_date: Optional[str] = None,
+    panel_path: Optional[str] = None,
+    min_adt_ever: float = 1.5e6,
+    min_rows: int = 226,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Full-market, split-adjusted daily universe for the researched strategy (trend_momentum_pit).
+    Reads data/external/nse_archive/clean_panel.parquet, which research/audit_2026-10/scripts/build_clean_panel.py
+    rebuilds from the NSE bhavcopy archive (all series, delisted names included, ETFs removed, official split/bonus
+    factors applied). Fails loudly if the panel is missing or stale relative to end_date.
+    Columns per symbol: date, open, high, low, close, volume, turnover (Rs), series. Only symbols that ever reached a
+    50-session median turnover of `min_adt_ever` are returned (cannot affect eligibility at the strategy's Rs 25 L floor).
+    """
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    path = panel_path or os.path.join(base, "data", "external", "nse_archive", "clean_panel.parquet")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"clean panel not found at {path}; run research/audit_2026-10/scripts/build_clean_panel.py")
+    panel = pd.read_parquet(path)
+    panel["series"] = panel["series"].astype(str)
+    panel["date"] = pd.to_datetime(panel["date"])
+    last = panel["date"].max()
+    if end_date is not None:
+        end = pd.to_datetime(end_date)
+        if last < end:
+            raise ValueError(
+                f"clean panel ends {last.date()} but {end.date()} was requested: ingest the bhavcopy and rebuild the panel first"
+            )
+        panel = panel[panel["date"] <= end]
+    universe: Dict[str, pd.DataFrame] = {}
+    for sym, g in panel.groupby("symbol", sort=False):
+        if len(g) < min_rows:
+            continue
+        g = g.sort_values("date").reset_index(drop=True)
+        if not (g["turnover"].rolling(50, min_periods=50).median() >= min_adt_ever).any():
+            continue
+        universe[str(sym)] = g
+    logger.info("PIT universe: %d symbols, last bar %s", len(universe), panel["date"].max().date())
+    return universe

@@ -33,6 +33,7 @@ class BacktestConfig:
     pit_max_universe_pct: float = 0.45           # Relative capacity cap (Top 45% of active pool)
     max_volume_participation_pct: float = 0.10   # Max 10% of 50-day ADT for single morning order
     deduct_annual_tax: bool = False              # Deduct statutory FY tax from cash on March 31
+    tax_model: str = "india_fy"                  # "india_fy" (dated rates, tax_india.py) or "flat_legacy" (old 20%/12.5% every year)
 
     # Execution limits & buffers
     slippage_pct: float = 0.0010                 # 0.10% per leg

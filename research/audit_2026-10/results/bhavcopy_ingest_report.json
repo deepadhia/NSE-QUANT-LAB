@@ -1,0 +1,638 @@
+{
+ "selected_symbols": 90,
+ "rows": 101746,
+ "decisions": [
+  {
+   "symbol": "8KMILES",
+   "date": "2016-10-10",
+   "action": "LEAVE",
+   "observed": 0.4078,
+   "evidence": "genuine crash (-59%, fraud allegations); ISIN change 3 days later not a price event"
+  },
+  {
+   "symbol": "ABIRLANUVO",
+   "date": "2016-01-20",
+   "action": "LEAVE",
+   "observed": 0.4271,
+   "evidence": "likely demerger (-57%); consideration not in price data; left unadjusted (same convention as Upstox demerger gaps)"
+  },
+  {
+   "symbol": "ARCOTECH",
+   "date": "2017-06-22",
+   "action": "ADJUST",
+   "ratio": 0.2,
+   "observed": 0.192,
+   "evidence": "ASSUMED split 1:5: close ratio 0.192, ISIN changes next day"
+  },
+  {
+   "symbol": "ATLASCYCLE",
+   "date": "2017-10-30",
+   "action": "ADJUST",
+   "ratio": 0.5,
+   "observed": 0.5251,
+   "evidence": "ASSUMED split 1:2: close ratio 0.525, ISIN changes next day"
+  },
+  {
+   "symbol": "BCG",
+   "date": "2022-03-15",
+   "action": "LEAVE",
+   "observed": 0.6298,
+   "evidence": "ratio 0.63 ambiguous; left unadjusted"
+  },
+  {
+   "symbol": "COSMOFILMS",
+   "date": "2022-06-16",
+   "action": "ADJUST",
+   "ratio": 0.6666666666666666,
+   "observed": 0.6578,
+   "evidence": "ASSUMED bonus 1:2: close ratio 0.658"
+  },
+  {
+   "symbol": "DHFL",
+   "date": "2018-09-21",
+   "action": "LEAVE",
+   "observed": 0.5742,
+   "evidence": "genuine crash (-42.6%, volume x28)"
+  },
+  {
+   "symbol": "DISHMAN",
+   "date": "2016-05-02",
+   "action": "ADJUST",
+   "ratio": 0.5,
+   "observed": 0.4994,
+   "evidence": "ASSUMED bonus 1:1: close ratio 0.499, volume x1.7"
+  },
+  {
+   "symbol": "ESSELPACK",
+   "date": "2018-06-20",
+   "action": "ADJUST",
+   "ratio": 0.5,
+   "observed": 0.4901,
+   "evidence": "ASSUMED bonus 1:1: open ratio 0.502 with price otherwise flat, volume x2.3"
+  },
+  {
+   "symbol": "FRL",
+   "date": "2016-05-11",
+   "action": "LEAVE",
+   "observed": 0.1258,
+   "evidence": "-87%; scheme event; left unadjusted"
+  },
+  {
+   "symbol": "GRUH",
+   "date": "2018-06-06",
+   "action": "ADJUST",
+   "ratio": 0.5,
+   "observed": 0.5234,
+   "evidence": "ASSUMED split 1:2: close ratio 0.523, volume x2.0"
+  },
+  {
+   "symbol": "MAJESCO",
+   "date": "2020-12-23",
+   "action": "LEAVE",
+   "observed": 0.0124,
+   "evidence": "scheme/delisting artefact (-98.8%); left unadjusted"
+  },
+  {
+   "symbol": "MANPASAND",
+   "date": "2017-09-27",
+   "action": "ADJUST",
+   "ratio": 0.5,
+   "observed": 0.4817,
+   "evidence": "ASSUMED bonus 1:1: close ratio 0.482, volume x1.1"
+  },
+  {
+   "symbol": "MINDTREE",
+   "date": "2016-03-09",
+   "action": "ADJUST",
+   "ratio": 0.5,
+   "observed": 0.4425,
+   "evidence": "ASSUMED bonus 1:1: open ratio 0.479 (close 0.443 incl. same-day move), volume x2.5"
+  },
+  {
+   "symbol": "PHILIPCARB",
+   "date": "2018-04-19",
+   "action": "ADJUST",
+   "ratio": 0.2,
+   "observed": 0.21,
+   "evidence": "ASSUMED split 1:5: close ratio 0.21, ISIN changes next day"
+  },
+  {
+   "symbol": "SINTEX",
+   "date": "2017-05-25",
+   "action": "ADJUST",
+   "ratio": 0.25,
+   "observed": 0.2483,
+   "evidence": "ASSUMED 4:1 split-like: close ratio 0.248, volume x46.8, ISIN unchanged"
+  },
+  {
+   "symbol": "SUNILHITEC",
+   "date": "2016-12-01",
+   "action": "LEAVE",
+   "observed": 0.0525,
+   "evidence": "ratio 0.053 not a standard ratio; left unadjusted"
+  },
+  {
+   "symbol": "TIDEWATER",
+   "date": "2016-03-16",
+   "action": "ADJUST",
+   "ratio": 0.25,
+   "observed": 0.2426,
+   "evidence": "ASSUMED split 1:4: close ratio 0.243, ISIN changes next day"
+  },
+  {
+   "symbol": "TIDEWATER",
+   "date": "2021-07-26",
+   "action": "ADJUST",
+   "ratio": 0.2,
+   "observed": 0.21,
+   "evidence": "ASSUMED split 1:5: close ratio 0.21, ISIN changes next day"
+  },
+  {
+   "symbol": "VIVIMEDLAB",
+   "date": "2016-04-06",
+   "action": "ADJUST",
+   "ratio": 0.2,
+   "observed": 0.2079,
+   "evidence": "ASSUMED split 1:5: close ratio 0.208, ISIN changes next day"
+  }
+ ],
+ "reconstructed_bars": [
+  {
+   "symbol": "ARCOTECH",
+   "date": "2020-07-31",
+   "close": 2.25,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "ATLASCYCLE",
+   "date": "2020-07-31",
+   "close": 46.55,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "BCG",
+   "date": "2020-07-31",
+   "close": 6.05,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "COFFEEDAY",
+   "date": "2020-07-31",
+   "close": 21.8,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "COSMOFILMS",
+   "date": "2020-07-31",
+   "close": 276.8333,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "COX&KINGS",
+   "date": "2020-07-31",
+   "close": 1.55,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "DHFL",
+   "date": "2020-07-31",
+   "close": 13.6,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "EQUITAS",
+   "date": "2020-07-31",
+   "close": 49.1,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "EROSMEDIA",
+   "date": "2020-07-31",
+   "close": 18.3,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "ESSELPACK",
+   "date": "2020-07-31",
+   "close": 234.0,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "GATI",
+   "date": "2020-07-31",
+   "close": 42.95,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "HDFC",
+   "date": "2020-07-31",
+   "close": 1781.95,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "HEXAWARE",
+   "date": "2020-07-31",
+   "close": 381.55,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "IBVENTURES",
+   "date": "2020-07-31",
+   "close": 114.05,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "IDFC",
+   "date": "2020-07-31",
+   "close": 19.0,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "IIFLWAM",
+   "date": "2020-07-31",
+   "close": 1070.25,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "INOXLEISUR",
+   "date": "2020-07-31",
+   "close": 230.45,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "JPASSOCIAT",
+   "date": "2020-07-31",
+   "close": 3.3,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "KWALITY",
+   "date": "2020-07-31",
+   "close": 3.1,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "LAKSHVILAS",
+   "date": "2020-07-31",
+   "close": 19.8,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "MAHINDCIE",
+   "date": "2020-07-31",
+   "close": 108.5,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "MAJESCO",
+   "date": "2020-07-31",
+   "close": 598.95,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "MEGH",
+   "date": "2020-07-31",
+   "close": 59.45,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "MEP",
+   "date": "2020-07-31",
+   "close": 16.9,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "MERCATOR",
+   "date": "2020-07-31",
+   "close": 0.85,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "MINDTREE",
+   "date": "2020-07-31",
+   "close": 1083.4,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "NIITTECH",
+   "date": "2020-07-31",
+   "close": 1926.2,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "PHILIPCARB",
+   "date": "2020-07-31",
+   "close": 96.2,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "RELCAPITAL",
+   "date": "2020-07-31",
+   "close": 9.45,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "RNAVAL",
+   "date": "2020-07-31",
+   "close": 2.6,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SHRIRAMCIT",
+   "date": "2020-07-31",
+   "close": 656.75,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SINTEX",
+   "date": "2020-07-31",
+   "close": 1.85,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SPICEJET",
+   "date": "2020-07-31",
+   "close": 46.85,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SPTL",
+   "date": "2020-07-31",
+   "close": 2.5,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SREINFRA",
+   "date": "2020-07-31",
+   "close": 6.4,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SRTRANSFIN",
+   "date": "2020-07-31",
+   "close": 691.3,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "STRTECH",
+   "date": "2020-07-31",
+   "close": 121.75,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "SUBEX",
+   "date": "2020-07-31",
+   "close": 9.05,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TATACOFFEE",
+   "date": "2020-07-31",
+   "close": 90.55,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TATAMETALI",
+   "date": "2020-07-31",
+   "close": 491.75,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TATAMTRDVR",
+   "date": "2020-07-31",
+   "close": 37.5,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TATASTLBSL",
+   "date": "2020-07-31",
+   "close": 21.85,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TCNSBRANDS",
+   "date": "2020-07-31",
+   "close": 330.1,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TIDEWATER",
+   "date": "2020-07-31",
+   "close": 845.8,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TINPLATE",
+   "date": "2020-07-31",
+   "close": 130.4,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "TV18BRDCST",
+   "date": "2020-07-31",
+   "close": 33.35,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "UJAAS",
+   "date": "2020-07-31",
+   "close": 5.2,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "UJJIVAN",
+   "date": "2020-07-31",
+   "close": 235.85,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  },
+  {
+   "symbol": "VIVIMEDLAB",
+   "date": "2020-07-31",
+   "close": 10.7,
+   "note": "close from next-day NSE PREVCLOSE; open/high/low set = close; volume 0 (unknown)"
+  }
+ ],
+ "warnings": [],
+ "symbols": [
+  "8KMILES.NS",
+  "ABNUVO.NS",
+  "ALBK.NS",
+  "AMTEKAUTO.NS",
+  "ANDHRABANK.NS",
+  "ANGELBRKG.NS",
+  "ARCOTECH.NS",
+  "ATLASCYCLE.NS",
+  "BCG.NS",
+  "BHARATFIN.NS",
+  "BHUSANSTL.NS",
+  "BURGERKING.NS",
+  "CAIRN.NS",
+  "CAPF.NS",
+  "COFFEEDAY.NS",
+  "COSMOFILMS.NS",
+  "COX&KINGS.NS",
+  "DALMIABHA.NS",
+  "DHANI.NS",
+  "DHFL.NS",
+  "DISHMAN.NS",
+  "EQUITAS.NS",
+  "EROSMEDIA.NS",
+  "ESSDEE.NS",
+  "ESSELPACK.NS",
+  "FCEL.NS",
+  "FRL.NS",
+  "GATI.NS",
+  "GEOMETRIC.NS",
+  "GITANJALI.NS",
+  "GRUH.NS",
+  "GSKCONS.NS",
+  "HDFC.NS",
+  "HEXAWARE.NS",
+  "IDFC.NS",
+  "IIFLWAM.NS",
+  "INOXLEISUR.NS",
+  "JPASSOCIAT.NS",
+  "KWALITY.NS",
+  "LAKSHVILAS.NS",
+  "LLOYDELENG.NS",
+  "MAHINDCIE.NS",
+  "MAJESCO.NS",
+  "MANPASAND.NS",
+  "MAXINDIA.NS",
+  "MEGH.NS",
+  "MEP.NS",
+  "MERCATOR.NS",
+  "MERCK.NS",
+  "MFL.NS",
+  "MINDTREE.NS",
+  "MONSANTO.NS",
+  "MYSOREBANK.NS",
+  "NIITTECH.NS",
+  "ORIENTBANK.NS",
+  "PHILIPCARB.NS",
+  "PIPAVAVDOC.NS",
+  "PRICOL.NS",
+  "RDEL.NS",
+  "RELCAPITAL.NS",
+  "RNAVAL.NS",
+  "SBBJ.NS",
+  "SBT.NS",
+  "SHRIRAMCIT.NS",
+  "SINTEX.NS",
+  "SKSMICRO.NS",
+  "SPICEJET.NS",
+  "SPTL.NS",
+  "SREINFRA.NS",
+  "SRTRANSFIN.NS",
+  "STOREONE.NS",
+  "STRTECH.NS",
+  "SUBEX.NS",
+  "SUNILHITEC.NS",
+  "SYNDIBANK.NS",
+  "TATACOFFEE.NS",
+  "TATAMETALI.NS",
+  "TATAMTRDVR.NS",
+  "TATASPONGE.NS",
+  "TATASTLBSL.NS",
+  "TCNSBRANDS.NS",
+  "TIDEWATER.NS",
+  "TINPLATE.NS",
+  "TV18BRDCST.NS",
+  "UJAAS.NS",
+  "UJJIVAN.NS",
+  "UPERGANGES.NS",
+  "VIJAYABANK.NS",
+  "VIVIMEDLAB.NS"
+ ],
+ "last_dates": {
+  "8KMILES.NS": "2021-01-19",
+  "ABNUVO.NS": "2017-07-04",
+  "ALBK.NS": "2020-03-19",
+  "AMTEKAUTO.NS": "2019-04-01",
+  "ANDHRABANK.NS": "2020-03-19",
+  "ANGELBRKG.NS": "2021-11-10",
+  "ARCOTECH.NS": "2021-08-30",
+  "ATLASCYCLE.NS": "2021-08-02",
+  "BCG.NS": "2024-01-03",
+  "BHARATFIN.NS": "2019-07-02",
+  "BHUSANSTL.NS": "2018-12-07",
+  "BURGERKING.NS": "2022-02-16",
+  "CAIRN.NS": "2017-04-25",
+  "CAPF.NS": "2018-12-27",
+  "COFFEEDAY.NS": "2024-01-03",
+  "COSMOFILMS.NS": "2022-07-22",
+  "COX&KINGS.NS": "2022-02-10",
+  "DALMIABHA.NS": "2018-11-28",
+  "DHANI.NS": "2024-12-13",
+  "DHFL.NS": "2021-06-11",
+  "DISHMAN.NS": "2017-05-29",
+  "EQUITAS.NS": "2023-02-02",
+  "EROSMEDIA.NS": "2024-01-03",
+  "ESSDEE.NS": "2020-01-20",
+  "ESSELPACK.NS": "2020-10-16",
+  "FCEL.NS": "2016-10-24",
+  "FRL.NS": "2016-05-12",
+  "GATI.NS": "2023-11-29",
+  "GEOMETRIC.NS": "2017-03-10",
+  "GITANJALI.NS": "2019-04-01",
+  "GRUH.NS": "2019-10-15",
+  "GSKCONS.NS": "2020-04-15",
+  "HDFC.NS": "2023-07-12",
+  "HEXAWARE.NS": "2020-10-30",
+  "IDFC.NS": "2024-01-03",
+  "IIFLWAM.NS": "2023-01-20",
+  "INOXLEISUR.NS": "2023-02-16",
+  "JPASSOCIAT.NS": "2024-01-03",
+  "KWALITY.NS": "2021-02-23",
+  "LAKSHVILAS.NS": "2020-11-25",
+  "LLOYDELENG.NS": "2017-06-16",
+  "MAHINDCIE.NS": "2023-06-16",
+  "MAJESCO.NS": "2021-10-21",
+  "MANPASAND.NS": "2020-06-29",
+  "MAXINDIA.NS": "2020-06-11",
+  "MEGH.NS": "2021-05-17",
+  "MEP.NS": "2024-01-03",
+  "MERCATOR.NS": "2023-03-10",
+  "MERCK.NS": "2019-06-10",
+  "MFL.NS": "2023-09-06",
+  "MINDTREE.NS": "2022-11-22",
+  "MONSANTO.NS": "2019-09-26",
+  "MYSOREBANK.NS": "2017-03-15",
+  "NIITTECH.NS": "2020-08-19",
+  "ORIENTBANK.NS": "2020-03-20",
+  "PHILIPCARB.NS": "2022-01-12",
+  "PIPAVAVDOC.NS": "2016-03-17",
+  "PRICOL.NS": "2016-12-02",
+  "RDEL.NS": "2017-09-15",
+  "RELCAPITAL.NS": "2024-01-03",
+  "RNAVAL.NS": "2023-07-13",
+  "SBBJ.NS": "2017-03-15",
+  "SBT.NS": "2017-03-15",
+  "SHRIRAMCIT.NS": "2022-11-28",
+  "SINTEX.NS": "2023-02-10",
+  "SKSMICRO.NS": "2016-06-30",
+  "SPICEJET.NS": "2023-04-28",
+  "SPTL.NS": "2024-01-03",
+  "SREINFRA.NS": "2023-08-11",
+  "SRTRANSFIN.NS": "2022-12-19",
+  "STOREONE.NS": "2017-01-09",
+  "STRTECH.NS": "2020-10-28",
+  "SUBEX.NS": "2020-10-21",
+  "SUNILHITEC.NS": "2019-07-16",
+  "SYNDIBANK.NS": "2020-03-19",
+  "TATACOFFEE.NS": "2024-01-03",
+  "TATAMETALI.NS": "2024-01-03",
+  "TATAMTRDVR.NS": "2024-01-03",
+  "TATASPONGE.NS": "2019-08-30",
+  "TATASTLBSL.NS": "2021-11-12",
+  "TCNSBRANDS.NS": "2024-01-03",
+  "TIDEWATER.NS": "2024-01-03",
+  "TINPLATE.NS": "2024-01-03",
+  "TV18BRDCST.NS": "2024-01-03",
+  "UJAAS.NS": "2023-11-02",
+  "UJJIVAN.NS": "2024-01-03",
+  "UPERGANGES.NS": "2017-03-22",
+  "VIJAYABANK.NS": "2019-03-07",
+  "VIVIMEDLAB.NS": "2023-07-31"
+ }
+}

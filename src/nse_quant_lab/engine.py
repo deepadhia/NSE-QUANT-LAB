@@ -28,6 +28,7 @@ from .config import BacktestConfig
 from .execution import is_locked_down, is_locked_up
 from .fees import calc_buy_fees_exact, calc_sell_fees_exact
 from .metrics import calculate_financial_metrics as compute_metrics
+from .tax_india import compute_fy_tax
 
 
 class BacktestEngine:
@@ -38,6 +39,14 @@ class BacktestEngine:
     def __init__(self, strategy: BaseStrategy, config: BacktestConfig):
         self.strategy = strategy
         self.config = config
+
+    def _slip(self, sym: str, bar: Any, price: float, shares: int, side: str) -> float:
+        """Per-leg slippage fraction. A strategy may provide slippage_pct_for(sym, bar, price, shares, side)
+        (liquidity-tiered spread + impact); otherwise the flat config.slippage_pct is used (previous behaviour)."""
+        fn = getattr(self.strategy, "slippage_pct_for", None)
+        if fn is None:
+            return self.config.slippage_pct
+        return float(fn(sym, bar, float(price), int(shares), side))
 
     def run(
         self,
@@ -103,6 +112,8 @@ class BacktestEngine:
 
         carried_forward_stcl = 0.0
         carried_forward_ltcl = 0.0
+        cf_st_list: List[Tuple[int, float]] = []
+        cf_lt_list: List[Tuple[int, float]] = []
         fy_tax_ledger: List[Dict[str, Any]] = []
         fy_tax_payable_accrued = 0.0
         last_tax_processed_trade_idx = 0
@@ -125,7 +136,7 @@ class BacktestEngine:
                     pos = open_positions[sym]
                     last_row = df_sym.iloc[-1]
                     raw_exit_price = float(last_row["close"])
-                    fill_price = raw_exit_price * (1.0 - self.config.slippage_pct)
+                    fill_price = raw_exit_price * (1.0 - self._slip(sym, last_row, raw_exit_price, pos["shares"], "SELL_DELIST"))
                     shares = pos["shares"]
                     gross_proceeds = shares * raw_exit_price
                     net_proceeds_slip = shares * fill_price
@@ -238,7 +249,7 @@ class BacktestEngine:
                     continue
 
                 raw_exit_price = float(bar["open"])
-                fill_price = raw_exit_price * (1.0 - self.config.slippage_pct)
+                fill_price = raw_exit_price * (1.0 - self._slip(sym, bar, raw_exit_price, pos["shares"], "SELL"))
                 shares = pos["shares"]
                 gross_proceeds = shares * raw_exit_price
                 net_proceeds_slip = shares * fill_price
@@ -351,7 +362,7 @@ class BacktestEngine:
                     continue
 
                 raw_exit_price = float(bar["open"])
-                fill_price = raw_exit_price * (1.0 - self.config.slippage_pct)
+                fill_price = raw_exit_price * (1.0 - self._slip(sym, bar, raw_exit_price, pos["shares"], "SELL"))
                 shares = pos["shares"]
                 gross_proceeds = shares * raw_exit_price
                 net_proceeds_slip = shares * fill_price
@@ -479,7 +490,7 @@ class BacktestEngine:
                         continue
 
                     raw_exit_price = float(bar["open"])
-                    fill_price = raw_exit_price * (1.0 - self.config.slippage_pct)
+                    fill_price = raw_exit_price * (1.0 - self._slip(sym, bar, raw_exit_price, pos["shares"], "SELL"))
                     shares = pos["shares"]
                     gross_proceeds = shares * raw_exit_price
                     net_proceeds_slip = shares * fill_price
@@ -646,7 +657,7 @@ class BacktestEngine:
                         })
                         continue
 
-                    fill_price = actual_open * (1.0 + self.config.slippage_pct)
+                    fill_price = actual_open * (1.0 + self._slip(sym, bar, actual_open, shares_submitted, "BUY"))
                     gross_buy_val = shares_submitted * actual_open
                     slipped_buy_val = shares_submitted * fill_price
                     buy_slip_loss = slipped_buy_val - gross_buy_val
@@ -759,37 +770,32 @@ class BacktestEngine:
                     fy_trades = closed_trades[last_tax_processed_trade_idx:]
                     last_tax_processed_trade_idx = len(closed_trades)
 
-                    stcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] < 365)
-                    ltcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] >= 365)
-
-                    # Set off carried forward STCL against current STCG
-                    net_stcg = stcg_gross - carried_forward_stcl
-                    if net_stcg < 0:
-                        carried_forward_stcl = abs(net_stcg)
-                        taxable_stcg = 0.0
+                    if getattr(self.config, "tax_model", "india_fy") == "flat_legacy":
+                        stcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] < 365)
+                        ltcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] >= 365)
+                        net_stcg = stcg_gross - carried_forward_stcl
+                        if net_stcg < 0:
+                            carried_forward_stcl = abs(net_stcg)
+                            taxable_stcg = 0.0
+                        else:
+                            taxable_stcg = net_stcg
+                            carried_forward_stcl = 0.0
+                        net_ltcg = ltcg_gross - carried_forward_ltcl
+                        carried_forward_ltcl = abs(net_ltcg) if net_ltcg < 0 else 0.0
+                        if carried_forward_stcl > 0 and net_ltcg > 0:
+                            stcl_offset = min(carried_forward_stcl, net_ltcg)
+                            net_ltcg -= stcl_offset
+                            carried_forward_stcl -= stcl_offset
+                        taxable_ltcg = max(0.0, net_ltcg - 125_000.0) if net_ltcg > 0 else 0.0
+                        fy_tax = taxable_stcg * 0.20 + taxable_ltcg * 0.125
                     else:
-                        taxable_stcg = net_stcg
-                        carried_forward_stcl = 0.0
-
-                    # Set off carried forward LTCL against current LTCG
-                    net_ltcg = ltcg_gross - carried_forward_ltcl
-                    if net_ltcg < 0:
-                        carried_forward_ltcl = abs(net_ltcg)
-                    else:
-                        carried_forward_ltcl = 0.0
-
-                    # Section 70(2): Short-term loss offsets long-term gain
-                    if carried_forward_stcl > 0 and net_ltcg > 0:
-                        stcl_offset = min(carried_forward_stcl, net_ltcg)
-                        net_ltcg -= stcl_offset
-                        carried_forward_stcl -= stcl_offset
-
-                    # Taxable LTCG after Rs 1.25 Lakh exemption
-                    taxable_ltcg = max(0.0, net_ltcg - 125_000.0) if net_ltcg > 0 else 0.0
-
-                    tax_stcg = taxable_stcg * 0.20
-                    tax_ltcg = taxable_ltcg * 0.125
-                    fy_tax = tax_stcg + tax_ltcg
+                        fy_tax, cf_st_list, cf_lt_list, det = compute_fy_tax(
+                            current_date.year, fy_trades, cf_st_list, cf_lt_list
+                        )
+                        stcg_gross, ltcg_gross = det["stcg_gross"], det["ltcg_gross"]
+                        taxable_stcg, taxable_ltcg = det["taxable_stcg"], det["taxable_ltcg"]
+                        carried_forward_stcl = sum(a for _, a in cf_st_list)
+                        carried_forward_ltcl = sum(a for _, a in cf_lt_list)
 
                     if fy_tax > 0:
                         fy_tax_payable_accrued += fy_tax
@@ -812,7 +818,8 @@ class BacktestEngine:
                         "accrued_unpaid_tax": round(fy_tax_payable_accrued, 2),
                     })
 
-            nav = cash + holdings_market_val
+            # Accrued-but-unpaid tax is a liability: NAV is shown net of it (0 when taxes are off or fully paid)
+            nav = cash + holdings_market_val - fy_tax_payable_accrued
             daily_nav_history.append({
                 "date": current_date,
                 "cash": cash,
