@@ -16,7 +16,7 @@ import os
 import sys
 import argparse
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo import UpdateOne
 import pandas as pd
 
@@ -109,7 +109,7 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
                 "close": round(float(row["close"]), 2),
                 "volume": float(row["volume"]),
                 "source": "yfinance_fallback" if used_fallback else "upstox",
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             # Check for overnight split / corporate action drop (>25% gap down vs previous close)
             prev_bar = col.find_one({"symbol": sym, "date": {"$lt": date_str}}, sort=[("date", -1)])
@@ -140,7 +140,7 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
                                     "close": round(float(r_bar["close"]), 2),
                                     "volume": float(r_bar["volume"]),
                                     "source": "split_adjusted_refresh",
-                                    "updated_at": datetime.utcnow().isoformat(),
+                                    "updated_at": datetime.now(timezone.utc).isoformat(),
                                 }},
                                 upsert=True
                             ))
@@ -171,7 +171,7 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
                                                         "entry_price": new_entry,
                                                         "entry_fill_price": new_fill,
                                                         "split_adjusted_factor": factor,
-                                                        "updated_at": datetime.utcnow().isoformat(),
+                                                        "updated_at": datetime.now(timezone.utc).isoformat(),
                                                     }}
                                                 )
                                                 logger.info(

@@ -137,7 +137,9 @@ def main():
 
             token = auto_refresh_upstox_token()
             if token:
-                arch = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "external", "nse_archive", "parquet")
+                p1 = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "external", "nse_archive", "parquet")
+                p2 = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "external", "nse_archive", "parquet")
+                arch = p1 if os.path.exists(p1) else p2
                 isins = uf.symbol_isin_map(arch, [exec_dt.year - 1, exec_dt.year])
                 quote_provider = uf.UpstoxQuoteProvider(token, isins)
                 quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": "trend_momentum_pit", "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])

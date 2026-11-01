@@ -37,6 +37,7 @@ sys.path.insert(0, str(REPO / "src"))
 from nse_quant_lab.config import BacktestConfig
 from nse_quant_lab.engine import BacktestEngine
 from nse_quant_lab.indicators import compute_indicators
+from nse_quant_lab.data_loader import load_pit_universe
 from nse_quant_lab.strategies.trend_momentum_pit import TrendMomentumPITStrategy
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -144,27 +145,20 @@ def load_data() -> Tuple[Dict[str, pd.DataFrame], pd.Series]:
             universe = pickle.load(f)
         return universe, bench
 
-    logger.info("Building universe from MongoDB 'upstox_daily_ohlcv'...")
+    logger.info("Building universe from clean_panel.parquet via load_pit_universe()...")
     t0 = time.time()
-    col = MongoClient("mongodb://localhost:27017/")["stock_scanner"]["upstox_daily_ohlcv"]
-    docs = list(col.find(
-        {"date": {"$gte": "2005-01-01", "$lte": "2026-10-23"}},
-        {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
-    ))
-    df = pd.DataFrame(docs)
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values(by=["symbol", "date"]).reset_index(drop=True)
+    raw_universe = load_pit_universe("2026-10-30", include_live=False)
 
     cfg = SimpleNamespace(min_history_sessions=0)
     universe = {}
-    for sym, g in df.groupby("symbol"):
+    for sym, g in raw_universe.items():
         ind = compute_indicators(g.reset_index(drop=True), cfg)
         if not ind.empty:
             turnover = ind["close"] * ind["volume"]
             ind["adt50m"] = turnover.rolling(50, min_periods=50).median()
             ind["adt_prev"] = ind["adt50m"].shift(1)
             ind["sig_prev"] = ind["close"].pct_change().rolling(20, min_periods=10).std().shift(1)
-            ind["series"] = "EQ"
+            ind["series"] = g["series"] if "series" in g else "EQ"
             ind["hist_n"] = range(1, len(ind) + 1)
             universe[sym] = ind
 

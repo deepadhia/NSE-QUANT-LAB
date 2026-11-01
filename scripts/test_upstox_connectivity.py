@@ -183,7 +183,7 @@ def test_upstox():
     fallback_passed = False
     try:
         import yfinance as yf
-        yf_df = yf.download("RELIANCE.NS", period="5d", progress=False, timeout=8)
+        yf_df = yf.download("RELIANCE.NS", period="5d", progress=False, timeout=8, auto_adjust=False)
         if not yf_df.empty:
             print(f"   SUCCESS: Fallback provider active (fetched {len(yf_df)} rows for RELIANCE.NS).")
             fallback_passed = True

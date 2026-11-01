@@ -23,7 +23,7 @@ import io
 import argparse
 import logging
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 from pymongo import MongoClient, UpdateOne
 
@@ -147,7 +147,7 @@ def sync_constituents(index_type: str = "nifty500", dry_run: bool = False, fetch
         return
 
     # 4. Apply Database Updates
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc)
     ops = []
 
     # Update retired symbols (never delete historical OHLCV!)
@@ -207,7 +207,7 @@ def sync_constituents(index_type: str = "nifty500", dry_run: bool = False, fetch
             if df is None or df.empty:
                 try:
                     import yfinance as yf
-                    yf_df = yf.download(sym, start=start_date, end=end_date, progress=False, timeout=10)
+                    yf_df = yf.download(sym, start=start_date, end=end_date, progress=False, timeout=10, auto_adjust=False)
                     if not yf_df.empty:
                         rows = []
                         for dt_idx, r in yf_df.iterrows():

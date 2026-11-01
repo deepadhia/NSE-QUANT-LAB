@@ -54,7 +54,7 @@ case "$action" in
         ;;
 
     test-job)
-        job="${2:-eod_ingestion}"
+        job="${2:-fulltier_ingestion}"
         echo "--> Running immediate test of job: ${job}..."
         "${APP_DIR}/venv/bin/python" "${APP_DIR}/scripts/run_scheduler_daemon.py" --test-job "${job}"
         ;;
@@ -73,7 +73,8 @@ case "$action" in
         echo ""
         echo "Available test jobs:"
         echo "  • morning_execution"
-        echo "  • eod_ingestion"
+        echo "  • fulltier_ingestion"
+        echo "  • benchmark_ingestion"
         echo "  • daily_pipeline"
         exit 1
         ;;

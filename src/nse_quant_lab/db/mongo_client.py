@@ -15,7 +15,7 @@ class MongoDatabase:
 
     def __init__(self, uri: Optional[str] = None, db_name: Optional[str] = None):
         self.uri = uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-        self.db_name = db_name or os.environ.get("MONGO_DB", "stock_scanner")
+        self.db_name = db_name or os.environ.get("MONGO_DB") or os.environ.get("MONGO_DB_NAME", "stock_scanner")
         self.client: MongoClient = MongoClient(self.uri, serverSelectionTimeoutMS=2000)
         self.db: Database = self.client[self.db_name]
 
@@ -26,11 +26,22 @@ class MongoDatabase:
         return cls._instance
 
     def ping(self) -> bool:
-        """Pings MongoDB server to confirm connectivity."""
+        """Pings MongoDB server to confirm connectivity. Falls back to localhost if remote URI fails."""
         try:
             self.client.admin.command("ping")
             return True
         except Exception:
+            if self.uri != "mongodb://localhost:27017/":
+                try:
+                    from pymongo import MongoClient
+                    local_client = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=1000)
+                    local_client.admin.command("ping")
+                    self.client = local_client
+                    self.uri = "mongodb://localhost:27017/"
+                    self.db = self.client[self.db_name]
+                    return True
+                except Exception:
+                    pass
             return False
 
     def get_collection(self, name: str) -> Collection:

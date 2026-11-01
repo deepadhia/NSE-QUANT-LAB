@@ -56,3 +56,4 @@ research/audit_2026-10/results/**/delisted_inclusive_trades_*.csv
 research/audit_2026-10/results/**/basket_monthly_*.csv
 
 audit_bundle.txt
+src_and_scripts_only.txt

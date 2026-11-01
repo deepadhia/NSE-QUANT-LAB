@@ -14,7 +14,7 @@ Ensures every historical backtest can be compared head-to-head on identical date
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 from pymongo import MongoClient, UpdateOne
 
@@ -47,13 +47,13 @@ def ingest_benchmarks(
     col.create_index([("symbol", 1), ("date", 1)], unique=True)
     col.create_index([("date", 1)])
 
-    now_utc = datetime.utcnow().isoformat()
+    now_utc = datetime.now(timezone.utc).isoformat()
 
     for ticker, display_name in BENCHMARK_SYMBOLS.items():
         date_range_str = f"from {start_date} to {end_date or 'latest'}"
         logger.info(f"Downloading benchmark {display_name} ({ticker}) {date_range_str}...")
         try:
-            download_kwargs = {"start": start_date, "progress": False, "timeout": 15}
+            download_kwargs = {"start": start_date, "progress": False, "timeout": 15, "auto_adjust": False}
             if end_date:
                 download_kwargs["end"] = end_date
             df = yf.download(ticker, **download_kwargs)

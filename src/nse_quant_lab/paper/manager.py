@@ -7,7 +7,7 @@ import logging
 import math
 import uuid
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
@@ -43,12 +43,12 @@ class PaperTradingManager:
             nav_col.insert_one({
                 "strategy_id": self.config.strategy_id,
                 "mode": "paper",
-                "date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "cash": float(self.config.initial_capital),
                 "holdings_val": 0.0,
                 "nav": float(self.config.initial_capital),
                 "open_positions_count": 0,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             })
 
         # Register strategy metadata for dashboard listing (preserving existing cumulative metrics & status)
@@ -77,7 +77,7 @@ class PaperTradingManager:
                 closed_trades_count=0,
                 win_rate_pct=0.0,
                 status="ACTIVE",
-                last_run_at=datetime.utcnow().isoformat(),
+                last_run_at=datetime.now(timezone.utc).isoformat(),
             )
             self.db.strategies.insert_one(strat_doc.to_dict())
         else:
@@ -89,7 +89,7 @@ class PaperTradingManager:
                     "description": (getattr(self.strategy, "__doc__", None) or "Quantitative Strategy").strip(),
                     "portfolio_size": int(self.config.portfolio_size),
                     "rebalance_frequency": getattr(self.strategy, "rebalance_frequency", "MONTHLY"),
-                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }}
             )
 
@@ -171,6 +171,8 @@ class PaperTradingManager:
                 c_rows = df_sym.loc[df_sym["date"] <= decision_date]
                 if not c_rows.empty:
                     last_row = c_rows.iloc[-1]
+                    if (decision_date - last_row["date"]).days > 5:
+                        logger.critical(f"[SUSPENSION_OR_DELISTING_ALERT] Position '{sym}' last bar was on {last_row['date'].strftime('%Y-%m-%d')} (>5 days stale). Potential halt or delisting.")
                     last_pr = float(last_row["close"])
                     pos["last_close"] = last_pr
                     pos["market_value"] = pos["shares"] * last_pr
@@ -378,8 +380,8 @@ class PaperTradingManager:
                 "total_return_pct": round(tot_ret_pct, 4),
                 "open_positions_count": len(positions),
                 "last_signal_date": date_str,
-                "last_run_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
 
@@ -443,7 +445,7 @@ class PaperTradingManager:
             "shares": shares, "order_id": order["order_id"], "open_price": open_price, "fill_price": fill_price,
             "model_slip_bps": round((fill_price / open_price - 1.0) * 1e4 * (1 if side == "BUY" else -1), 2),
             "adt_prev": bar.get("adt_prev"), "sig_prev": bar.get("sig_prev"), "series": bar.get("series"),
-            "quote": quote, "ts": datetime.utcnow().isoformat(),
+            "quote": quote, "ts": datetime.now(timezone.utc).isoformat(),
         }
         if quote and quote.get("ask") and quote.get("bid"):
             ref = quote["ask"] if side == "BUY" else quote["bid"]
@@ -666,7 +668,7 @@ class PaperTradingManager:
             )
             self.db.daily_nav.update_one(
                 {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
-                {"$set": {"cash": round(cash, 2), "updated_at": datetime.utcnow().isoformat()}},
+                {"$set": {"cash": round(cash, 2), "updated_at": datetime.now(timezone.utc).isoformat()}},
                 upsert=True,
             )
 
@@ -882,7 +884,7 @@ class PaperTradingManager:
             )
             self.db.daily_nav.update_one(
                 {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
-                {"$set": {"cash": round(cash, 2), "updated_at": datetime.utcnow().isoformat()}},
+                {"$set": {"cash": round(cash, 2), "updated_at": datetime.now(timezone.utc).isoformat()}},
                 upsert=True,
             )
 
@@ -906,7 +908,7 @@ class PaperTradingManager:
                     "$set": {
                         "status": "SKIPPED_EXPIRED",
                         "execution_date": date_str,
-                        "updated_at": datetime.utcnow().isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 }
             )
@@ -987,8 +989,8 @@ class PaperTradingManager:
                 "closed_trades_count": closed_cnt,
                 "win_rate_pct": round(win_rate, 2),
                 "last_execution_date": date_str,
-                "last_run_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
 

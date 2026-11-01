@@ -84,7 +84,7 @@ chmod +x deploy/*.sh
 
    # MongoDB Atlas Connection
    MONGO_URI=mongodb+srv://<username>:<password>@<your_cluster>.mongodb.net/?retryWrites=true&w=majority
-   MONGO_DB_NAME=stock_scanner
+   MONGO_DB=stock_scanner
 
    # Upstox API
    UPSTOX_API_KEY=your_upstox_api_key

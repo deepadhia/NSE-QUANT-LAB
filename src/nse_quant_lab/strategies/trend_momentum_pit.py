@@ -218,6 +218,8 @@ class TrendMomentumPITStrategy(BaseStrategy):
                 if sym in current_holdings and k > 0:
                     # Fallback to latest known bar prior to decision_date so a 1-day missing bar does not trigger REBALANCE_DROP
                     r = df.iloc[k - 1]
+                    if (decision_date - pd.to_datetime(r["date"])).days > 5:
+                        continue
                 else:
                     continue
             else:

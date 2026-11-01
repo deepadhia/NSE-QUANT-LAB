@@ -28,7 +28,9 @@ from nse_quant_lab import upstox_feed as uf  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("ingest_upstox_fulltier")
 
-ARCH = REPO / "data" / "external" / "nse_archive"
+_p1 = REPO / "data" / "external" / "nse_archive"
+_p2 = REPO / "external" / "nse_archive"
+ARCH = _p1 if _p1.exists() else _p2
 PANEL = ARCH / "clean_panel.parquet"
 COLLECTION = "upstox_fulltier_daily"
 COVERAGE_GATE = 0.90
@@ -74,7 +76,7 @@ def adjust_for_split(positions_col, orders_col, symbol: str, factor: float, now:
 
 
 def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: dt.date, col, flags_col, fetch: Callable,
-                  now: Callable[[], str] = lambda: dt.datetime.utcnow().isoformat(), positions_col=None, orders_col=None) -> Dict[str, object]:
+                  now: Callable[[], str] = lambda: dt.datetime.now(dt.timezone.utc).isoformat(), positions_col=None, orders_col=None) -> Dict[str, object]:
     """Fetch and store bars for every target. `fetch(key, from_date, to_date)` returns candle rows; `col`/`flags_col` expose
     find_one / update_one / insert_one. Returns a summary dict (saved, failed symbols, flagged gaps)."""
     saved, failed, flagged = 0, [], []
@@ -131,8 +133,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--limit", type=int, default=0, help="only the N most liquid targets (first live check)")
     ap.add_argument("--symbols", default="", help="comma-separated symbols to fetch instead of the full tier")
     ap.add_argument("--min-adt", type=float, default=3.0e7, help="target buffer: median turnover in Rs (strategy floor is Rs 10 Cr)")
-    ap.add_argument("--mongo-uri", default="mongodb://localhost:27017/")
-    ap.add_argument("--db", default="stock_scanner")
+    ap.add_argument("--mongo-uri", default=os.environ.get("MONGO_URI", "mongodb://localhost:27017/"))
+    ap.add_argument("--db", default=os.environ.get("MONGO_DB", os.environ.get("MONGO_DB_NAME", "stock_scanner")))
     a = ap.parse_args(argv)
 
     from nse_quant_lab.holidays import is_trading_day

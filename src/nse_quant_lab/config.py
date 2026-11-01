@@ -70,7 +70,7 @@ class PaperTradingConfig(BacktestConfig):
     initial_capital: float = field(default_factory=lambda: float(os.environ.get("INITIAL_CAPITAL", "100000.0")))
     portfolio_size: int = field(default_factory=lambda: int(os.environ.get("PORTFOLIO_SIZE", "6")))
     mongo_uri: str = field(default_factory=lambda: os.environ.get("MONGO_URI", "mongodb://localhost:27017/"))
-    db_name: str = field(default_factory=lambda: os.environ.get("MONGO_DB", "stock_scanner"))
+    db_name: str = field(default_factory=lambda: os.environ.get("MONGO_DB") or os.environ.get("MONGO_DB_NAME", "stock_scanner"))
     telegram_enabled: bool = field(default_factory=lambda: os.environ.get("TELEGRAM_ENABLED", "false").lower() == "true")
     telegram_bot_token: Optional[str] = field(default_factory=lambda: os.environ.get("TELEGRAM_BOT_TOKEN"))
     telegram_chat_id: Optional[str] = field(default_factory=lambda: os.environ.get("TELEGRAM_CHAT_ID"))
