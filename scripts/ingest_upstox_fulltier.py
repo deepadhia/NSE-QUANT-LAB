@@ -101,7 +101,7 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: dt.date,
                                   "open": new_rows[0]["open"], "ratio": new_rows[0]["open"] / prev_close, "ts": now(),
                                   "note": "possible split/bonus/demerger; adjusted history refreshed; review before trusting signals"})
             try:
-                start_ref = (run_date - dt.timedelta(days=ADJUSTED_REFRESH_DAYS)).isoformat()
+                start_ref = min(panel_last, run_date - dt.timedelta(days=ADJUSTED_REFRESH_DAYS)).isoformat()
                 refreshed = fetch(r.key, start_ref, run_date.isoformat())
                 for x in refreshed:
                     col.update_one({"symbol": r.symbol, "date": x["date"]},

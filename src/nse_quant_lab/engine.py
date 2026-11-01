@@ -592,9 +592,6 @@ class BacktestEngine:
 
                     row_c = ranked_df.loc[sym]
                     p_decision_close = float(row_c["close"])
-                    est_max_fill = p_decision_close * (
-                        1.0 + self.config.gap_buffer_pct + self.config.slippage_pct + self.config.fees_buffer_pct
-                    )
 
                     # Volume participation cap: max 10% of 50-day average daily turnover
                     max_vol_pct = getattr(self.config, "max_volume_participation_pct", 0.10)
@@ -603,11 +600,6 @@ class BacktestEngine:
 
                     alloc = min(target_alloc_per_stock, cash, max_exec_val)
                     if alloc < 0.25 * target_alloc_per_stock:
-                        continue
-                    shares_submitted = int(np.floor(alloc / est_max_fill))
-
-                    if shares_submitted <= 0:
-                        skipped_orders_count += 1
                         continue
 
                     df_sym = universe_ind.get(sym)
@@ -629,7 +621,7 @@ class BacktestEngine:
                             "date": date_str,
                             "symbol": sym,
                             "action": "BUY",
-                            "shares": shares_submitted,
+                            "shares": 0,
                             "order_type": "ENTRY_AT_OPEN",
                             "status": "SKIPPED_GAP_LIMIT_EXCEEDED",
                             "reason": f"Open {actual_open:.2f} > Cap {limit_cap_price:.2f}",
@@ -649,12 +641,20 @@ class BacktestEngine:
                             "date": date_str,
                             "symbol": sym,
                             "action": "BUY",
-                            "shares": shares_submitted,
+                            "shares": 0,
                             "order_type": "ENTRY_AT_OPEN",
                             "status": "SKIPPED_UPPER_CIRCUIT",
                             "reason": "Locked upper circuit",
                             "deferral_days": 0,
                         })
+                        continue
+
+                    buffer_mult = 1.0 + self.config.fees_buffer_pct
+                    sized_shares = int(alloc // (actual_open * buffer_mult))
+                    est_fill_px = actual_open * (1.0 + self._slip(sym, bar, actual_open, max(sized_shares, 1), "BUY"))
+                    shares_submitted = int(alloc // (est_fill_px * buffer_mult))
+                    if shares_submitted <= 0:
+                        skipped_orders_count += 1
                         continue
 
                     fill_price = actual_open * (1.0 + self._slip(sym, bar, actual_open, shares_submitted, "BUY"))
@@ -664,7 +664,16 @@ class BacktestEngine:
                     buy_fees = calc_buy_fees_exact(slipped_buy_val, current_date, self.config)
                     total_outlay = slipped_buy_val + buy_fees["total"]
 
-                    if total_outlay > cash:
+                    # Scale down shares if fees/slippage caused outlay to slightly exceed available cash
+                    while total_outlay > cash and shares_submitted > 0:
+                        shares_submitted -= 1
+                        gross_buy_val = shares_submitted * actual_open
+                        slipped_buy_val = shares_submitted * fill_price
+                        buy_slip_loss = slipped_buy_val - gross_buy_val
+                        buy_fees = calc_buy_fees_exact(slipped_buy_val, current_date, self.config)
+                        total_outlay = slipped_buy_val + buy_fees["total"]
+
+                    if shares_submitted <= 0 or gross_buy_val < 0.25 * target_alloc_per_stock:
                         skipped_orders_count += 1
                         order_id_counter += 1
                         order_ledger.append({

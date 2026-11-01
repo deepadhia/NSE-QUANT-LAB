@@ -120,11 +120,11 @@ Every document across the core persistence collections includes the `"mode"` dis
 
 4. **Crontab Configuration (`crontab -e`)**:
    ```cron
-   # 15:45 IST (10:15 UTC): Post-Market Daily Pipeline (Mon-Fri)
-   45 10 * * 1-5 cd /home/ubuntu/NSE-Quant-Lab && /home/ubuntu/NSE-Quant-Lab/venv/bin/python scripts/run_daily_pipeline.py --strategy trend_momentum >> logs/pipeline.log 2>&1
+   # 18:00 IST (12:30 UTC): Post-Market Daily Pipeline (Mon-Fri)
+   00 12 * * 1-5 cd /home/ubuntu/NSE-Quant-Lab && /home/ubuntu/NSE-Quant-Lab/venv/bin/python scripts/run_daily_pipeline.py --strategy trend_momentum_pit >> logs/pipeline.log 2>&1
 
    # 09:16 IST (03:46 UTC): Morning Execution Pipeline (Mon-Fri)
-   46 03 * * 1-5 cd /home/ubuntu/NSE-Quant-Lab && /home/ubuntu/NSE-Quant-Lab/venv/bin/python scripts/execute_paper_orders.py --strategy trend_momentum >> logs/execution.log 2>&1
+   16 09 * * 1-5 cd /home/ubuntu/NSE-Quant-Lab && /home/ubuntu/NSE-Quant-Lab/venv/bin/python scripts/execute_paper_orders.py --strategy trend_momentum_pit >> logs/execution.log 2>&1
    ```
 
 ---

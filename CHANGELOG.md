@@ -3,6 +3,24 @@
 Newest first. Entries describe what changed in the code, not investment performance. Nothing below has been committed at the time of
 writing; see `research/audit_2026-10/HANDOFF_2026-10-31.md` section 17 for the commit plan and open items.
 
+## [1.1.0] - 2026-11-01 (Arm 2 Catch-Up & 100% Backtest/Paper Parity)
+
+### Added
+- **Arm 2 Event-Driven Regime Catch-Up (`trend_momentum_pit.py`)**: Asynchronous rebalancing triggered whenever the benchmark (`^CRSLDX` Nifty 500) crosses above its 200-session SMA mid-month (Bear $\to$ Bull transition). Deploys idle cash at next morning open ($T+1$) while preserving existing winning holdings. Empirically validated over 20 years (2007–2026) with +3.02 pp annualized post-tax CAGR and Sharpe ratio improvement (0.95 $\to$ 1.05) across all three disjoint market eras.
+- **20-Year Multi-Era Validation Harness**: Pre-registered A/B backtest runner `research/audit_2026-10/scripts/ab_regime_catchup.py` testing 4 distinct rebalance arms across 4 windows (`Full_2007_2026`, `W1_2007_2015`, `W2_2016_2020`, `W3_2021_2026`). Summary results tracked in `research/audit_2026-10/results/ab_regime_catchup/ab_results_summary.csv`.
+- **Live Circuit Bands & Exchange Quotes in Paper Manager**: `_get_execution_bar()` now extracts live broker quote parameters (`upper_circuit`, `lower_circuit`, `bid`, `ask`), with real-time lower circuit lockout guards during morning sell fills.
+- **Atomic Re-Run Cash Durability**: `execute_morning_fills()` persists cash to both `strategies` and `daily_nav` collections on every fill, and `get_current_state()` synchronizes real-time cash when querying today's date, preventing state desynchronization on mid-batch process interruptions.
+
+### Fixed & Aligned
+- **Backtest-to-Paper Exact Parity (`engine.py` & `paper/manager.py`)**: Aligned backtest share sizing to calculate shares at $T+1$ execution open using `actual_open`, `fees_buffer_pct`, and the strategy's liquidity-tiered cost model `_slip(...)`, matching `PaperTradingManager`. Added unit-by-unit scale-down loop to prevent cash overdrafts. Confirmed 100% exact parity (20/20 buys, 6/6 sells, ₹0.04 NAV delta across 4 months / 83 trading sessions in `replay_reconcile.py`).
+- **100% Strict Point-in-Time Universe Loading (`data_loader.py`)**: Lowered pre-loop filter to `len(g) < 50` and removed post-join whole-life `len(df) >= min_rows` filter, delegating history checks exclusively to `hist_n >= 226` dynamically evaluated on each decision date. Added path fallback for `external/nse_archive/clean_panel.parquet`.
+- **Duplicate Buy Order Guard (`paper/manager.py`)**: Purged all unexecuted `PENDING_OPEN` rebalance orders across previous dates on rebalance signals, and added defensive check in morning fill loop to skip symbols already held in `positions` (`SKIPPED_ALREADY_HELD`).
+- **Single-Day Missing Bar Fallback (`trend_momentum_pit.py`)**: Added `df.iloc[k - 1]` fallback for held positions on decision dates to prevent accidental `REBALANCE_DROP` liquidations when a held stock halts.
+- **Benchmark Timestamp Alignment & Resilience**: Deduplicated benchmark OHLCV records on date, cast `bench.index.get_loc(decision_date)` to integer, and added automatic fallback to local MongoDB if remote Atlas connection fails. Added stale benchmark warning gate in `run_daily_pipeline.py`.
+- **Production Crontab & Schedule Alignment**: Harmonized crontab schedules across `deploy/crontab.txt`, `scripts/run_scheduler_daemon.py`, `scripts/run_daily_pipeline.py`, and documentation to **17:45 IST** (settled EOD candle ingestion) and **18:00 IST / 6:00 PM** (post-market strategy pipeline scan).
+
+---
+
 ## [Unreleased] - 2026-10-31
 
 ### Added

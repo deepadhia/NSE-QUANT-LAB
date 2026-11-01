@@ -103,6 +103,13 @@ class PaperTradingManager:
         nav_list = list(nav_record)
         cash = nav_list[0]["cash"] if nav_list else float(self.config.initial_capital)
 
+        # Synchronize with strategies collection cash for real-time durability
+        strat_entry = self.db.strategies.find_one({"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")})
+        if strat_entry and "cash" in strat_entry:
+            latest_nav_date = nav_list[0].get("date") if nav_list else None
+            if not as_of_date or as_of_date >= (latest_nav_date or ""):
+                cash = float(strat_entry["cash"])
+
         positions_cursor = self.db.positions.find(
             {"strategy_id": self.config.strategy_id, "mode": "paper"}
         )
@@ -273,6 +280,14 @@ class PaperTradingManager:
         rebal_drops: Dict[str, str] = {}
         is_rebal = self.strategy.is_rebalance_decision_date(cal, decision_date, self.config)
         if is_rebal:
+            # Idempotency: clear any existing PENDING_OPEN rebalance buy orders for this signal date before staging fresh batch
+            if hasattr(self.db.orders, "delete_many"):
+                self.db.orders.delete_many({
+                    "strategy_id": self.config.strategy_id,
+                    "mode": getattr(self.config, "mode", "paper"),
+                    "status": "PENDING_OPEN",
+                    "action": "BUY",
+                })
             candidates_df = self.strategy.select_entry_candidates(universe, decision_date, positions, self.config)
             target_symbols = list(candidates_df.head(self.config.portfolio_size).index)
 
@@ -461,7 +476,8 @@ class PaperTradingManager:
         elif "close" in prev_rows and "volume" in prev_rows:
             tail50 = prev_rows.tail(50)
             if not tail50.empty:
-                to50 = float((tail50["close"] * tail50["volume"]).mean())
+                turnover50 = tail50["turnover"] if "turnover" in tail50.columns else tail50["close"] * tail50["volume"]
+                to50 = float(turnover50.median())
 
         rows = df[df["date"] == execution_date]
         if not rows.empty:
@@ -499,6 +515,10 @@ class PaperTradingManager:
                     "prev_close": prev_close,
                     "turnover_50d": to50,
                     "is_live_quote": True,
+                    "lower_circuit": q.get("lower_circuit") or q.get("lower_circuit_limit"),
+                    "upper_circuit": q.get("upper_circuit") or q.get("upper_circuit_limit"),
+                    "bid": q.get("bid"),
+                    "ask": q.get("ask"),
                     **self._cost_inputs(prev_rows),
                 }
             logger.error("no usable broker quote for %s at execution time; falling back to the yfinance quote", sym)
@@ -571,6 +591,17 @@ class PaperTradingManager:
         sell_orders = [o for o in pending_orders if o["action"] == "SELL"]
         buy_orders = [o for o in pending_orders if o["action"] == "BUY"]
 
+        def _order_rank(o: Dict[str, Any]) -> int:
+            r = str(o.get("reason", ""))
+            if r.startswith("RANK_"):
+                try:
+                    return int(r.split("_")[1])
+                except (ValueError, IndexError):
+                    return 999999
+            return 999999
+
+        buy_orders.sort(key=_order_rank)
+
         fills_log: List[Dict[str, Any]] = []
         deferred_log: List[Dict[str, Any]] = []
 
@@ -599,8 +630,14 @@ class PaperTradingManager:
             close_px = bar["close"]
             row = bar
 
-            # Circuit breaker check
-            if is_locked_down(open_px, high_px, low_px, close_px, prev_close):
+            # Circuit breaker check: use exchange limits from live quote if available
+            if bar.get("is_live_quote") and bar.get("lower_circuit") and float(bar["lower_circuit"]) > 0:
+                lc = float(bar["lower_circuit"])
+                is_down = (open_px <= lc * 1.001) and (not bar.get("bid") or float(bar.get("bid") or 0.0) <= lc * 1.001)
+            else:
+                is_down = is_locked_down(open_px, high_px, low_px, close_px, prev_close)
+
+            if is_down:
                 def_days = int(order.get("deferral_days", 0)) + 1
                 self.db.orders.update_one(
                     {"order_id": order["order_id"]},
@@ -621,6 +658,17 @@ class PaperTradingManager:
             fees_dict = calc_sell_fees_exact(gross_val, execution_date, self.config)
             net_proceeds = gross_val - fees_dict["total"]
             cash += net_proceeds
+
+            # Persist cash atomically after fill so mid-batch failures do not desynchronize balance
+            self.db.strategies.update_one(
+                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
+                {"$set": {"cash": round(cash, 2)}}
+            )
+            self.db.daily_nav.update_one(
+                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
+                {"$set": {"cash": round(cash, 2), "updated_at": datetime.utcnow().isoformat()}},
+                upsert=True,
+            )
 
             # Record Execution
             exec_id = f"EXEC_{date_str}_{sym}_{uuid.uuid4().hex[:6]}"
@@ -694,6 +742,15 @@ class PaperTradingManager:
         for order in buy_orders:
             sym = order["symbol"]
             
+            # Prevent duplicate buy if symbol is already held in open positions
+            if sym in positions:
+                logger.info(f"Symbol {sym} already held in portfolio. Skipping duplicate buy order {order['order_id']}.")
+                self.db.orders.update_one(
+                    {"order_id": order["order_id"]},
+                    {"$set": {"status": "SKIPPED_ALREADY_HELD", "execution_date": date_str}}
+                )
+                continue
+
             # Enforce max portfolio size
             if len(positions) >= self.config.portfolio_size:
                 logger.info(f"Portfolio size limit reached ({len(positions)}/{self.config.portfolio_size}). Skipping buy for {sym}.")
@@ -817,6 +874,17 @@ class PaperTradingManager:
                 upsert=True
             )
             positions[sym] = pos_model.to_dict()
+
+            # Persist cash atomically after fill so mid-batch failures do not desynchronize balance
+            self.db.strategies.update_one(
+                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
+                {"$set": {"cash": round(cash, 2)}}
+            )
+            self.db.daily_nav.update_one(
+                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
+                {"$set": {"cash": round(cash, 2), "updated_at": datetime.utcnow().isoformat()}},
+                upsert=True,
+            )
 
             # Update Order
             self.db.orders.update_one(

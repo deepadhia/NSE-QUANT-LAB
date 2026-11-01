@@ -17,8 +17,8 @@ This guide walks you through setting up, deploying, and maintaining **NSE Quant 
                                       │  └─────────────┬────────────┘  │
                                       │                │               │
                                       │     09:16 IST  │ Morning Fills │
-                                      │     15:35 IST  │ EOD Ingest    │
-                                      │     15:45 IST  │ Strategy Scan │
+                                      │     17:45 IST  │ EOD Ingest    │
+                                      │     18:00 IST  │ Strategy Scan │
                                       └────────────────┼───────────────┘
                                                        │
                       ┌────────────────────────────────┼───────────────────────────────┐

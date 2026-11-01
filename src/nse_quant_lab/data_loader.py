@@ -253,12 +253,14 @@ def make_synthetic_stock(
     })
 
 
-def _mongo_live_source(uri: str = "mongodb://localhost:27017/", db_name: str = "stock_scanner", collection: str = "upstox_fulltier_daily"):
+def _mongo_live_source(uri: Optional[str] = None, db_name: Optional[str] = None, collection: str = "upstox_fulltier_daily"):
     """Default live-bar reader: bars written by scripts/ingest_upstox_fulltier.py."""
+    mongo_uri = uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+    mongo_db = db_name or os.environ.get("MONGO_DB", "stock_scanner")
     def read(from_date: str, to_date: str) -> pd.DataFrame:
         from pymongo import MongoClient
 
-        col = MongoClient(uri, serverSelectionTimeoutMS=5000)[db_name][collection]
+        col = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)[mongo_db][collection]
         docs = list(col.find({"date": {"$gte": from_date, "$lte": to_date}}, {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1,
                                                                               "low": 1, "close": 1, "volume": 1}))
         return pd.DataFrame(docs, columns=["symbol", "date", "open", "high", "low", "close", "volume"])
@@ -287,7 +289,12 @@ def load_pit_universe(
     import datetime as _dt
 
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    path = panel_path or os.path.join(base, "data", "external", "nse_archive", "clean_panel.parquet")
+    if panel_path:
+        path = panel_path
+    else:
+        p1 = os.path.join(base, "data", "external", "nse_archive", "clean_panel.parquet")
+        p2 = os.path.join(base, "external", "nse_archive", "clean_panel.parquet")
+        path = p1 if os.path.exists(p1) else p2
     if not os.path.exists(path):
         raise FileNotFoundError(f"clean panel not found at {path}; run research/audit_2026-10/scripts/build_clean_panel.py")
     panel = pd.read_parquet(path)
@@ -303,7 +310,7 @@ def load_pit_universe(
     universe: Dict[str, pd.DataFrame] = {}
     liquid: set = set()
     for sym, g in panel.groupby("symbol", sort=False):
-        if len(g) < min_rows:
+        if len(g) < 50:
             continue
         g = g.sort_values("date").reset_index(drop=True)
         med = g["turnover"].rolling(50, min_periods=50).median()

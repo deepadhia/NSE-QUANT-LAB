@@ -73,13 +73,19 @@ class InMemoryCollection:
             return type("UpdateResult", (), {"matched_count": 0, "upserted_id": "mock_id"})()
         return type("UpdateResult", (), {"matched_count": 0, "modified_count": 0})()
 
-    def update_one(self, query, update):
+    def update_one(self, query, update, upsert=False, **kwargs):
         for d in self.docs:
             if self._matches(d, query):
                 if "$set" in update:
                     for k, v in update["$set"].items():
                         d[k] = copy.deepcopy(v)
                 return type("UpdateResult", (), {"matched_count": 1, "modified_count": 1})()
+        if upsert:
+            new_doc = copy.deepcopy(query)
+            if "$set" in update:
+                new_doc.update(copy.deepcopy(update["$set"]))
+            self.docs.append(new_doc)
+            return type("UpdateResult", (), {"matched_count": 0, "upserted_id": "mock_id"})()
         return type("UpdateResult", (), {"matched_count": 0, "modified_count": 0})()
 
     def delete_one(self, query):

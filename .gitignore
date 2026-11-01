@@ -38,7 +38,8 @@ results/true_pit_*/
 *.parquet
 *.pkl
 
-# Raw third-party data (downloaded manually; see data/external/README.md)
+# Raw third-party data & external clones
+external/
 data/external/*
 !data/external/README.md
 
@@ -53,3 +54,5 @@ research/audit_2026-10/results/**/signals.pkl
 research/audit_2026-10/results/mongo_backup_*.json
 research/audit_2026-10/results/**/delisted_inclusive_trades_*.csv
 research/audit_2026-10/results/**/basket_monthly_*.csv
+
+audit_bundle.txt

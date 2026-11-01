@@ -1,7 +1,7 @@
 """
 ingest_daily_upstox_candles.py -- EOD Daily Candle Ingestion Pipeline (Adapted from Alpha-Pulse)
 =============================================================================================
-Scheduled via daily cron at 15:35 IST (immediately after market close, before 15:45 strategy scan):
+Scheduled via daily cron at 17:45 IST (after market settlement, before 18:00 strategy scan):
 1. Calls auto_refresh_upstox_token() to renew access token autonomously via UPSTOX_REFRESH_TOKEN (no OTP).
 2. Queries the target Nifty 500 universe from MongoDB or EQUITY_L master list.
 3. Fetches today's candle for each stock using Upstox API v2 (/historical-candle/{instrument_key}/day/...).

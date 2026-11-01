@@ -850,3 +850,61 @@ def test_point_in_time_reentrant_state_machine():
     assert pit.is_eligible('FORTIS.NS', pd.Timestamp('2016-05-01')), 'FORTIS should be eligible after 2016 inclusion'
     assert not pit.is_eligible('FORTIS.NS', pd.Timestamp('2018-03-01')), 'FORTIS should be ineligible after 2018 exclusion'
     assert pit.is_eligible('FORTIS.NS', pd.Timestamp('2020-01-01')), 'FORTIS MUST be eligible after 2019-12-27 re-entry'
+
+
+def test_paper_buy_orders_sorted_by_rank():
+    """
+    Audit Check: Verifies PaperTradingManager.execute_morning_fills processes buy orders
+    in strict numeric rank order even if returned out of order by the database query.
+    """
+    from test_paper import MockMongoDbWrapper
+    cfg = PaperTradingConfig(strategy_id="test_rank_sort", portfolio_size=1)
+    strat = TrendMomentumStrategy(cfg)
+    mock_db = MockMongoDbWrapper()
+    manager = PaperTradingManager(strategy=strat, config=cfg, db=mock_db)
+    manager.initialize_portfolio()
+
+    # Insert two orders out of order: RANK_20 inserted first, then RANK_1
+    order_rank20 = OrderModel(
+        order_id="ORD_BUY_2024-01-02_STOCK20",
+        strategy_id="test_rank_sort",
+        mode="paper",
+        symbol="STOCK20.NS",
+        action="BUY",
+        shares=0,
+        price=100.0,
+        order_type="ENTRY_AT_OPEN",
+        status="PENDING_OPEN",
+        reason="RANK_20",
+        signal_date="2024-01-01",
+    )
+    order_rank1 = OrderModel(
+        order_id="ORD_BUY_2024-01-02_STOCK1",
+        strategy_id="test_rank_sort",
+        mode="paper",
+        symbol="STOCK1.NS",
+        action="BUY",
+        shares=0,
+        price=100.0,
+        order_type="ENTRY_AT_OPEN",
+        status="PENDING_OPEN",
+        reason="RANK_1",
+        signal_date="2024-01-01",
+    )
+    mock_db.orders.insert_one(order_rank20.to_dict())
+    mock_db.orders.insert_one(order_rank1.to_dict())
+
+    df1 = make_synthetic_stock("STOCK1.NS", n_days=100, start_price=100.0, start_date="2023-10-01")
+    df20 = make_synthetic_stock("STOCK20.NS", n_days=100, start_price=100.0, start_date="2023-10-01")
+    universe = {"STOCK1.NS": df1, "STOCK20.NS": df20}
+
+    exec_date = pd.to_datetime("2024-01-02")
+    res = manager.execute_morning_fills(universe, exec_date)
+
+    filled_symbols = [f["symbol"] for f in res.get("fills", []) if f["action"] == "BUY"]
+    assert filled_symbols == ["STOCK1.NS"], f"Expected RANK_1 (STOCK1.NS) to fill first, but filled: {filled_symbols}"
+
+    o1 = mock_db.orders.find_one({"order_id": "ORD_BUY_2024-01-02_STOCK1"})
+    o20 = mock_db.orders.find_one({"order_id": "ORD_BUY_2024-01-02_STOCK20"})
+    assert o1["status"] == "FILLED"
+    assert o20["status"] == "SKIPPED_PORTFOLIO_FULL"

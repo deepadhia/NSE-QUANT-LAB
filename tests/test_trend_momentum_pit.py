@@ -68,6 +68,55 @@ def test_regime_blocks_new_entries_but_keeps_qualifying_holdings():
     assert list(held.index) == ["UPEQ"]
 
 
+def test_held_stock_retained_on_supertrend_flip_if_above_ema100():
+    """Tweak 2 / Bug 1 test: Held stocks must NOT be liquidated at month-end if Supertrend flips bearish,
+    as long as Close >= EMA(100)."""
+    strat, uni = build(RAW, bench(True))
+    mod_uni = {k: v.copy() for k, v in uni.items()}
+    last_idx = mod_uni["UPEQ"].index[-1]
+    mod_uni["UPEQ"].loc[last_idx, "supertrend_dir"] = -1
+
+    new_cands = strat.select_entry_candidates(mod_uni, D, {}, strat.config)
+    assert "UPEQ" not in new_cands.index
+
+    held = strat.select_entry_candidates(mod_uni, D, {"UPEQ": {}}, strat.config)
+    assert list(held.index) == ["UPEQ"]
+
+
+def test_held_stock_retained_when_close_within_entry_buffer():
+    """Bug 1 test: Held stocks must NOT be dropped if Close is between EMA(100) and 1.03*EMA(100)."""
+    strat, uni = build(RAW, bench(True))
+    mod_uni = {k: v.copy() for k, v in uni.items()}
+    last_idx = mod_uni["UPEQ"].index[-1]
+    ema = float(mod_uni["UPEQ"].loc[last_idx, "ema100"])
+    mod_uni["UPEQ"].loc[last_idx, "close"] = ema * 1.01
+
+    new_cands = strat.select_entry_candidates(mod_uni, D, {}, strat.config)
+    assert "UPEQ" not in new_cands.index
+
+    held = strat.select_entry_candidates(mod_uni, D, {"UPEQ": {}}, strat.config)
+    assert list(held.index) == ["UPEQ"]
+
+
+def test_held_stock_dropped_if_close_below_ema100_or_non_eq():
+    """Held stocks must be dropped if Close < EMA(100) or series is no longer EQ."""
+    strat, uni = build(RAW, bench(True))
+    mod_uni = {k: v.copy() for k, v in uni.items()}
+    last_idx = mod_uni["UPEQ"].index[-1]
+    ema = float(mod_uni["UPEQ"].loc[last_idx, "ema100"])
+
+    # Below EMA(100)
+    mod_uni["UPEQ"].loc[last_idx, "close"] = ema * 0.99
+    held = strat.select_entry_candidates(mod_uni, D, {"UPEQ": {}}, strat.config)
+    assert "UPEQ" not in held.index
+
+    # Restore close but change series to 'BE'
+    mod_uni["UPEQ"].loc[last_idx, "close"] = ema * 1.05
+    mod_uni["UPEQ"].loc[last_idx, "series"] = "BE"
+    held_be = strat.select_entry_candidates(mod_uni, D, {"UPEQ": {}}, strat.config)
+    assert "UPEQ" not in held_be.index
+
+
 def test_missing_benchmark_date_fails_safe():
     short = bench(True).iloc[:-5]  # decision date absent from the benchmark
     strat, uni = build(RAW, short)
@@ -87,6 +136,39 @@ def test_daily_exit_on_close_below_ema100():
     bad = uni["UPEQ"].copy()
     bad.loc[bad.index[-1], "close"] = float(bad["ema100"].iloc[-1]) * 0.9
     assert strat.evaluate_daily_exits({"UPEQ": bad}, D, {"UPEQ": {}}, strat.config) == {"UPEQ": "STRUCTURAL_EMA100"}
+
+
+def test_regime_transition_bull_detects_crossover():
+    """Verifies that is_regime_transition_bull flags the exact date of crossing from Bear to Bull."""
+    px = [100.0] * 200 + [95.0] * 5 + [105.0] * 5
+    dates = pd.bdate_range("2023-01-02", periods=len(px))
+    bench_s = pd.Series(px, index=dates)
+
+    strat = TrendMomentumPITStrategy(BacktestConfig(), benchmark=bench_s, use_regime=True)
+
+    cross_date = dates[205]
+    assert strat.regime_below(dates[204]) is True
+    assert strat.regime_below(cross_date) is False
+    assert strat.is_regime_transition_bull(cross_date) is True
+
+    # Day before cross is not a transition
+    assert strat.is_regime_transition_bull(dates[204]) is False
+    # Day after cross is still Bull, but not a transition
+    assert strat.is_regime_transition_bull(dates[206]) is False
+
+
+def test_rebalance_schedule_includes_regime_flips():
+    """Verifies that get_rebalance_schedule includes both month-ends and regime flip dates."""
+    px = [100.0] * 200 + [95.0] * 5 + [105.0] * 5
+    dates = pd.bdate_range("2023-01-02", periods=len(px))
+    bench_s = pd.Series(px, index=dates)
+
+    strat = TrendMomentumPITStrategy(BacktestConfig(), benchmark=bench_s, use_regime=True)
+    sched = strat.get_rebalance_schedule(dates.tolist(), dates[0], dates[-1], strat.config)
+
+    cross_date = dates[205]
+    assert dates[206] in sched
+    assert sched[dates[206]] == cross_date
 
 
 def test_adt_prev_is_lagged_one_session():

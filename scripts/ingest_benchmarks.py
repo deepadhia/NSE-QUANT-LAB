@@ -1,3 +1,4 @@
+from typing import Optional
 """
 scripts/ingest_benchmarks.py -- Ingests Official Nifty 50 & Nifty 500 TRI Benchmarks
 ===================================================================================
@@ -28,7 +29,7 @@ BENCHMARK_SYMBOLS = {
 
 def ingest_benchmarks(
     start_date: str = "2018-01-01",
-    end_date: str = "2026-10-25",
+    end_date: Optional[str] = None,
     mongo_uri: str = "mongodb://localhost:27017/",
     db_name: str = "stock_scanner",
     collection_name: str = "benchmark_ohlcv",
@@ -49,9 +50,13 @@ def ingest_benchmarks(
     now_utc = datetime.utcnow().isoformat()
 
     for ticker, display_name in BENCHMARK_SYMBOLS.items():
-        logger.info(f"Downloading benchmark {display_name} ({ticker}) from {start_date} to {end_date}...")
+        date_range_str = f"from {start_date} to {end_date or 'latest'}"
+        logger.info(f"Downloading benchmark {display_name} ({ticker}) {date_range_str}...")
         try:
-            df = yf.download(ticker, start=start_date, end=end_date, progress=False, timeout=15)
+            download_kwargs = {"start": start_date, "progress": False, "timeout": 15}
+            if end_date:
+                download_kwargs["end"] = end_date
+            df = yf.download(ticker, **download_kwargs)
             if df.empty:
                 logger.warning(f"No data returned for benchmark {ticker}.")
                 continue

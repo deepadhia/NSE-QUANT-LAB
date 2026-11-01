@@ -1,7 +1,7 @@
 """
 run_daily_pipeline.py -- Daily Post-Market Automation Pipeline for Cloud / VPS Deployment
 ========================================================================================
-Designed to run via daily cron (e.g. 15:45 IST on Oracle Cloud server):
+Designed to run via daily cron (e.g. 18:00 IST / 6:00 PM on Oracle Cloud server):
 1. Loads recent market universe from MongoDB.
 2. Identifies all ACTIVE strategies registered in the database (or a targeted strategy).
 3. Reads strategy configurations (capital, portfolio size, rebalance frequency) from DB.
@@ -123,6 +123,24 @@ def main():
         decision_dt = all_dates[-1]
 
     logger.info(f">> Evaluating post-market signals for decision date: {decision_dt.strftime('%Y-%m-%d')}")
+
+    # Benchmark Recency Gate / Alert (Nifty 500 ^CRSLDX)
+    try:
+        bench_doc = db.db["benchmark_ohlcv"].find_one({"symbol": "^CRSLDX"}, sort=[("date", -1)])
+        if bench_doc:
+            max_bench_dt = pd.to_datetime(bench_doc["date"])
+            logger.info(f">> Latest Nifty 500 benchmark (^CRSLDX) in DB: {max_bench_dt.strftime('%Y-%m-%d')}")
+            if max_bench_dt < decision_dt:
+                logger.warning(
+                    f"[CRITICAL BENCHMARK ALERT] Benchmark (^CRSLDX) is STALE! "
+                    f"Latest benchmark date in DB: {max_bench_dt.strftime('%Y-%m-%d')} < Decision date: {decision_dt.strftime('%Y-%m-%d')}. "
+                    f"Regime filter in 'trend_momentum_pit' will fail safe and BLOCK ALL NEW ENTRIES until refreshed! "
+                    f"Run `python scripts/ingest_benchmarks.py` to refresh benchmark candles."
+                )
+        else:
+            logger.warning("[CRITICAL BENCHMARK ALERT] No records for ^CRSLDX found in 'benchmark_ohlcv' collection!")
+    except Exception as e:
+        logger.warning(f"Failed to check benchmark recency: {e}")
 
     for s_doc in strat_docs:
         try:
