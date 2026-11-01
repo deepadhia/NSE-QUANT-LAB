@@ -8,8 +8,9 @@ from .registry import register_strategy, get_strategy, list_strategies
 from .strategies.trend_momentum import TrendMomentumStrategy
 from .strategies.donchian import DonchianBreakoutStrategy
 from .strategies.trend_momentum_pit import TrendMomentumPITStrategy
+from .strategies.minervini import MinerviniStrategy
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     "BacktestConfig",
     "PaperTradingConfig",
@@ -20,4 +21,5 @@ __all__ = [
     "TrendMomentumStrategy",
     "DonchianBreakoutStrategy",
     "TrendMomentumPITStrategy",
+    "MinerviniStrategy",
 ]

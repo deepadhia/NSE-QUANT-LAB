@@ -57,7 +57,7 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
     )
     strategy = get_strategy(strategy_id, cfg)
     manager = PaperTradingManager(strategy=strategy, config=cfg, db=db)
-    if quote_provider is not None and strategy_id == "trend_momentum_pit":
+    if quote_provider is not None and strategy_id in ("trend_momentum_pit", "minervini_trend_template"):
         manager.quote_provider = quote_provider  # real 09:16 opening price + bid/ask logged to fill_audit
 
     res = manager.execute_morning_fills(universe, exec_dt)
@@ -101,7 +101,7 @@ def main():
     else:
         doc = db.strategies.find_one({"strategy_id": args.strategy})
         default_doc = {"strategy_id": args.strategy, "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}
-        if args.strategy == "trend_momentum_pit":  # researched setting: 15 slots, no rank-based drops (buffer = 100 x slots)
+        if args.strategy in ("trend_momentum_pit", "minervini_trend_template"):  # researched setting: 15 slots, no rank-based drops (buffer = 100 x slots)
             default_doc.update(portfolio_size=15, rebalance_hold_rank_buffer=1500)
         strat_docs = [doc] if doc else [default_doc]
 
@@ -110,9 +110,10 @@ def main():
     # Load recent universe for execution
     logger.info(">> Loading recent market universe...")
     target_end = args.date or datetime.now().strftime("%Y-%m-%d")
-    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] == "trend_momentum_pit"]
+    pit_strategy_ids = {"trend_momentum_pit", "minervini_trend_template"}
+    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] in pit_strategy_ids]
     if pit_ids and len(pit_ids) != len(strat_docs):
-        raise SystemExit("trend_momentum_pit needs the full-market PIT universe; run it separately from other strategies (--strategy trend_momentum_pit)")
+        raise SystemExit("PIT strategies need the full-market PIT universe; run them separately from other legacy strategies.")
     if pit_ids:
         # Morning run: today's bar does not exist yet, so load everything available (no end date); a dated replay (--date) is strict.
         universe = load_pit_universe(target_end if args.date else None)  # full market, split-adjusted, series-aware
@@ -142,7 +143,7 @@ def main():
                 arch = p1 if os.path.exists(p1) else p2
                 isins = uf.symbol_isin_map(arch, [exec_dt.year - 1, exec_dt.year])
                 quote_provider = uf.UpstoxQuoteProvider(token, isins)
-                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": "trend_momentum_pit", "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
+                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": {"$in": ["trend_momentum_pit", "minervini_trend_template"]}, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
                 logger.info(">> Upstox quote provider attached for the 09:16 fills")
             else:
                 logger.warning(">> No Upstox token: morning fills will use the yfinance fallback (unreliable).")
