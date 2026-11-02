@@ -12,7 +12,9 @@ import os
 import json
 import logging
 from typing import Set, Optional
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
 import urllib.request
 
 logger = logging.getLogger("holidays")
@@ -47,7 +49,7 @@ _MEM_CACHE: dict = {}
 
 def get_nse_holidays(year: Optional[int] = None, mongo_uri: Optional[str] = None) -> Set[str]:
     """Returns the set of official NSE holiday dates (YYYY-MM-DD)."""
-    current_year = year or datetime.now().year
+    current_year = year or datetime.now(IST).year
 
     # Check memory cache
     if current_year in _MEM_CACHE:
@@ -102,7 +104,7 @@ def is_trading_day(dt: Optional[datetime | date | str] = None) -> bool:
     Returns False on Saturdays (5), Sundays (6), and official NSE holidays.
     """
     if dt is None:
-        target_dt = datetime.now()
+        target_dt = datetime.now(IST)
     elif isinstance(dt, str):
         target_dt = datetime.strptime(dt[:10], "%Y-%m-%d")
     elif isinstance(dt, date) and not isinstance(dt, datetime):

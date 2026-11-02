@@ -59,7 +59,11 @@ def set_strategy_status(db: MongoDatabase, strategy_id: str, status: str, mode: 
 
 
 def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
-    cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode, portfolio_size=6, rebalance_hold_rank_buffer=15, unaffordable_policy="TRY_NEXT")
+    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template")
+    p_size = 15 if is_pit else 6
+    h_buf = 1500 if is_pit else 15
+    cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode,
+                             portfolio_size=p_size, rebalance_hold_rank_buffer=h_buf, unaffordable_policy="TRY_NEXT")
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)
     strat = get_strategy(strategy_id, cfg)
     mgr = PaperTradingManager(strategy=strat, config=cfg, db=db)
@@ -70,8 +74,8 @@ def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
             "initial_capital": float(capital),
             "current_nav": float(capital),
             "cash": float(capital),
-            "portfolio_size": 6,
-            "rebalance_hold_rank_buffer": 15,
+            "portfolio_size": p_size,
+            "rebalance_hold_rank_buffer": h_buf,
             "unaffordable_policy": "TRY_NEXT",
             "updated_at": datetime.utcnow().isoformat(),
         }}

@@ -14,8 +14,10 @@ import os
 import sys
 import argparse
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
@@ -32,9 +34,10 @@ logger = logging.getLogger("daily_pipeline")
 
 def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Timestamp, db: MongoDatabase):
     strategy_id = strat_doc["strategy_id"]
-    portfolio_size = int(strat_doc.get("portfolio_size", 6))
+    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template")
+    portfolio_size = int(strat_doc.get("portfolio_size", 15 if is_pit else 6))
     initial_capital = float(strat_doc.get("initial_capital", 100000.0))
-    hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 15))
+    hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 1500 if is_pit else 15))
     unaffordable_pol = strat_doc.get("unaffordable_policy", "TRY_NEXT")
     mode = strat_doc.get("mode", "paper")
     rebal_freq = strat_doc.get("rebalance_frequency", "MONTHLY")
@@ -105,7 +108,8 @@ def main():
 
     # Load recent universe for signal evaluation
     logger.info(">> Loading recent market universe...")
-    target_end = args.date or datetime.now().strftime("%Y-%m-%d")
+    now_ist = datetime.now(IST)
+    target_end = args.date or now_ist.strftime("%Y-%m-%d")
     pit_strategy_ids = {"trend_momentum_pit", "minervini_trend_template"}
     pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] in pit_strategy_ids]
     if pit_ids and len(pit_ids) != len(strat_docs):
@@ -122,8 +126,8 @@ def main():
         decision_dt = pd.to_datetime(args.date)
     else:
         decision_dt = all_dates[-1]
-        today_dt = pd.to_datetime(datetime.now().strftime("%Y-%m-%d"))
-        if not args.force and is_trading_day(today_dt.strftime("%Y-%m-%d")) and datetime.now().hour >= 16:
+        today_dt = pd.to_datetime(now_ist.strftime("%Y-%m-%d"))
+        if not args.force and is_trading_day(today_dt.strftime("%Y-%m-%d")) and now_ist.hour >= 16:
             if decision_dt < today_dt:
                 logger.error(
                     f"[STALE UNIVERSE GATE] Today {today_dt.strftime('%Y-%m-%d')} is an NSE trading session that has completed, "

@@ -43,6 +43,12 @@ class InMemoryCollection:
                 if "$lte" in v:
                     if doc.get(k, 0) > v["$lte"]:
                         return False
+                if "$lt" in v:
+                    if not (doc.get(k, "") < v["$lt"]):
+                        return False
+                if "$gt" in v:
+                    if not (doc.get(k, "") > v["$gt"]):
+                        return False
             elif doc.get(k) != v:
                 return False
         return True
@@ -224,6 +230,7 @@ def test_paper_manager_v6_enhancements():
         'symbol': 'EXTRA.NS',
         'action': 'BUY',
         'status': 'PENDING_OPEN',
+        'signal_date': decision_date.strftime('%Y-%m-%d'),
         'created_at': decision_date.isoformat(),
     })
 

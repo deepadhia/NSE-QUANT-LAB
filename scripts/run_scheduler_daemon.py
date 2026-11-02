@@ -63,12 +63,14 @@ class QuantLabScheduler:
         self.next_retry_time = {}
         self.current_date = get_ist_now().strftime("%Y-%m-%d")
         self.notifier = TelegramNotifier()
+        self._load_state(self.current_date)
         
         # Define schedule (IST times) - Actionable trading jobs and periodic digests
         self.jobs = [
             {
                 "id": "morning_execution",
                 "time": "09:16",
+                "max_time": "15:25",
                 "description": "Morning Market Open Order Execution",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "execute_paper_orders.py"),
                 "args": ["--strategy", "trend_momentum_pit"]
@@ -134,11 +136,36 @@ class QuantLabScheduler:
             }
         ]
 
+    def _load_state(self, today_str: str):
+        state_file = os.path.join(PROJECT_ROOT, "logs", "scheduler_state.json")
+        if os.path.exists(state_file):
+            try:
+                import json
+                with open(state_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("date") == today_str:
+                    self.completed_today = set(data.get("completed", []))
+                    jobs_str = ", ".join(sorted(self.completed_today)) if self.completed_today else "none"
+                    logger.info(f"Restored scheduler state from file: {len(self.completed_today)} jobs already completed today ({jobs_str})")
+            except Exception as e:
+                logger.warning(f"Could not load scheduler state from {state_file}: {e}")
+
+    def _save_state(self, today_str: str):
+        state_file = os.path.join(PROJECT_ROOT, "logs", "scheduler_state.json")
+        try:
+            import json
+            os.makedirs(os.path.dirname(state_file), exist_ok=True)
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump({"date": today_str, "completed": list(self.completed_today)}, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Could not save scheduler state to {state_file}: {e}")
+
     def handle_signal(self, signum, frame):
         """Gracefully terminate daemon on SIGINT or SIGTERM."""
         sig_name = signal.Signals(signum).name if hasattr(signal, "Signals") else str(signum)
         logger.info(f"Received signal {sig_name}. Stopping scheduler daemon gracefully...")
         self.running = False
+        self._save_state(self.current_date)
 
     def execute_job(self, job: Dict[str, Any], today_str: str):
         """Execute a scheduled task with full error handling and Telegram alerting."""
@@ -216,6 +243,7 @@ class QuantLabScheduler:
                 self.completed_today.add(job_id)
                 self.retry_counts.pop(job_id, None)
                 self.next_retry_time.pop(job_id, None)
+                self._save_state(today_str)
             else:
                 logger.error(f"FAILED: Job {job_id} exited with code {res.returncode}")
                 logger.error(f"STDERR:\n{res.stderr[-1000:]}")
@@ -230,6 +258,7 @@ class QuantLabScheduler:
                 else:
                     logger.error(f"Job {job_id} failed persistently after {attempt} attempts. Marking completed for today and alerting.")
                     self.completed_today.add(job_id)
+                    self._save_state(today_str)
                     err_snippet = html.escape((res.stderr or res.stdout)[-400:].strip())
                     fail_msg = (
                         f"🚨 <b>ALERT: Persistent Job Failure in NSE Quant Lab</b>\n"
@@ -249,6 +278,7 @@ class QuantLabScheduler:
             )
             self.notifier.send_message(t_msg)
             self.completed_today.add(job_id)
+            self._save_state(today_str)
         except Exception as e:
             logger.error(f"Unexpected exception executing {job_id}: {e}", exc_info=True)
             err_str = html.escape(str(e)[:200])
@@ -259,6 +289,7 @@ class QuantLabScheduler:
             )
             self.notifier.send_message(e_msg)
             self.completed_today.add(job_id)
+            self._save_state(today_str)
 
     def run(self):
         """Main scheduler daemon loop."""
@@ -284,6 +315,7 @@ class QuantLabScheduler:
                 self.completed_today.clear()
                 self.retry_counts.clear()
                 self.next_retry_time.clear()
+                self._save_state(today_str)
 
             # Check jobs
             for job in self.jobs:
@@ -291,6 +323,13 @@ class QuantLabScheduler:
                 scheduled_time = job["time"]
 
                 if job_id not in self.completed_today:
+                    # Defense-in-depth: Skip nightly catchup pipeline if daily_pipeline succeeded today
+                    if job_id == "nightly_catchup_pipeline" and "daily_pipeline" in self.completed_today:
+                        logger.info("Skipping nightly_catchup_pipeline: daily_pipeline already completed successfully today.")
+                        self.completed_today.add(job_id)
+                        self._save_state(today_str)
+                        continue
+
                     if job_id == "daily_pipeline" and "fulltier_ingestion" in self.next_retry_time:
                         continue
                     retry_at = self.next_retry_time.get(job_id)
@@ -299,6 +338,12 @@ class QuantLabScheduler:
                             self.next_retry_time.pop(job_id, None)
                             self.execute_job(job, today_str)
                     elif time_str >= scheduled_time:
+                        max_t = job.get("max_time")
+                        if max_t and time_str > max_t:
+                            logger.warning(f"Skipping {job_id}: current time {time_str} IST exceeds max execution window {max_t} IST.")
+                            self.completed_today.add(job_id)
+                            self._save_state(today_str)
+                            continue
                         self.execute_job(job, today_str)
 
             # Sleep 25 seconds between ticks

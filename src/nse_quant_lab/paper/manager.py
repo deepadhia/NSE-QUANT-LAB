@@ -37,6 +37,16 @@ class PaperTradingManager:
 
     def initialize_portfolio(self):
         """Initializes empty paper trading portfolio in MongoDB if not present."""
+        # Ensure compound indexes exist for performance (V6-A)
+        try:
+            self.db.daily_nav.create_index([("strategy_id", 1), ("mode", 1), ("date", -1)], unique=True)
+            self.db.positions.create_index([("strategy_id", 1), ("mode", 1), ("symbol", 1)], unique=True)
+            self.db.orders.create_index([("order_id", 1)], unique=True)
+            self.db.orders.create_index([("strategy_id", 1), ("mode", 1), ("status", 1)])
+            self.db.trades.create_index([("strategy_id", 1), ("mode", 1), ("exit_date", -1)])
+        except Exception as e:
+            logger.warning(f"Could not create compound indexes: {e}")
+
         nav_col = self.db.daily_nav
         existing = nav_col.find_one({"strategy_id": self.config.strategy_id, "mode": "paper"})
         if not existing:
@@ -145,6 +155,7 @@ class PaperTradingManager:
             "strategy_id": self.config.strategy_id,
             "mode": getattr(self.config, "mode", "paper")
         })
+        prior_signal_date = strat_entry.get("last_signal_date") if strat_entry else None
         status = strat_entry.get("status", "ACTIVE") if strat_entry else "ACTIVE"
         if status in ("PAUSED", "ARCHIVED"):
             return {
@@ -260,12 +271,14 @@ class PaperTradingManager:
             })
             if existing_exit:
                 logger.info(f"Exit order for {sym} already pending ({existing_exit['order_id']}, status={existing_exit['status']}). Skipping duplicate.")
-                exits_to_log.append({
-                    "symbol": sym,
-                    "shares": pos["shares"],
-                    "close": pos.get("last_close", 0.0),
-                    "reason": reason,
-                })
+                # V3-A: Do NOT count DEFERRED_LOWER_CIRCUIT orders in exits_to_log (prevents inflating open_slots)
+                if existing_exit.get("status") == "PENDING_OPEN":
+                    exits_to_log.append({
+                        "symbol": sym,
+                        "shares": pos["shares"],
+                        "close": pos.get("last_close", 0.0),
+                        "reason": reason,
+                    })
                 continue
 
             ord_id = f"ORD_EXIT_{date_str}_{sym}"
@@ -289,6 +302,33 @@ class PaperTradingManager:
                 "close": pos.get("last_close", 0.0),
                 "reason": reason,
             })
+
+        # Capture existing pending orders before any rebalance modification (for V5-A repeat alert idempotency)
+        existing_pending_buys = set()
+        existing_pending_sells = set()
+        if hasattr(self.db.orders, "distinct"):
+            existing_pending_buys = set(self.db.orders.distinct("symbol", {
+                "strategy_id": self.config.strategy_id,
+                "mode": getattr(self.config, "mode", "paper"),
+                "status": "PENDING_OPEN",
+                "action": "BUY",
+            }))
+            existing_pending_sells = set(self.db.orders.distinct("symbol", {
+                "strategy_id": self.config.strategy_id,
+                "mode": getattr(self.config, "mode", "paper"),
+                "status": "PENDING_OPEN",
+                "action": "SELL",
+            }))
+        elif hasattr(self.db.orders, "find"):
+            for o in self.db.orders.find({
+                "strategy_id": self.config.strategy_id,
+                "mode": getattr(self.config, "mode", "paper"),
+                "status": "PENDING_OPEN",
+            }):
+                if o.get("action") == "BUY":
+                    existing_pending_buys.add(o["symbol"])
+                elif o.get("action") == "SELL":
+                    existing_pending_sells.add(o["symbol"])
 
         # 2. Evaluate Rebalance Entries
         cal = sorted(list(set(d for df in universe.values() for d in df["date"])))
@@ -423,14 +463,22 @@ class PaperTradingManager:
                     "stop_buffer_pct": pos.get("stop_buffer_pct"),
                 })
 
-        # Broadcast Telegram
-        self.notifier.send_signal_alert(
-            self.config.strategy_id,
-            date_str,
-            buys_to_log,
-            exits_to_log,
-            active_holdings=active_holdings_to_log,
-        )
+        # Broadcast Telegram with Idempotency Guard (V5-A defense)
+        is_repeat_run = (prior_signal_date == date_str)
+        curr_buy_symbols = {b["symbol"] for b in buys_to_log}
+        curr_exit_symbols = {e["symbol"] for e in exits_to_log}
+        is_orders_unchanged = (curr_buy_symbols == existing_pending_buys) and (curr_exit_symbols.issubset(existing_pending_sells) or not exits_to_log)
+
+        if is_repeat_run and is_orders_unchanged:
+            logger.info(f"Signal alert already sent for {self.config.strategy_id} on {date_str} and pending orders unchanged. Skipping duplicate broadcast.")
+        else:
+            self.notifier.send_signal_alert(
+                self.config.strategy_id,
+                date_str,
+                buys_to_log,
+                exits_to_log,
+                active_holdings=active_holdings_to_log,
+            )
         return {"exits": exits_to_log, "buys": buys_to_log, "active_holdings": active_holdings_to_log}
 
     @staticmethod
@@ -612,6 +660,7 @@ class PaperTradingManager:
             "strategy_id": self.config.strategy_id,
             "mode": "paper",
             "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]},
+            "signal_date": {"$lt": date_str},
         }))
 
         sell_orders = [o for o in pending_orders if o["action"] == "SELL"]
@@ -646,13 +695,16 @@ class PaperTradingManager:
             pos = positions[sym]
             df = universe.get(sym)
             bar = self._get_execution_bar(sym, execution_date, universe) if df is not None else None
-            is_forced_delisting = False
-            if bar is None:
-                if order.get("reason") == "DATA_ENDED_FORCED_EXIT" or int(order.get("deferral_days", 0)) >= 10:
-                    logger.warning(f"Executing forced delisting liquidation for {sym} without live broker quote.")
-                    ref_price = float(pos.get("last_close") or pos.get("entry_price") or 1.0)
+            # V3-B: Reachable forced write-down for both missing bar and >= 10 day lower circuit deferrals
+            is_forced_delisting = (
+                order.get("reason") == "DATA_ENDED_FORCED_EXIT"
+                or int(order.get("deferral_days", 0)) >= 10
+            )
+            if bar is None or is_forced_delisting:
+                if is_forced_delisting:
+                    logger.warning(f"Executing forced liquidation for {sym} (reason={order.get('reason')}, deferral_days={order.get('deferral_days', 0)}).")
+                    ref_price = float((bar["open"] if bar else None) or pos.get("last_close") or pos.get("entry_price") or 1.0)
                     haircut_open = round(ref_price * 0.95, 2)
-                    is_forced_delisting = True
                     bar = {
                         "open": haircut_open,
                         "high": haircut_open,
@@ -748,7 +800,7 @@ class PaperTradingManager:
             # Close Position & Record Trade
             pos = positions.get(sym)
             if pos:
-                entry_date_dt = pd.to_datetime(pos["entry_date"])
+                entry_date_dt = pd.to_datetime(pos.get("entry_date") or execution_date)
                 hold_days = (execution_date - entry_date_dt).days
                 entry_price = float(pos["entry_price"])
                 entry_fill_px = float(pos.get("entry_fill_price", entry_price))
@@ -776,7 +828,7 @@ class PaperTradingManager:
                     total_fees=round(total_fees, 2),
                     total_slippage=round(pos_entry_slip + exit_slip, 2),
                     return_pct=round(ret_pct, 4),
-                    exit_reason=order["reason"],
+                    exit_reason=order.get("reason") or "FORCED_DELISTING_LIQUIDATION",
                 )
                 self.db.trades.insert_one(trade_model.to_dict())
                 self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym})
@@ -853,16 +905,19 @@ class PaperTradingManager:
                 deferred_log.append({"symbol": sym, "reason": f"Skipped: Upper Circuit Lock (Open ₹{open_px:.2f})"})
                 continue
 
-            # Gap limit cap check (using safely pre-computed prev_close)
+            # Gap limit cap check (anchored to signal close when valid, fallback to prev_close)
             open_price = float(row["open"])
-            limit_cap_price = prev_close * (1.0 + self.config.limit_cap_pct)
-            if open_price > limit_cap_price:
-                self.db.orders.update_one(
-                    {"order_id": order["order_id"]},
-                    {"$set": {"status": "SKIPPED_GAP_LIMIT_EXCEEDED", "execution_date": date_str}}
-                )
-                deferred_log.append({"symbol": sym, "reason": f"Skipped: Open ₹{open_price:.2f} > +2% Cap ₹{limit_cap_price:.2f}"})
-                continue
+            signal_close = float(order.get("price") or 0.0)
+            ref_close = signal_close if signal_close > 0 else (prev_close if (prev_close and prev_close > 0) else 0.0)
+            if ref_close > 0:
+                limit_cap_price = ref_close * (1.0 + self.config.limit_cap_pct)
+                if open_price > limit_cap_price:
+                    self.db.orders.update_one(
+                        {"order_id": order["order_id"]},
+                        {"$set": {"status": "SKIPPED_GAP_LIMIT_EXCEEDED", "execution_date": date_str}}
+                    )
+                    deferred_log.append({"symbol": sym, "reason": f"Skipped: Open ₹{open_price:.2f} > +2% Cap ₹{limit_cap_price:.2f}"})
+                    continue
 
             # Volume participation cap: max 10% of 50-day average daily turnover
             max_vol_pct = getattr(self.config, "max_volume_participation_pct", 0.10)
@@ -972,6 +1027,7 @@ class PaperTradingManager:
                     "mode": "paper",
                     "action": "BUY",
                     "status": "PENDING_OPEN",
+                    "signal_date": {"$lt": date_str},
                 },
                 {
                     "$set": {
@@ -987,6 +1043,7 @@ class PaperTradingManager:
                 "mode": "paper",
                 "action": "BUY",
                 "status": "PENDING_OPEN",
+                "signal_date": {"$lt": date_str},
             })):
                 self.db.orders.update_one(
                     {"order_id": pending_o["order_id"]},
@@ -999,7 +1056,13 @@ class PaperTradingManager:
             df = universe.get(sym)
             if df is not None:
                 rows = df[df["date"] == execution_date]
-                last_pr = float(rows.iloc[0]["close"]) if not rows.empty else float(pos.get("last_close", pos["entry_price"]))
+                if not rows.empty:
+                    last_pr = float(rows.iloc[0]["close"])
+                elif pos.get("entry_date") == date_str:
+                    # V3-D: On morning of entry, mark to fill price rather than raw open to avoid artificial loss
+                    last_pr = float(pos.get("entry_fill_price", pos.get("entry_price", pos.get("last_close", 0.0))))
+                else:
+                    last_pr = float(pos.get("last_close", pos.get("entry_price", 0.0)))
                 pos["last_close"] = last_pr
                 pos["market_value"] = pos["shares"] * last_pr
                 entry_outlay = float(pos.get("entry_outlay", pos["shares"] * pos["entry_price"]))

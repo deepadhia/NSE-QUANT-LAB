@@ -35,6 +35,10 @@ class BacktestConfig:
     deduct_annual_tax: bool = False              # Deduct statutory FY tax from cash on March 31
     tax_model: str = "india_fy"                  # "india_fy" (dated rates, tax_india.py) or "flat_legacy" (old 20%/12.5% every year)
 
+    # Research ablation flags (V2-D: default False to preserve S0 baseline equivalence)
+    skip_1m_reversal: bool = False
+    require_ema200: bool = False
+
     # Execution limits & buffers
     slippage_pct: float = 0.0010                 # 0.10% per leg
     limit_cap_pct: float = 0.0200                # +2% gap limit cap

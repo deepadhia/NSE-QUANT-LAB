@@ -120,10 +120,10 @@ def test_idempotent_order_execution():
         action="BUY",
         order_type="ENTRY_AT_OPEN",
         shares=100,
-        price=100.0,
+        price=103.14,
         status="PENDING_OPEN",
         reason="TEST_RANK",
-        signal_date=date_str,
+        signal_date="2024-05-14",
     )
     mock_db.orders.insert_one(order.to_dict())
 
@@ -872,7 +872,7 @@ def test_paper_buy_orders_sorted_by_rank():
         symbol="STOCK20.NS",
         action="BUY",
         shares=0,
-        price=100.0,
+        price=106.71,
         order_type="ENTRY_AT_OPEN",
         status="PENDING_OPEN",
         reason="RANK_20",
@@ -885,7 +885,7 @@ def test_paper_buy_orders_sorted_by_rank():
         symbol="STOCK1.NS",
         action="BUY",
         shares=0,
-        price=100.0,
+        price=106.71,
         order_type="ENTRY_AT_OPEN",
         status="PENDING_OPEN",
         reason="RANK_1",

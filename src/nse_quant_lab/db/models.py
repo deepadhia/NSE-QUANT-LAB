@@ -132,6 +132,8 @@ class StrategyModel:
     open_positions_count: int
     closed_trades_count: int
     win_rate_pct: float
+    rebalance_hold_rank_buffer: int = 1500
+    unaffordable_policy: str = "TRY_NEXT"
     status: str = "ACTIVE"              # "ACTIVE", "PAUSED", "ARCHIVED"
     last_signal_date: Optional[str] = None
     last_execution_date: Optional[str] = None

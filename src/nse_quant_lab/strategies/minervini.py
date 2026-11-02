@@ -147,7 +147,7 @@ class MinerviniStrategy(BaseStrategy):
 
     def regime_below(self, decision_date: pd.Timestamp) -> bool:
         """True when Nifty 500 closed below its 200-session SMA on decision_date.
-        Missing benchmark data fails SAFE (treated as 'below': blocks new entries)."""
+        Missing benchmark data or insufficient history (<200 sessions) fails SAFE to Bear Regime (blocks new entries)."""
         bench = self._bench()
         if bench is None or bench.empty:
             logger.warning("[REGIME_GATE] Benchmark data (^CRSLDX) missing or empty. Failing safe to Bear Regime.")
@@ -161,23 +161,29 @@ class MinerviniStrategy(BaseStrategy):
             return True
         hist = bench.loc[:decision_date]
         if len(hist) < REGIME_SMA:
-            logger.warning(f"[REGIME_GATE] Benchmark history ({len(hist)}) < {REGIME_SMA} sessions. Defaulting to Bull.")
-            return False
+            logger.warning(
+                f"[REGIME_GATE] Benchmark history ({len(hist)}) < {REGIME_SMA} sessions on {decision_date.strftime('%Y-%m-%d')}. "
+                f"Failing safe to Bear Regime (blocking new entries)."
+            )
+            return True
         sma200 = float(hist.iloc[-REGIME_SMA:].mean())
-        return bool(hist.iloc[-1] < sma200)
+        return bool(float(hist.iloc[-1]) < sma200)
 
     def is_regime_transition_bull(self, decision_date: pd.Timestamp) -> bool:
-        """True on the exact decision_date where Nifty 500 crossed from Bear to Bull."""
+        """True ONLY when both decision_date and the immediately preceding market session have valid >=200-bar
+        benchmark history and Nifty 500 genuinely crossed from Close < SMA200 to Close >= SMA200 (V4-A)."""
         bench = self._bench()
         if bench is None or bench.empty or decision_date not in bench.index:
             return False
-        idx = int(bench.index.get_loc(decision_date))
-        if idx < REGIME_SMA:
+        hist = bench.loc[:decision_date]
+        if len(hist) < REGIME_SMA + 1:
             return False
-        prev_date = bench.index[idx - 1]
-        was_below = self.regime_below(prev_date)
-        is_below_now = self.regime_below(decision_date)
-        return was_below and (not is_below_now)
+        prev_hist = hist.iloc[:-1]
+        prev_sma200 = float(prev_hist.iloc[-REGIME_SMA:].mean())
+        curr_sma200 = float(hist.iloc[-REGIME_SMA:].mean())
+        was_below = float(prev_hist.iloc[-1]) < prev_sma200
+        is_below_now = float(hist.iloc[-1]) < curr_sma200
+        return bool(was_below and (not is_below_now))
 
     def is_rebalance_decision_date(
         self,

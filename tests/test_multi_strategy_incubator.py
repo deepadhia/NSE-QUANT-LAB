@@ -223,6 +223,7 @@ def test_independent_exit_execution_on_same_holding():
         "status": "PENDING_OPEN",
         "mode": "paper",
         "order_date": "2024-06-02",
+        "signal_date": "2024-06-02",
         "reason": "STRUCTURAL_EMA100",
     })
 

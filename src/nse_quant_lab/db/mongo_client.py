@@ -21,8 +21,10 @@ class MongoDatabase:
 
     @classmethod
     def get_instance(cls, uri: Optional[str] = None, db_name: Optional[str] = None) -> "MongoDatabase":
-        if cls._instance is None:
-            cls._instance = cls(uri, db_name)
+        effective_uri = uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+        effective_db = db_name or os.environ.get("MONGO_DB") or os.environ.get("MONGO_DB_NAME", "stock_scanner")
+        if cls._instance is None or cls._instance.uri != effective_uri or cls._instance.db_name != effective_db:
+            cls._instance = cls(effective_uri, effective_db)
         return cls._instance
 
     def ping(self) -> bool:

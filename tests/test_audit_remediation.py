@@ -321,3 +321,133 @@ def test_ingest_upstox_fulltier_cli_dry_run():
     ret = iuf.main(["--dry-run"])
     assert ret == 0
 
+
+
+def test_finding_v3_a_deferred_lower_circuit_does_not_inflate_open_slots():
+    """V3-A: DEFERRED_LOWER_CIRCUIT orders must not be in exits_to_log to prevent inflating open_slots."""
+    mock_db = MagicMock()
+    strat = DummyStrategy()
+    config = PaperTradingConfig(strategy_id="test_strat", initial_capital=100000.0, portfolio_size=2)
+    manager = PaperTradingManager(strategy=strat, config=config, db=mock_db)
+
+    positions = {
+        "LOCKED_SYM": {"symbol": "LOCKED_SYM", "shares": 100, "entry_price": 50.0, "last_close": 40.0}
+    }
+    mock_db.orders.find_one.return_value = {
+        "order_id": "ORD_EXIT_LOCKED",
+        "symbol": "LOCKED_SYM",
+        "status": "DEFERRED_LOWER_CIRCUIT"
+    }
+
+    universe = {
+        "TATAMOTORS": pd.DataFrame({"date": [pd.to_datetime("2026-10-26")], "close": [100.0]}),
+        "RELIANCE": pd.DataFrame({"date": [pd.to_datetime("2026-10-26")], "close": [200.0]}),
+    }
+
+    with patch.object(manager, "get_current_state", return_value={"cash": 50000.0, "positions": positions}):
+        res = manager.generate_post_market_signals(universe=universe, decision_date=pd.to_datetime("2026-10-26"))
+        assert len(res["exits"]) == 0
+
+
+def test_finding_v3_b_lower_circuit_writedown_reachable_when_bar_exists():
+    """V3-B: Orders with deferral_days >= 10 must undergo forced write-down even when a quote/bar is present."""
+    mock_db = MagicMock()
+    strat = DummyStrategy()
+    config = PaperTradingConfig(strategy_id="test_strat", initial_capital=100000.0)
+    manager = PaperTradingManager(strategy=strat, config=config, db=mock_db)
+
+    positions = {"LOCKED_SYM": {"symbol": "LOCKED_SYM", "shares": 100, "entry_price": 100.0, "last_close": 50.0, "entry_date": "2026-10-01"}}
+    order = {
+        "order_id": "ORD_1",
+        "symbol": "LOCKED_SYM",
+        "action": "SELL",
+        "shares": 100,
+        "deferral_days": 10,
+        "status": "DEFERRED_LOWER_CIRCUIT", "reason": "STRUCTURAL_EMA100",
+    }
+    mock_db.orders.find.return_value = [order]
+    bar_existing = {
+        "open": 45.0, "high": 45.0, "low": 45.0, "close": 45.0, "prev_close": 47.0,
+        "lower_circuit": 45.0, "upper_circuit": 50.0, "total_buy_qty": 0, "total_sell_qty": 10000
+    }
+    dummy_universe = {"LOCKED_SYM": pd.DataFrame({"date": [pd.to_datetime("2026-10-26")], "close": [45.0]})}
+
+    with patch.object(manager, "get_current_state", return_value={"cash": 10000.0, "positions": positions}):
+        with patch.object(manager, "_get_execution_bar", return_value=bar_existing):
+            manager.execute_morning_fills(universe=dummy_universe, execution_date=pd.to_datetime("2026-10-26"))
+            assert mock_db.trades.insert_one.called
+            trade_doc = mock_db.trades.insert_one.call_args[0][0]
+            assert trade_doc["exit_price"] == pytest.approx(45.0 * 0.95, abs=0.01)
+
+
+def test_finding_v4_a_regime_fails_safe_on_short_history():
+    """V4-A: Benchmark history < 200 must fail safe to Bear regime (True)."""
+    from nse_quant_lab.strategies.trend_momentum_pit import TrendMomentumPITStrategy
+    strat = TrendMomentumPITStrategy()
+    short_bench = pd.Series([100.0] * 50, index=pd.date_range("2026-01-01", periods=50, freq="B"))
+    strat._benchmark = short_bench
+
+    assert strat.regime_below(short_bench.index[-1]) is True
+    assert strat.is_regime_transition_bull(short_bench.index[-1]) is False
+
+
+def test_minervini_regime_fails_safe_on_short_history():
+    """V4-A: MinerviniStrategy regime_below must fail safe to Bear (True) when history is under 200 sessions."""
+    from nse_quant_lab.strategies.minervini import MinerviniStrategy
+    strat = MinerviniStrategy()
+    short_bench = pd.Series([100.0] * 50, index=pd.date_range("2026-01-01", periods=50, freq="B"))
+    strat._benchmark = short_bench
+
+    assert strat.regime_below(short_bench.index[-1]) is True
+    assert strat.is_regime_transition_bull(short_bench.index[-1]) is False
+
+
+def test_paper_manager_temporal_causality_skips_same_day_signals():
+    """V3-C: execute_morning_fills must strictly query orders where signal_date is strictly before date_str."""
+    mock_db = MagicMock()
+    strat = DummyStrategy()
+    config = PaperTradingConfig(strategy_id="test_strat", initial_capital=100000.0)
+    manager = PaperTradingManager(strategy=strat, config=config, db=mock_db)
+
+    with patch.object(manager, "get_current_state", return_value={"cash": 100000.0, "positions": {}}):
+        manager.execute_morning_fills(universe={}, execution_date=pd.to_datetime("2026-11-03"))
+        assert mock_db.orders.find.called
+        query = mock_db.orders.find.call_args[0][0]
+        assert "signal_date" in query
+        assert query["signal_date"] == {"$lt": "2026-11-03"}
+
+
+def test_paper_manager_repeat_run_alert_suppression():
+    """V5-A: Repeating signal generation on rebalance day with unchanged orders suppresses duplicate Telegram alert."""
+    mock_db = MagicMock()
+    notifier = MagicMock()
+    strat = DummyStrategy()
+    config = PaperTradingConfig(strategy_id="test_strat", initial_capital=100000.0)
+    manager = PaperTradingManager(strategy=strat, config=config, db=mock_db)
+    manager.notifier = notifier
+
+    mock_db.strategies.find_one.return_value = {
+        "strategy_id": "test_strat",
+        "last_signal_date": "2026-10-30",
+        "status": "ACTIVE"
+    }
+    mock_db.orders.distinct.side_effect = lambda field, q: ["TATAMOTORS", "RELIANCE"] if q.get("action") == "BUY" else []
+
+    with patch.object(manager, "get_current_state", return_value={"cash": 100000.0, "positions": {}}):
+        manager.generate_post_market_signals(universe={}, decision_date=pd.to_datetime("2026-10-30"))
+        assert not notifier.send_signal_alert.called
+
+
+def test_fetch_from_upstox_bounded_backoff_on_429():
+    """V5-B: fetch_from_upstox must retry max 3 times with exponential backoff on HTTP 429."""
+    import urllib.error
+    from nse_quant_lab.data_loader import fetch_from_upstox
+
+    mock_error = urllib.error.HTTPError(url="http://test", code=429, msg="Rate Limited", hdrs={}, fp=None)
+    with patch("os.environ.get", return_value="fake_token"):
+        with patch("urllib.request.urlopen", side_effect=mock_error):
+            with patch("time.sleep") as mock_sleep:
+                df = fetch_from_upstox("INFY.NS", "2026-01-01", "2026-01-10")
+                assert df is None
+                sleep_calls = [c[0][0] for c in mock_sleep.call_args_list if c[0][0] > 0.5]
+                assert sleep_calls == [2, 4, 8]

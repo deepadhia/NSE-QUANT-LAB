@@ -71,6 +71,7 @@ def fetch_from_upstox(
     end_date: str,
     access_token: Optional[str] = None,
     api_base: str = "https://api.upstox.com/v2",
+    _retry: int = 0,
 ) -> Optional[pd.DataFrame]:
     """
     Fetches historical daily candles directly from Upstox API v2 (matching Alpha-Pulse pipeline).
@@ -129,9 +130,14 @@ def fetch_from_upstox(
                 return df
     except urllib.error.HTTPError as e:
         if e.code == 429:
-            logger.warning(f"Upstox API rate limited (429) for {symbol}. Waiting 1s and retrying...")
-            time.sleep(1.0)
-            return fetch_from_upstox(symbol, start_date, end_date, token, api_base)
+            if _retry < 3:
+                backoff = 2 ** (_retry + 1)
+                logger.warning(f"Upstox API rate limited (429) for {symbol}. Waiting {backoff}s (retry {_retry + 1}/3)...")
+                time.sleep(backoff)
+                return fetch_from_upstox(symbol, start_date, end_date, token, api_base, _retry=_retry + 1)
+            else:
+                logger.error(f"Upstox API 429 rate limit exceeded max retries (3) for {symbol}.")
+                return None
         logger.warning(f"Upstox API HTTP error {e.code} for {symbol}: {e.reason}")
     except Exception as e:
         logger.warning(f"Upstox API exception for {symbol}: {e}")

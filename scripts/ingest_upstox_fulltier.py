@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 import logging
 import os
 import sys
@@ -40,7 +42,7 @@ ARCH = _p1 if _p1.exists() else _p2
 PANEL = ARCH / "clean_panel.parquet"
 COLLECTION = "upstox_fulltier_daily"
 COVERAGE_GATE = 0.90
-ADJUSTED_REFRESH_DAYS = 400
+ADJUSTED_REFRESH_DAYS = 750  # V2-C: Full 700+ calendar day window for 252-day momentum indicator integrity
 
 
 def panel_stats(panel: Path = PANEL) -> pd.DataFrame:
@@ -137,7 +139,7 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
     find_one / update_one / insert_one. Returns a summary dict (saved, failed symbols, flagged gaps)."""
     saved, failed, flagged = 0, [], []
     missing_today_targets = []
-    is_today = (run_date >= dt.datetime.now().date())
+    is_today = (run_date >= dt.datetime.now(IST).date())
     default_anchor = panel_last or (run_date - dt.timedelta(days=5))
     for r in targets.itertuples():
         last_doc = col.find_one({"symbol": r.symbol}, sort=[("date", -1)])
@@ -162,7 +164,8 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
         if is_today and quote_fetcher is not None and not any(x.get("date") == run_date.isoformat() for x in rows):
             missing_today_targets.append(r)
         new_rows = [x for x in rows if x["date"] > eff_panel_last.isoformat()]
-        prev_close = float(last_doc["close"]) if last_doc else float(r.last_close)
+        prev_doc = col.find_one({"symbol": r.symbol, "date": {"$lt": run_date.isoformat()}}, sort=[("date", -1)])
+        prev_close = float(prev_doc["close"]) if prev_doc else (float(last_doc["close"]) if last_doc else float(r.last_close))
         if new_rows and uf.gap_flag(prev_close, new_rows[0]["open"]):
             flagged.append(r.symbol)
             flags_col.insert_one({"symbol": r.symbol, "date": new_rows[0]["date"], "prev_close": prev_close,
@@ -174,7 +177,7 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
                 for x in refreshed:
                     col.update_one({"symbol": r.symbol, "date": x["date"]},
                                    {"$set": {**x, "symbol": r.symbol, "source": "adjusted_refresh", "updated_at": now()}}, upsert=True)
-                prev_date = last_doc["date"] if last_doc else eff_panel_last.isoformat()
+                prev_date = prev_doc["date"] if prev_doc else eff_panel_last.isoformat()
                 ref_prev = next((x["close"] for x in refreshed if x["date"] == prev_date), None)
                 if ref_prev and positions_col is not None and orders_col is not None:
                     factor = prev_close / ref_prev
@@ -197,12 +200,29 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
                 q = quotes.get(r.key)
                 if not q:
                     continue
+                # V1-B: Skip stale quote from older sessions for halted/suspended stocks
+                q_ts = str(q.get("ts") or "")[:10]
+                if q_ts and q_ts != today_str:
+                    log.warning("Skipping stale quote for %s (quote ts=%s != %s)", r.symbol, q_ts, today_str)
+                    continue
                 o = float(q.get("open") or 0.0)
                 c = float(q.get("ltp") or 0.0)
-                if o > 0 and c > 0:
+                v = float(q.get("volume") or 0.0)
+                if o > 0 and c > 0 and v > 0:
+                    # V1-A: Validate gap flag before upserting quote fallback (preserves split detection)
+                    prev_doc = col.find_one({"symbol": r.symbol, "date": {"$lt": today_str}}, sort=[("date", -1)])
+                    prev_close = float(prev_doc["close"]) if prev_doc else float(r.last_close)
+                    if uf.gap_flag(prev_close, o):
+                        flagged.append(r.symbol)
+                        flags_col.insert_one({
+                            "symbol": r.symbol, "date": today_str, "prev_close": prev_close,
+                            "open": o, "ratio": o / prev_close, "ts": now(),
+                            "note": "quote fallback blocked by gap_flag; awaiting settled candle refresh",
+                        })
+                        continue
+
                     h = max(float(q.get("high") or 0.0), o, c)
                     l = min(float(q.get("low") or 0.0), o, c)
-                    v = max(float(q.get("volume") or 0.0), 0.0)
                     bar = {
                         "symbol": r.symbol,
                         "date": today_str,
@@ -239,7 +259,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     from nse_quant_lab.holidays import is_trading_day
 
-    d = dt.date.fromisoformat(a.date) if a.date else dt.datetime.now().date()
+    d = dt.date.fromisoformat(a.date) if a.date else dt.datetime.now(IST).date()
     while not a.date and not is_trading_day(d):
         d -= dt.timedelta(days=1)
     if not is_trading_day(d):
@@ -268,7 +288,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     from pymongo import MongoClient
 
-    token = os.environ.get("UPSTOX_ACCESS_TOKEN")
+    from nse_quant_lab.data_loader import auto_refresh_upstox_token
+    token = auto_refresh_upstox_token() or os.environ.get("UPSTOX_ACCESS_TOKEN")
     if not token:
         log.error("no Upstox access token available (set UPSTOX_ACCESS_TOKEN in environment or .env).")
         return 2
