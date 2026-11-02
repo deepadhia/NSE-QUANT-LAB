@@ -89,3 +89,19 @@ def test_no_credentials_or_pii_in_docs():
                     text = fp.read()
                     assert "766982450" not in text, f"{f} contains private Telegram Chat ID!"
                     assert "uxg8fc4" not in text, f"{f} contains production Atlas cluster identifier!"
+
+
+def test_morning_execution_has_zero_order_short_circuit():
+    """Guarantees execute_paper_orders.py short-circuits when 0 orders are pending without crashing on unneeded datasets."""
+    script_path = os.path.join(PROJECT_ROOT, "scripts", "execute_paper_orders.py")
+    with open(script_path, "r", encoding="utf-8") as f:
+        code = f.read()
+    assert "pending_orders_count = db.orders.count_documents" in code, "execute_paper_orders must count pending orders"
+    assert "if not args.date and pending_orders_count == 0:" in code, "execute_paper_orders must short-circuit on 0 pending orders"
+
+
+def test_verify_production_health_script_exists():
+    """Guarantees the strict production pre-flight health check script exists and compiles."""
+    script_path = os.path.join(PROJECT_ROOT, "scripts", "verify_production_health.py")
+    assert os.path.exists(script_path), "scripts/verify_production_health.py must exist"
+    py_compile.compile(script_path, doraise=True)

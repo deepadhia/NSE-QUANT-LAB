@@ -107,6 +107,20 @@ def main():
 
     logger.info(f">> Active strategies to process: {[d['strategy_id'] for d in strat_docs]}")
 
+    # Short-circuit: if no orders are pending across active strategies, skip heavy universe load
+    active_strategy_ids = [d["strategy_id"] for d in strat_docs]
+    pending_orders_count = db.orders.count_documents({
+        "strategy_id": {"$in": active_strategy_ids},
+        "mode": "paper",
+        "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]},
+    })
+    if not args.date and pending_orders_count == 0:
+        logger.info(f">> No pending or deferred orders found for active strategies: {active_strategy_ids}")
+        logger.info("=" * 70)
+        logger.info(">> Morning execution completed successfully: 0 orders to execute.")
+        logger.info("=" * 70)
+        sys.exit(0)
+
     # Load recent universe for execution
     logger.info(">> Loading recent market universe...")
     target_end = args.date or datetime.now().strftime("%Y-%m-%d")

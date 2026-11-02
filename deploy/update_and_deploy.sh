@@ -2,7 +2,8 @@
 # ==============================================================================
 # NSE Quant Lab - Smart Post-Push Update & Deployment Script
 # Safely pulls git updates, conditionally installs packages only when needed,
-# runs safety tests, restarts the daemon, and verifies live logs.
+# runs safety tests, verifies production data artifacts, restarts the daemon,
+# and verifies live logs.
 # ==============================================================================
 
 set -e
@@ -58,7 +59,16 @@ else
     exit 1
 fi
 
-# 4. Restart Daemon Service if Active
+# 4. Strict Production Pre-Flight Health Check
+echo "--> Running strict production pre-flight health checks..."
+if ./venv/bin/python scripts/verify_production_health.py; then
+    echo "--> All production health checks passed cleanly!"
+else
+    echo "❌ ERROR: Production health checks failed! Aborting daemon restart to protect production."
+    exit 1
+fi
+
+# 5. Restart Daemon Service if Active
 SERVICE_NAME="nse-quant-lab.service"
 if systemctl is-active --quiet "$SERVICE_NAME"; then
     echo "--> Restarting $SERVICE_NAME..."
