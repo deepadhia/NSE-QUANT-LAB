@@ -114,3 +114,34 @@ def test_split_rescales_open_position_and_pending_sell_but_not_other_symbols():
     assert a["shares"] == 5 and "split_adjusted_factor" not in a
     assert orders.docs[0]["shares"] == 20 and orders.docs[0]["price"] == pytest.approx(100.0)   # pending sell follows the split
     assert orders.docs[1]["shares"] == 0 and orders.docs[1]["price"] == 200.0                  # filled order untouched
+
+
+def test_quote_fallback_populates_missing_same_day_eod_bars():
+    col, flags = FakeCol(), FakeCol()
+    today = dt.datetime.now().date()
+    targets = pd.DataFrame({'symbol': ['AAA'], 'key': ['K1'], 'last_close': [100.0]})
+
+    def fetch_empty(k, f, t):
+        return []
+
+    def fake_quote_fetcher(keys):
+        return {
+            'K1': {
+                'open': 102.0, 'high': 105.0, 'low': 101.0, 'ltp': 104.5, 'volume': 50000.0
+            }
+        }
+
+    summary = ing.run_ingestion(
+        targets, today, None, col, flags, fetch_empty,
+        quote_fetcher=fake_quote_fetcher, now=lambda: 't'
+    )
+    assert summary['saved_rows'] == 1
+    assert summary['failed'] == []
+    doc = col.docs.get(('AAA', today.isoformat()))
+    assert doc is not None
+    assert doc['open'] == 102.0
+    assert doc['close'] == 104.5
+    assert doc['high'] == 105.0
+    assert doc['low'] == 101.0
+    assert doc['volume'] == 50000.0
+    assert doc['source'] == 'upstox_quote'

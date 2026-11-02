@@ -64,12 +64,12 @@ def test_multi_strategy_initialization_and_isolation():
     """Verify that both strategies register independent portfolios with zero cash collision."""
     mock_db = IncubatorMockMongoDb()
 
-    cfg1 = PaperTradingConfig(strategy_id="trend_momentum_pit", initial_capital=100000.0, portfolio_size=15)
+    cfg1 = PaperTradingConfig(strategy_id="trend_momentum_pit", initial_capital=100000.0, portfolio_size=15, telegram_enabled=False)
     strat1 = TrendMomentumPITStrategy(config=cfg1)
     mgr1 = PaperTradingManager(strategy=strat1, config=cfg1, db=mock_db)
     mgr1.initialize_portfolio()
 
-    cfg2 = PaperTradingConfig(strategy_id="minervini_trend_template", initial_capital=100000.0, portfolio_size=15)
+    cfg2 = PaperTradingConfig(strategy_id="minervini_trend_template", initial_capital=100000.0, portfolio_size=15, telegram_enabled=False)
     strat2 = MinerviniStrategy(config=cfg2)
     mgr2 = PaperTradingManager(strategy=strat2, config=cfg2, db=mock_db)
     mgr2.initialize_portfolio()
@@ -107,14 +107,14 @@ def test_multi_strategy_signal_generation_and_order_separation():
     bench_series = pd.Series(np.exp(np.cumsum(np.full(len(dates), 0.001))) * 1000, index=dates)
 
     # Strategy 1
-    cfg1 = PaperTradingConfig(strategy_id="trend_momentum_pit", initial_capital=100000.0, portfolio_size=15)
+    cfg1 = PaperTradingConfig(strategy_id="trend_momentum_pit", initial_capital=100000.0, portfolio_size=15, telegram_enabled=False)
     strat1 = TrendMomentumPITStrategy(config=cfg1, benchmark=bench_series)
     mgr1 = PaperTradingManager(strategy=strat1, config=cfg1, db=mock_db)
     mgr1.initialize_portfolio()
     res1 = mgr1.generate_post_market_signals(universe, decision_date)
 
     # Strategy 2
-    cfg2 = PaperTradingConfig(strategy_id="minervini_trend_template", initial_capital=100000.0, portfolio_size=15)
+    cfg2 = PaperTradingConfig(strategy_id="minervini_trend_template", initial_capital=100000.0, portfolio_size=15, telegram_enabled=False)
     strat2 = MinerviniStrategy(config=cfg2, benchmark=bench_series)
     mgr2 = PaperTradingManager(strategy=strat2, config=cfg2, db=mock_db)
     mgr2.initialize_portfolio()
@@ -196,11 +196,11 @@ def test_independent_exit_execution_on_same_holding():
         }])
     }
 
-    cfg1 = PaperTradingConfig(strategy_id="trend_momentum_pit", initial_capital=100000.0)
+    cfg1 = PaperTradingConfig(strategy_id="trend_momentum_pit", initial_capital=100000.0, telegram_enabled=False)
     strat1 = TrendMomentumPITStrategy(config=cfg1)
     mgr1 = PaperTradingManager(strategy=strat1, config=cfg1, db=mock_db)
 
-    cfg2 = PaperTradingConfig(strategy_id="minervini_trend_template", initial_capital=100000.0)
+    cfg2 = PaperTradingConfig(strategy_id="minervini_trend_template", initial_capital=100000.0, telegram_enabled=False)
     strat2 = MinerviniStrategy(config=cfg2)
     mgr2 = PaperTradingManager(strategy=strat2, config=cfg2, db=mock_db)
 

@@ -126,10 +126,13 @@ def adjust_for_split(positions_col, orders_col, symbol: str, factor: float, now:
 
 
 def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional[dt.date], col, flags_col, fetch: Callable,
-                  now: Callable[[], str] = lambda: dt.datetime.now(dt.timezone.utc).isoformat(), positions_col=None, orders_col=None) -> Dict[str, object]:
+                  now: Callable[[], str] = lambda: dt.datetime.now(dt.timezone.utc).isoformat(), positions_col=None, orders_col=None,
+                  quote_fetcher: Optional[Callable[[List[str]], Dict[str, Dict[str, Any]]]] = None) -> Dict[str, object]:
     """Fetch and store bars for every target. `fetch(key, from_date, to_date)` returns candle rows; `col`/`flags_col` expose
     find_one / update_one / insert_one. Returns a summary dict (saved, failed symbols, flagged gaps)."""
     saved, failed, flagged = 0, [], []
+    missing_today_targets = []
+    is_today = (run_date >= dt.datetime.now().date())
     default_anchor = panel_last or (run_date - dt.timedelta(days=5))
     for r in targets.itertuples():
         last_doc = col.find_one({"symbol": r.symbol}, sort=[("date", -1)])
@@ -143,10 +146,16 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
         except Exception as exc:
             log.error("fetch failed for %s: %s", r.symbol, exc)
             failed.append(r.symbol)
+            if is_today and quote_fetcher is not None:
+                missing_today_targets.append(r)
             continue
         if not rows:
             failed.append(r.symbol)
+            if is_today and quote_fetcher is not None:
+                missing_today_targets.append(r)
             continue
+        if is_today and quote_fetcher is not None and not any(x.get("date") == run_date.isoformat() for x in rows):
+            missing_today_targets.append(r)
         new_rows = [x for x in rows if x["date"] > eff_panel_last.isoformat()]
         prev_close = float(last_doc["close"]) if last_doc else float(r.last_close)
         if new_rows and uf.gap_flag(prev_close, new_rows[0]["open"]):
@@ -173,6 +182,40 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
             col.update_one({"symbol": r.symbol, "date": x["date"]},
                            {"$set": {**x, "symbol": r.symbol, "source": "upstox", "updated_at": now()}}, upsert=True)
         saved += len([x for x in rows if (not panel_last) or x["date"] >= panel_last.isoformat()])
+    if missing_today_targets and quote_fetcher is not None:
+        log.info("Fetching finalized same-day EOD bars via batch Quotes API for %d targets...", len(missing_today_targets))
+        keys_to_fetch = [r.key for r in missing_today_targets]
+        try:
+            quotes = quote_fetcher(keys_to_fetch)
+            today_str = run_date.isoformat()
+            for r in missing_today_targets:
+                q = quotes.get(r.key)
+                if not q:
+                    continue
+                o = float(q.get("open") or 0.0)
+                c = float(q.get("ltp") or 0.0)
+                if o > 0 and c > 0:
+                    h = max(float(q.get("high") or 0.0), o, c)
+                    l = min(float(q.get("low") or 0.0), o, c)
+                    v = max(float(q.get("volume") or 0.0), 0.0)
+                    bar = {
+                        "symbol": r.symbol,
+                        "date": today_str,
+                        "open": o,
+                        "high": h,
+                        "low": l,
+                        "close": c,
+                        "volume": v,
+                        "source": "upstox_quote",
+                        "updated_at": now(),
+                    }
+                    col.update_one({"symbol": r.symbol, "date": today_str}, {"$set": bar}, upsert=True)
+                    saved += 1
+                    if r.symbol in failed:
+                        failed.remove(r.symbol)
+        except Exception as exc:
+            log.warning("Quote fallback failed: %s", exc)
+
     return {"targets": len(targets), "saved_rows": saved, "failed": failed, "flagged": flagged}
 
 
@@ -230,7 +273,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     col.create_index([("symbol", 1), ("date", 1)], unique=True)
     try:
         summary = run_ingestion(targets, d, panel_last, col, flags, lambda k, f, t: uf.fetch_daily_candles(k, f, t, token),
-                                positions_col=db["positions"], orders_col=db["orders"])
+                                positions_col=db["positions"], orders_col=db["orders"],
+                                quote_fetcher=lambda keys: uf.fetch_quotes(keys, token))
     except uf.UpstoxAuthError as exc:
         log.error("%s", exc)
         return 2

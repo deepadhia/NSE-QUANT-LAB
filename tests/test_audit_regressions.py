@@ -858,7 +858,7 @@ def test_paper_buy_orders_sorted_by_rank():
     in strict numeric rank order even if returned out of order by the database query.
     """
     from test_paper import MockMongoDbWrapper
-    cfg = PaperTradingConfig(strategy_id="test_rank_sort", portfolio_size=1)
+    cfg = PaperTradingConfig(strategy_id="test_rank_sort", portfolio_size=1, telegram_enabled=False)
     strat = TrendMomentumStrategy(cfg)
     mock_db = MockMongoDbWrapper()
     manager = PaperTradingManager(strategy=strat, config=cfg, db=mock_db)

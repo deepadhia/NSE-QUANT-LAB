@@ -122,6 +122,15 @@ def main():
         decision_dt = pd.to_datetime(args.date)
     else:
         decision_dt = all_dates[-1]
+        today_dt = pd.to_datetime(datetime.now().strftime("%Y-%m-%d"))
+        if not args.force and is_trading_day(today_dt.strftime("%Y-%m-%d")) and datetime.now().hour >= 16:
+            if decision_dt < today_dt:
+                logger.error(
+                    f"[STALE UNIVERSE GATE] Today {today_dt.strftime('%Y-%m-%d')} is an NSE trading session that has completed, "
+                    f"but loaded universe only contains bars up to {decision_dt.strftime('%Y-%m-%d')}! "
+                    f"Halting pipeline to prevent generating signals on stale prices."
+                )
+                sys.exit(3)
 
     logger.info(f">> Evaluating post-market signals for decision date: {decision_dt.strftime('%Y-%m-%d')}")
 
