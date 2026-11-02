@@ -26,22 +26,14 @@ class MongoDatabase:
         return cls._instance
 
     def ping(self) -> bool:
-        """Pings MongoDB server to confirm connectivity. Falls back to localhost if remote URI fails."""
+        """Pings MongoDB server to confirm connectivity."""
         try:
             self.client.admin.command("ping")
             return True
-        except Exception:
-            if self.uri != "mongodb://localhost:27017/":
-                try:
-                    from pymongo import MongoClient
-                    local_client = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=1000)
-                    local_client.admin.command("ping")
-                    self.client = local_client
-                    self.uri = "mongodb://localhost:27017/"
-                    self.db = self.client[self.db_name]
-                    return True
-                except Exception:
-                    pass
+        except Exception as e:
+            import logging
+            masked = self.uri.split("@")[-1] if "@" in self.uri else self.uri
+            logging.getLogger("mongo_client").error("MongoDB ping failed for %s: %s", masked, e)
             return False
 
     def get_collection(self, name: str) -> Collection:

@@ -95,7 +95,12 @@ class PaperTradingManager:
 
     def get_current_state(self, as_of_date: Optional[str] = None) -> Dict[str, Any]:
         """Retrieves active positions and current cash balance from MongoDB up to as_of_date."""
-        query = {"strategy_id": self.config.strategy_id, "mode": "paper"}
+        query = {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")}
+
+        # Find absolute latest NAV date across collection to distinguish live runs from historical replays
+        abs_latest_rec = list(self.db.daily_nav.find({"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")}).sort("date", -1).limit(1))
+        abs_latest_date = abs_latest_rec[0].get("date") if abs_latest_rec else None
+
         if as_of_date:
             query["date"] = {"$lte": as_of_date}
 
@@ -103,15 +108,14 @@ class PaperTradingManager:
         nav_list = list(nav_record)
         cash = nav_list[0]["cash"] if nav_list else float(self.config.initial_capital)
 
-        # Synchronize with strategies collection cash for real-time durability
+        # Synchronize with strategies collection cash for real-time durability only when at current live state
         strat_entry = self.db.strategies.find_one({"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")})
         if strat_entry and "cash" in strat_entry:
-            latest_nav_date = nav_list[0].get("date") if nav_list else None
-            if not as_of_date or as_of_date >= (latest_nav_date or ""):
+            if not as_of_date or (abs_latest_date and as_of_date >= abs_latest_date):
                 cash = float(strat_entry["cash"])
 
         positions_cursor = self.db.positions.find(
-            {"strategy_id": self.config.strategy_id, "mode": "paper"}
+            {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")}
         )
         positions = {p["symbol"]: p for p in positions_cursor}
         return {"cash": cash, "positions": positions}
@@ -165,18 +169,24 @@ class PaperTradingManager:
 
         # Mark open positions to today's EOD close from universe
         current_holdings_val = 0.0
+        forced_delist_exits = {}
         for sym, pos in list(positions.items()):
             df_sym = universe.get(sym)
             if df_sym is not None and not df_sym.empty:
                 c_rows = df_sym.loc[df_sym["date"] <= decision_date]
                 if not c_rows.empty:
                     last_row = c_rows.iloc[-1]
-                    if (decision_date - last_row["date"]).days > 5:
+                    stale_days = (decision_date - last_row["date"]).days
+                    if stale_days >= 14:
+                        logger.critical(f"[FORCED_DELISTING_TRIGGER] Position '{sym}' stale for {stale_days} days. Queuing DATA_ENDED_FORCED_EXIT.")
+                        forced_delist_exits[sym] = "DATA_ENDED_FORCED_EXIT"
+                    elif stale_days > 5:
                         logger.critical(f"[SUSPENSION_OR_DELISTING_ALERT] Position '{sym}' last bar was on {last_row['date'].strftime('%Y-%m-%d')} (>5 days stale). Potential halt or delisting.")
                     last_pr = float(last_row["close"])
                     pos["last_close"] = last_pr
                     pos["market_value"] = pos["shares"] * last_pr
-                    entry_outlay = float(pos.get("entry_outlay", pos["shares"] * pos["entry_price"]))
+                    entry_px = float(pos.get("entry_price", pos.get("last_close", 0.0)))
+                    entry_outlay = float(pos.get("entry_outlay", pos["shares"] * entry_px))
                     pos["unrealized_pnl"] = pos["market_value"] - entry_outlay
 
                     # Extract dynamic trailing stop levels
@@ -210,7 +220,10 @@ class PaperTradingManager:
                         {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "symbol": sym},
                         {"$set": update_dict}
                     )
-            current_holdings_val += pos.get("market_value", pos["shares"] * pos.get("last_close", pos["entry_price"]))
+            else:
+                logger.critical(f"[FORCED_DELISTING_TRIGGER] Position '{sym}' missing from universe panel. Queuing DATA_ENDED_FORCED_EXIT.")
+                forced_delist_exits[sym] = "DATA_ENDED_FORCED_EXIT"
+            current_holdings_val += pos.get("market_value", pos["shares"] * pos.get("last_close", pos.get("entry_price", 0.0)))
 
         current_nav = cash + current_holdings_val
         nav_model = DailyNavModel(
@@ -230,6 +243,7 @@ class PaperTradingManager:
 
         # 1. Evaluate Daily Exits
         requested_exits = self.strategy.evaluate_daily_exits(universe, decision_date, positions, self.config)
+        requested_exits.update(forced_delist_exits)
         exits_to_log = []
         for sym, reason in requested_exits.items():
             pos = positions.get(sym)
@@ -301,6 +315,16 @@ class PaperTradingManager:
             rebal_drops = self.strategy.evaluate_rebalance_exits(universe, decision_date, positions, allowed_hold_symbols, self.config)
             for sym, reason in rebal_drops.items():
                 if sym not in requested_exits and sym in positions:
+                    existing_active_sell = self.db.orders.find_one({
+                        "strategy_id": self.config.strategy_id,
+                        "mode": getattr(self.config, "mode", "paper"),
+                        "symbol": sym,
+                        "action": "SELL",
+                        "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]},
+                    })
+                    if existing_active_sell:
+                        logger.info(f"Active sell order {existing_active_sell.get('order_id')} already exists for rebal drop {sym}; skipping duplicate.")
+                        continue
                     pos = positions[sym]
                     ord_id = f"ORD_DROP_{date_str}_{sym}"
                     order = OrderModel(
@@ -619,12 +643,27 @@ class PaperTradingManager:
                 )
                 continue
 
+            pos = positions[sym]
             df = universe.get(sym)
-            if df is None:
-                continue
-            bar = self._get_execution_bar(sym, execution_date, universe)
+            bar = self._get_execution_bar(sym, execution_date, universe) if df is not None else None
+            is_forced_delisting = False
             if bar is None:
-                continue
+                if order.get("reason") == "DATA_ENDED_FORCED_EXIT" or int(order.get("deferral_days", 0)) >= 10:
+                    logger.warning(f"Executing forced delisting liquidation for {sym} without live broker quote.")
+                    ref_price = float(pos.get("last_close") or pos.get("entry_price") or 1.0)
+                    haircut_open = round(ref_price * 0.95, 2)
+                    is_forced_delisting = True
+                    bar = {
+                        "open": haircut_open,
+                        "high": haircut_open,
+                        "low": haircut_open,
+                        "close": haircut_open,
+                        "prev_close": ref_price,
+                        "turnover_50d": 1e6,
+                        "is_live_quote": False,
+                    }
+                else:
+                    continue
             prev_close = bar["prev_close"]
             open_px = bar["open"]
             high_px = bar["high"]
@@ -632,12 +671,23 @@ class PaperTradingManager:
             close_px = bar["close"]
             row = bar
 
-            # Circuit breaker check: use exchange limits from live quote if available
-            if bar.get("is_live_quote") and bar.get("lower_circuit") and float(bar["lower_circuit"]) > 0:
-                lc = float(bar["lower_circuit"])
-                is_down = (open_px <= lc * 1.001) and (not bar.get("bid") or float(bar.get("bid") or 0.0) <= lc * 1.001)
-            else:
+            # Circuit breaker check: use exchange limits and real buyer liquidity (bypassed for forced delisting write-down)
+            is_live = bar.get("is_live_quote", False)
+            lc = float(bar.get("lower_circuit") or 0.0) if bar.get("lower_circuit") else None
+            if is_forced_delisting:
+                is_down = False
+            elif lc is not None and lc > 0:
+                # Stock is at/below LC band AND zero buyer bids exist (if live bids available)
+                no_buyers = (bar.get("bid") is None) or (float(bar.get("bid") or 0.0) <= 0.0)
+                is_down = (open_px <= lc * 1.001) and (no_buyers if is_live else True)
+            elif not is_live:
                 is_down = is_locked_down(open_px, high_px, low_px, close_px, prev_close)
+            else:
+                # Live quote without lower_circuit band (e.g. yfinance fallback):
+                pct_down = (prev_close - open_px) / prev_close if prev_close > 0 else 0.0
+                no_buyers = (bar.get("bid") is None) or (float(bar.get("bid") or 0.0) <= 0.0)
+                flat_tick = abs(high_px - low_px) / prev_close < 0.001 if prev_close > 0 else (open_px == high_px == low_px == close_px)
+                is_down = (pct_down >= 0.048) and flat_tick and no_buyers
 
             if is_down:
                 def_days = int(order.get("deferral_days", 0)) + 1
@@ -654,7 +704,10 @@ class PaperTradingManager:
                 continue
 
             open_price = float(row["open"])
-            fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, int(order["shares"]), "SELL"))
+            if is_forced_delisting:
+                fill_price = open_price  # Preserves 5% haircut from line 660 without double slippage
+            else:
+                fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, int(order["shares"]), "SELL"))
             shares = int(order["shares"])
             gross_val = shares * fill_price
             fees_dict = calc_sell_fees_exact(gross_val, execution_date, self.config)
@@ -698,13 +751,14 @@ class PaperTradingManager:
                 entry_date_dt = pd.to_datetime(pos["entry_date"])
                 hold_days = (execution_date - entry_date_dt).days
                 entry_price = float(pos["entry_price"])
-                gross_pnl = (shares * fill_price) - (shares * entry_price)
+                entry_fill_px = float(pos.get("entry_fill_price", entry_price))
+                outlay = float(pos.get("entry_outlay", shares * entry_fill_px + float(pos.get("entry_fees", 0.0))))
+                gross_pnl = (shares * fill_price) - (shares * entry_fill_px)
                 total_fees = float(pos.get("entry_fees", 0.0)) + fees_dict["total"]
-                net_pnl = gross_pnl - total_fees
-                outlay = float(pos.get("entry_outlay", shares * entry_price))
+                net_pnl = net_proceeds - outlay
                 ret_pct = (net_pnl / outlay) * 100.0 if outlay > 0 else 0.0
                 
-                pos_entry_slip = float(pos.get("entry_slip_loss", (float(pos.get("entry_fill_price", entry_price)) - entry_price) * shares))
+                pos_entry_slip = float(pos.get("entry_slip_loss", (entry_fill_px - entry_price) * shares))
                 exit_slip = (open_price - fill_price) * shares
 
                 trade_model = TradeModel(
@@ -712,7 +766,7 @@ class PaperTradingManager:
                     mode="paper",
                     symbol=sym,
                     entry_date=pos["entry_date"],
-                    entry_price=entry_price,
+                    entry_price=entry_fill_px,
                     exit_date=date_str,
                     exit_price=fill_price,
                     shares=shares,
@@ -775,8 +829,23 @@ class PaperTradingManager:
             close_px = bar["close"]
             row = bar
 
-            # Circuit breaker check
-            if is_locked_up(open_px, high_px, low_px, close_px, prev_close):
+            # Circuit breaker check: use exchange limits and real seller liquidity
+            is_live = bar.get("is_live_quote", False)
+            uc = float(bar.get("upper_circuit") or 0.0) if bar.get("upper_circuit") else None
+            if uc is not None and uc > 0:
+                # Stock is at/above UC band AND zero seller asks exist (if live asks available)
+                no_sellers = (bar.get("ask") is None) or (float(bar.get("ask") or 0.0) <= 0.0)
+                is_up = (open_px >= uc * 0.999) and (no_sellers if is_live else True)
+            elif not is_live:
+                is_up = is_locked_up(open_px, high_px, low_px, close_px, prev_close)
+            else:
+                # Live quote without upper_circuit band (e.g. yfinance fallback):
+                pct_up = (open_px - prev_close) / prev_close if prev_close > 0 else 0.0
+                no_sellers = (bar.get("ask") is None) or (float(bar.get("ask") or 0.0) <= 0.0)
+                flat_tick = abs(high_px - low_px) / prev_close < 0.001 if prev_close > 0 else (open_px == high_px == low_px == close_px)
+                is_up = (pct_up >= 0.048) and flat_tick and no_sellers
+
+            if is_up:
                 self.db.orders.update_one(
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_LOCKED_UP", "execution_date": date_str}}

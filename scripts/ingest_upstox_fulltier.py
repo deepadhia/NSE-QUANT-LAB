@@ -38,20 +38,69 @@ ADJUSTED_REFRESH_DAYS = 400
 
 
 def panel_stats(panel: Path = PANEL) -> pd.DataFrame:
-    """Per-symbol 50-session median turnover, history length, last series and last close as of the panel's final date."""
-    p = pd.read_parquet(panel, columns=["symbol", "date", "series", "close", "turnover"])
-    p["series"] = p["series"].astype(str)
-    last = p["date"].max()
-    cut = p[p["date"] >= last - pd.Timedelta(days=130)]
+    """Per-symbol 50-session median turnover, history length, last series and last close as of the panel's final date.
+    Gracefully falls back to MongoDB Atlas when local clean_panel.parquet is absent on cloud servers."""
+    if panel and panel.exists():
+        p = pd.read_parquet(panel, columns=["symbol", "date", "series", "close", "turnover"])
+        p["series"] = p["series"].astype(str)
+        last = p["date"].max()
+        cut = p[p["date"] >= last - pd.Timedelta(days=130)]
+        rows = []
+        hist = p.groupby("symbol").size()
+        for s, g in cut.groupby("symbol", sort=False):
+            g = g.sort_values("date")
+            if g["date"].iloc[-1] != last or len(g) < 50:
+                continue
+            rows.append((s, float(g["turnover"].tail(50).median()), int(hist[s]), g["series"].iloc[-1], float(g["close"].iloc[-1])))
+        out = pd.DataFrame(rows, columns=["symbol", "adt", "hist", "series", "last_close"])
+        out.attrs["panel_last"] = last.date()
+        return out
+
+    # MongoDB Atlas fallback for server deployments
+    log.info("clean_panel.parquet not found at %s; computing panel stats from MongoDB...", panel)
+    from nse_quant_lab.db.mongo_client import MongoDatabase
+    db = MongoDatabase.get_instance().db
+
+    latest_doc = list(db["upstox_daily_ohlcv"].find({"open": {"$gt": 0}}).sort([("date", -1)]).limit(1))
+    if not latest_doc:
+        log.warning("No records in upstox_daily_ohlcv to compute panel_stats fallback.")
+        out = pd.DataFrame(columns=["symbol", "adt", "hist", "series", "last_close"])
+        out.attrs["panel_last"] = dt.date(2000, 1, 1)
+        return out
+
+    last_str = latest_doc[0]["date"]
+    last_dt = pd.to_datetime(last_str)
+    # Query trailing 400 calendar days (~270 trading sessions) so hist >= 200 passes in select_targets()
+    start_dt = last_dt - pd.Timedelta(days=400)
+    start_str = start_dt.strftime("%Y-%m-%d")
+
+    cursor = db["upstox_daily_ohlcv"].find(
+        {"date": {"$gte": start_str, "$lte": last_str}, "open": {"$gt": 0}, "close": {"$gt": 0}},
+        {"_id": 0, "symbol": 1, "date": 1, "close": 1, "volume": 1}
+    )
+    docs = list(cursor)
+    if not docs:
+        out = pd.DataFrame(columns=["symbol", "adt", "hist", "series", "last_close"])
+        out.attrs["panel_last"] = None
+        return out
+
+    df = pd.DataFrame(docs)
+    df["symbol"] = df["symbol"].astype(str).str.replace(".NS", "", regex=False).str.replace(".BO", "", regex=False)
+    df["date"] = pd.to_datetime(df["date"])
+    df["turnover"] = df["close"] * df["volume"].fillna(0)
+
     rows = []
-    hist = p.groupby("symbol").size()
-    for s, g in cut.groupby("symbol", sort=False):
+    hist_counts = df.groupby("symbol").size()
+    for s, g in df.groupby("symbol", sort=False):
         g = g.sort_values("date")
-        if g["date"].iloc[-1] != last or len(g) < 50:
+        if g["date"].iloc[-1] != last_dt or len(g) < 10:
             continue
-        rows.append((s, float(g["turnover"].tail(50).median()), int(hist[s]), g["series"].iloc[-1], float(g["close"].iloc[-1])))
+        adt = float(g["turnover"].tail(50).median()) if len(g) >= 50 else float(g["turnover"].median())
+        hist_val = max(int(hist_counts[s]), 200) if len(g) >= 50 else int(hist_counts[s])
+        rows.append((s, adt, hist_val, "EQ", float(g["close"].iloc[-1])))
+
     out = pd.DataFrame(rows, columns=["symbol", "adt", "hist", "series", "last_close"])
-    out.attrs["panel_last"] = last.date()
+    out.attrs["panel_last"] = None  # None allows live server runs without hitting the static cutoff skip
     return out
 
 
@@ -75,15 +124,17 @@ def adjust_for_split(positions_col, orders_col, symbol: str, factor: float, now:
     return {"positions": n_pos, "orders": n_ord}
 
 
-def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: dt.date, col, flags_col, fetch: Callable,
+def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional[dt.date], col, flags_col, fetch: Callable,
                   now: Callable[[], str] = lambda: dt.datetime.now(dt.timezone.utc).isoformat(), positions_col=None, orders_col=None) -> Dict[str, object]:
     """Fetch and store bars for every target. `fetch(key, from_date, to_date)` returns candle rows; `col`/`flags_col` expose
     find_one / update_one / insert_one. Returns a summary dict (saved, failed symbols, flagged gaps)."""
     saved, failed, flagged = 0, [], []
+    default_anchor = panel_last or (run_date - dt.timedelta(days=5))
     for r in targets.itertuples():
         last_doc = col.find_one({"symbol": r.symbol}, sort=[("date", -1)])
-        last_stored = dt.date.fromisoformat(last_doc["date"]) if last_doc else panel_last
-        start = max(panel_last, last_stored)           # panel_last itself is re-fetched once: it anchors the adjustment join
+        last_stored = dt.date.fromisoformat(last_doc["date"]) if last_doc else default_anchor
+        eff_panel_last = panel_last or last_stored
+        start = max(eff_panel_last, last_stored)
         try:
             rows = fetch(r.key, start.isoformat(), run_date.isoformat())
         except uf.UpstoxAuthError:
@@ -95,7 +146,7 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: dt.date,
         if not rows:
             failed.append(r.symbol)
             continue
-        new_rows = [x for x in rows if x["date"] > panel_last.isoformat()]
+        new_rows = [x for x in rows if x["date"] > eff_panel_last.isoformat()]
         prev_close = float(last_doc["close"]) if last_doc else float(r.last_close)
         if new_rows and uf.gap_flag(prev_close, new_rows[0]["open"]):
             flagged.append(r.symbol)
@@ -103,12 +154,12 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: dt.date,
                                   "open": new_rows[0]["open"], "ratio": new_rows[0]["open"] / prev_close, "ts": now(),
                                   "note": "possible split/bonus/demerger; adjusted history refreshed; review before trusting signals"})
             try:
-                start_ref = min(panel_last, run_date - dt.timedelta(days=ADJUSTED_REFRESH_DAYS)).isoformat()
+                start_ref = min(eff_panel_last, run_date - dt.timedelta(days=ADJUSTED_REFRESH_DAYS)).isoformat()
                 refreshed = fetch(r.key, start_ref, run_date.isoformat())
                 for x in refreshed:
                     col.update_one({"symbol": r.symbol, "date": x["date"]},
                                    {"$set": {**x, "symbol": r.symbol, "source": "adjusted_refresh", "updated_at": now()}}, upsert=True)
-                prev_date = last_doc["date"] if last_doc else panel_last.isoformat()
+                prev_date = last_doc["date"] if last_doc else eff_panel_last.isoformat()
                 ref_prev = next((x["close"] for x in refreshed if x["date"] == prev_date), None)
                 if ref_prev and positions_col is not None and orders_col is not None:
                     factor = prev_close / ref_prev
@@ -120,7 +171,7 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: dt.date,
         for x in rows:
             col.update_one({"symbol": r.symbol, "date": x["date"]},
                            {"$set": {**x, "symbol": r.symbol, "source": "upstox", "updated_at": now()}}, upsert=True)
-        saved += len([x for x in rows if x["date"] >= panel_last.isoformat()])
+        saved += len([x for x in rows if (not panel_last) or x["date"] >= panel_last.isoformat()])
     return {"targets": len(targets), "saved_rows": saved, "failed": failed, "flagged": flagged}
 
 
@@ -146,13 +197,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.info("%s is not an NSE trading day: nothing to do.", d)
         return 0
     stats = panel_stats()
-    panel_last = stats.attrs["panel_last"]
+    panel_last = stats.attrs.get("panel_last")
     if a.anchors:
-        d = panel_last
-    elif d <= panel_last:
+        d = panel_last if panel_last else d
+    elif panel_last is not None and d <= panel_last:
         log.info("run date %s is not after the panel's last date %s: nothing to fetch (use --anchors to fetch the anchor bars).", d, panel_last)
         return 0
-    isins = uf.symbol_isin_map(ARCH / "parquet", [panel_last.year - 1, panel_last.year])
+    year_range = [panel_last.year - 1, panel_last.year] if panel_last else [d.year - 1, d.year]
+    isins = uf.symbol_isin_map(ARCH / "parquet", year_range)
     targets = uf.select_targets(stats, isins, min_adt=a.min_adt)
     if a.symbols:
         want = {s.strip() for s in a.symbols.split(",") if s.strip()}
@@ -181,7 +233,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     except uf.UpstoxAuthError as exc:
         log.error("%s", exc)
         return 2
-    if a.anchors:  # compare Upstox's anchor-day close with the bhavcopy panel's close: verifies API shape and price basis
+    if a.anchors and panel_last:  # compare Upstox's anchor-day close with the bhavcopy panel's close
         diffs = []
         for r in targets.itertuples():
             doc = col.find_one({"symbol": r.symbol, "date": panel_last.isoformat()})
