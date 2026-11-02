@@ -23,6 +23,9 @@ def auto_refresh_upstox_token() -> Optional[str]:
     matching Alpha-Pulse's autonomous token renewal mechanism.
     Does NOT require manual daily browser OTP verification.
     """
+    if os.environ.get("UPSTOX_AUTO_REFRESH", "").lower() not in ("true", "1"):
+        return os.environ.get("UPSTOX_ACCESS_TOKEN")
+
     refresh_token = os.environ.get("UPSTOX_REFRESH_TOKEN")
     client_id = os.environ.get("UPSTOX_API_KEY") or os.environ.get("UPSTOX_CLIENT_ID")
     client_secret = os.environ.get("UPSTOX_API_SECRET") or os.environ.get("UPSTOX_CLIENT_SECRET")

@@ -117,6 +117,20 @@ class QuantLabScheduler:
                 "script": os.path.join(PROJECT_ROOT, "scripts", "sync_universe_constituents.py"),
                 "args": ["--index", "nifty500", "--fetch-history"],
                 "day_condition": "SEMI_ANNUAL_ONLY",
+            },
+            {
+                "id": "nightly_catchup_ingestion",
+                "time": "23:00",
+                "description": "Nightly Settled EOD Candle Sync & Catch-Up (11:00 PM IST)",
+                "script": os.path.join(PROJECT_ROOT, "scripts", "ingest_upstox_fulltier.py"),
+                "args": [],
+            },
+            {
+                "id": "nightly_catchup_pipeline",
+                "time": "23:05",
+                "description": "Nightly Final Signal Verification & Catch-Up (11:05 PM IST)",
+                "script": os.path.join(PROJECT_ROOT, "scripts", "run_daily_pipeline.py"),
+                "args": ["--strategy", "trend_momentum_pit"],
             }
         ]
 
@@ -294,7 +308,7 @@ class QuantLabScheduler:
 
 def main():
     parser = argparse.ArgumentParser(description="NSE Quant Lab Background Scheduler")
-    parser.add_argument("--test-job", choices=["morning_execution", "fulltier_ingestion", "benchmark_ingestion", "daily_pipeline", "weekly_report", "monthly_report", "semi_annual_sync"],
+    parser.add_argument("--test-job", choices=["morning_execution", "fulltier_ingestion", "benchmark_ingestion", "daily_pipeline", "weekly_report", "monthly_report", "semi_annual_sync", "nightly_catchup_ingestion", "nightly_catchup_pipeline"],
                         help="Immediately test run a specific job without waiting for its scheduled time.")
     args = parser.parse_args()
 

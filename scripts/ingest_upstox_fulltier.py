@@ -23,6 +23,11 @@ from typing import Callable, Dict, List, Optional
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
+try:
+    from dotenv import load_dotenv
+    load_dotenv(REPO / ".env")
+except ImportError:
+    pass
 sys.path.insert(0, str(REPO / "src"))
 from nse_quant_lab import upstox_feed as uf  # noqa: E402
 
@@ -261,12 +266,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"... {len(targets)} instruments; would request candles {panel_last} -> {d} for each (about {len(targets) * 0.17 / 60:.1f} min at the safe pace). No network call made.")
         return 0
 
-    from nse_quant_lab.data_loader import auto_refresh_upstox_token
     from pymongo import MongoClient
 
-    token = auto_refresh_upstox_token()
+    token = os.environ.get("UPSTOX_ACCESS_TOKEN")
     if not token:
-        log.error("no Upstox access token available (set UPSTOX_ACCESS_TOKEN, or the refresh-token variables).")
+        log.error("no Upstox access token available (set UPSTOX_ACCESS_TOKEN in environment or .env).")
         return 2
     db = MongoClient(a.mongo_uri, serverSelectionTimeoutMS=5000)[a.db]
     col, flags = db[COLLECTION], db["corporate_action_flags"]

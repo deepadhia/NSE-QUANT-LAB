@@ -50,8 +50,8 @@ def ingest_today_candles(date_str: str, symbols: list, db: MongoDatabase, notifi
     logger.info(f"Target Symbols: {len(symbols)}")
     logger.info("=" * 70)
 
-    # Step 1: Auto-refresh Upstox token (Alpha-Pulse method)
-    token = auto_refresh_upstox_token()
+    # Step 1: Upstox Access Token directly from environment / .env
+    token = os.environ.get("UPSTOX_ACCESS_TOKEN")
     col = db.db["upstox_daily_ohlcv"]
 
     success_count = 0
