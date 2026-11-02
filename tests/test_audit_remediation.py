@@ -313,3 +313,11 @@ def test_finding_7_delisting_forced_liquidation_end_to_end(mock_db):
             assert mock_db.positions.delete_one.called
             # Verify order was marked FILLED
             assert mock_db.orders.update_one.called
+
+
+def test_ingest_upstox_fulltier_cli_dry_run():
+    """Verifies ingest_upstox_fulltier CLI parses arguments and executes dry-run without NameError."""
+    import ingest_upstox_fulltier as iuf
+    ret = iuf.main(["--dry-run"])
+    assert ret == 0
+
