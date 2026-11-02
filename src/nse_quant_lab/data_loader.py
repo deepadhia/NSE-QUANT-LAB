@@ -267,6 +267,100 @@ def _mongo_live_source(uri: Optional[str] = None, db_name: Optional[str] = None,
     return read
 
 
+def _load_pit_universe_from_mongo(
+    end_date: Optional[str] = None,
+    min_adt_ever: float = 1.5e6,
+    min_rows: int = 50,
+    mongo_uri: Optional[str] = None,
+    db_name: Optional[str] = None,
+    lookback_days: int = 700,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Server/production live fallback when clean_panel.parquet is not present on disk.
+    Loads recent market history directly from MongoDB collections ('upstox_daily_ohlcv'
+    and 'upstox_fulltier_daily'). Provides identical DataFrame schemas and clean symbols
+    so live forward trading and paper incubation run without needing a 200MB parquet archive.
+    """
+    from pymongo import MongoClient
+
+    uri = mongo_uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+    db_n = db_name or os.environ.get("MONGO_DB", os.environ.get("MONGO_DB_NAME", "stock_scanner"))
+
+    client = MongoClient(uri, serverSelectionTimeoutMS=15000)
+    db = client[db_n]
+
+    end_dt = pd.to_datetime(end_date) if end_date else pd.Timestamp.now()
+    start_dt = end_dt - pd.Timedelta(days=lookback_days)
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    query_filter: Dict[str, Any] = {
+        "date": {"$gte": start_str, "$lte": end_str},
+        "symbol": {"$nin": ["^NSEI", "^CRSLDX", "NIFTY 50", "NIFTY 500"]},
+        "open": {"$gt": 0},
+        "high": {"$gt": 0},
+        "low": {"$gt": 0},
+        "close": {"$gt": 0},
+        "volume": {"$gte": 0},
+    }
+
+    # 1. Fetch from upstox_daily_ohlcv
+    docs_hist = list(db["upstox_daily_ohlcv"].find(
+        query_filter,
+        {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
+    ))
+
+    # 2. Fetch from upstox_fulltier_daily (for latest daily bars if separate)
+    docs_full = []
+    try:
+        if "upstox_fulltier_daily" in db.list_collection_names():
+            docs_full = list(db["upstox_fulltier_daily"].find(
+                {"date": {"$gte": start_str, "$lte": end_str}, "open": {"$gt": 0}, "close": {"$gt": 0}},
+                {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
+            ))
+    except Exception:
+        pass
+
+    all_docs = docs_hist + docs_full
+    if not all_docs:
+        raise ValueError(f"MongoDB ({db_n}.upstox_daily_ohlcv) returned no valid market data between {start_str} and {end_str}.")
+
+    raw_df = pd.DataFrame(all_docs)
+    raw_df["symbol"] = raw_df["symbol"].astype(str).str.replace(".NS", "", regex=False).str.replace(".BO", "", regex=False)
+    raw_df = raw_df.drop_duplicates(subset=["symbol", "date"], keep="last")
+    raw_df["date"] = pd.to_datetime(raw_df["date"])
+    raw_df = raw_df[raw_df["date"] <= end_dt]
+
+    raw_df = raw_df[
+        (raw_df["high"] >= raw_df["low"]) &
+        (raw_df["high"] >= raw_df["open"]) &
+        (raw_df["high"] >= raw_df["close"]) &
+        (raw_df["low"] <= raw_df["open"]) &
+        (raw_df["low"] <= raw_df["close"])
+    ]
+
+    universe: Dict[str, pd.DataFrame] = {}
+    effective_min_rows = min(min_rows, 50)
+    for sym, g in raw_df.groupby("symbol", sort=False):
+        if len(g) < effective_min_rows:
+            continue
+        g = g.sort_values("date").reset_index(drop=True)
+        g["series"] = "EQ"
+        g["turnover"] = g["close"] * g["volume"]
+        med = g["turnover"].rolling(50, min_periods=min(50, len(g))).median()
+        if not (med >= min_adt_ever).any():
+            continue
+        cols = ["symbol", "date", "series", "open", "high", "low", "close", "volume", "turnover"]
+        universe[str(sym)] = g[cols]
+
+    if not universe:
+        raise ValueError(f"No symbols in MongoDB met liquidity and history criteria between {start_str} and {end_str}.")
+
+    last_dt = max(g["date"].iloc[-1] for g in universe.values()).date()
+    logger.info("PIT universe (MongoDB fallback): %d symbols loaded, last bar %s", len(universe), last_dt)
+    return universe
+
+
 def load_pit_universe(
     end_date: Optional[str] = None,
     panel_path: Optional[str] = None,
@@ -291,12 +385,19 @@ def load_pit_universe(
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     if panel_path:
         path = panel_path
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"clean panel not found at {path}; run research/audit_2026-10/scripts/build_clean_panel.py")
     else:
         p1 = os.path.join(base, "data", "external", "nse_archive", "clean_panel.parquet")
         p2 = os.path.join(base, "external", "nse_archive", "clean_panel.parquet")
-        path = p1 if os.path.exists(p1) else p2
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"clean panel not found at {path}; run research/audit_2026-10/scripts/build_clean_panel.py")
+        path = p1 if os.path.exists(p1) else (p2 if os.path.exists(p2) else None)
+        if path is None:
+            logger.info("clean_panel.parquet not found on disk; falling back to MongoDB live store.")
+            return _load_pit_universe_from_mongo(
+                end_date=end_date,
+                min_adt_ever=min_adt_ever,
+                min_rows=min_rows,
+            )
     panel = pd.read_parquet(path)
     panel["series"] = panel["series"].astype(str)
     panel["date"] = pd.to_datetime(panel["date"])

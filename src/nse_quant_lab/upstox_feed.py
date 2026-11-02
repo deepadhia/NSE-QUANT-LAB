@@ -47,13 +47,32 @@ def instrument_key(isin: str) -> str:
 
 
 def symbol_isin_map(parquet_dir: Path, years: Iterable[int]) -> Dict[str, str]:
-    """Latest non-empty ISIN per NSE symbol from the local raw bhavcopy Parquet archive (recent years only)."""
+    """Latest non-empty ISIN per NSE symbol from the local raw bhavcopy Parquet archive (recent years only).
+    If parquet archive is not present on disk (cloud server), falls back to MongoDB 'symbols' collection."""
     frames = []
-    for y in years:
-        f = Path(parquet_dir) / f"bhavcopy_{y}.parquet"
-        if f.exists():
-            frames.append(pd.read_parquet(f, columns=["symbol", "isin", "date"]))
+    if parquet_dir and Path(parquet_dir).exists():
+        for y in years:
+            f = Path(parquet_dir) / f"bhavcopy_{y}.parquet"
+            if f.exists():
+                frames.append(pd.read_parquet(f, columns=["symbol", "isin", "date"]))
     if not frames:
+        try:
+            import os
+            from pymongo import MongoClient
+
+            mongo_u = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+            m_db = os.environ.get("MONGO_DB", os.environ.get("MONGO_DB_NAME", "stock_scanner"))
+            cli = MongoClient(mongo_u, serverSelectionTimeoutMS=2000)
+            sym_docs = list(cli[m_db]["symbols"].find({"isin": {"$regex": "^INE"}}, {"_id": 0, "symbol": 1, "isin": 1}))
+            res = {}
+            for d in sym_docs:
+                clean = d["symbol"].replace(".NS", "").replace(".BO", "")
+                res[clean] = d["isin"]
+                res[d["symbol"]] = d["isin"]
+            if res:
+                return res
+        except Exception:
+            pass
         return {}
     d = pd.concat(frames, ignore_index=True)
     d = d[d["isin"].fillna("").str.startswith("INE")].sort_values("date")

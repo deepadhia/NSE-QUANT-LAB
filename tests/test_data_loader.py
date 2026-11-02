@@ -84,3 +84,86 @@ def test_mongo_success_returns_db_universe(monkeypatch, sample_parquet):
     universe = load_clean_universe("2024-01-01", "2024-02-01", parquet_path=sample_parquet)
     assert list(universe) == ["REAL.NS"]
     assert universe["REAL.NS"]["date"].is_monotonic_increasing
+
+def test_load_pit_universe_explicit_panel_path_missing_raises_file_not_found():
+    from nse_quant_lab.data_loader import load_pit_universe
+    with pytest.raises(FileNotFoundError, match="clean panel not found"):
+        load_pit_universe(panel_path="nonexistent_panel_file.parquet")
+
+
+def test_load_pit_universe_falls_back_to_mongo_when_parquet_absent(monkeypatch):
+    import os
+    from nse_quant_lab.data_loader import load_pit_universe
+
+    # Ensure parquet is reported as missing
+    orig_exists = os.path.exists
+    def fake_exists(path):
+        if "clean_panel.parquet" in str(path):
+            return False
+        return orig_exists(path)
+
+    monkeypatch.setattr(os.path, "exists", fake_exists)
+
+    # Generate 60 daily bars for 2 stocks
+    dates = pd.date_range("2026-01-01", periods=60, freq="B").strftime("%Y-%m-%d").tolist()
+    docs = []
+    for d in dates:
+        docs.append({"symbol": "SBIN.NS", "date": d, "open": 500.0, "high": 510.0, "low": 495.0, "close": 505.0, "volume": 100_000.0})
+        docs.append({"symbol": "INFY.NS", "date": d, "open": 1500.0, "high": 1520.0, "low": 1490.0, "close": 1510.0, "volume": 50_000.0})
+
+    class _FakeCollectionPIT:
+        def __init__(self, data):
+            self.data = data
+        def find(self, *args, **kwargs):
+            return iter(self.data)
+
+    class _FakeClientPIT:
+        def __init__(self, *args, **kwargs):
+            self.admin = _FakeAdmin(None)
+        def __getitem__(self, name):
+            return {
+                "upstox_daily_ohlcv": _FakeCollectionPIT(docs),
+                "upstox_fulltier_daily": _FakeCollectionPIT([]),
+                "symbols": _FakeCollectionPIT([]),
+            }
+
+    monkeypatch.setattr(pymongo, "MongoClient", _FakeClientPIT)
+
+    universe = load_pit_universe(end_date="2026-10-30", min_adt_ever=1.0e6, min_rows=50)
+    assert "SBIN" in universe
+    assert "INFY" in universe
+    assert len(universe["SBIN"]) == 60
+    assert universe["SBIN"]["series"].iloc[0] == "EQ"
+    assert "turnover" in universe["SBIN"].columns
+    assert universe["SBIN"]["turnover"].iloc[0] == pytest.approx(505.0 * 100_000.0)
+
+
+def test_load_pit_universe_empty_mongo_raises_value_error(monkeypatch):
+    import os
+    from nse_quant_lab.data_loader import load_pit_universe
+
+    orig_exists = os.path.exists
+    def fake_exists(path):
+        if "clean_panel.parquet" in str(path):
+            return False
+        return orig_exists(path)
+
+    monkeypatch.setattr(os.path, "exists", fake_exists)
+
+    class _FakeCollectionEmpty:
+        def find(self, *args, **kwargs):
+            return iter([])
+
+    class _FakeClientEmpty:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __getitem__(self, name):
+            return {
+                "upstox_daily_ohlcv": _FakeCollectionEmpty(),
+                "upstox_fulltier_daily": _FakeCollectionEmpty(),
+            }
+
+    monkeypatch.setattr(pymongo, "MongoClient", _FakeClientEmpty)
+
+    with pytest.raises(ValueError, match="returned no valid market data"):
+        load_pit_universe(end_date="2026-10-30")

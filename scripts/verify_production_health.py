@@ -57,25 +57,37 @@ def check_production_health() -> bool:
         active_pit = [s for s in active_ids if s in pit_strategies]
 
         if active_pit:
-            logger.info(f"   Active PIT strategies require 'clean_panel.parquet': {active_pit}")
+            logger.info(f"   Active PIT strategies in DB: {active_pit}")
             p1 = REPO_ROOT / "data" / "external" / "nse_archive" / "clean_panel.parquet"
             p2 = REPO_ROOT / "external" / "nse_archive" / "clean_panel.parquet"
             resolved_panel = p1 if p1.exists() else (p2 if p2.exists() else None)
 
-            if not resolved_panel:
-                logger.error("=" * 70)
-                logger.error("❌ CRITICAL DATA ARTIFACT MISSING: clean_panel.parquet not found!")
-                logger.error(f"   Searched locations:")
-                logger.error(f"     1. {p1}")
-                logger.error(f"     2. {p2}")
-                logger.error("   Reason: clean_panel.parquet is git-ignored (>100MB).")
-                logger.error("   Remedy: Transfer clean_panel.parquet from local machine to server:")
-                logger.error("     scp external/nse_archive/clean_panel.parquet ubuntu@<SERVER_IP>:~/NSE-QUANT-LAB/external/nse_archive/")
-                logger.error("=" * 70)
-                has_failures = True
-            else:
+            if resolved_panel:
                 file_size_mb = resolved_panel.stat().st_size / (1024 * 1024)
                 logger.info(f"✅ clean_panel.parquet found at: {resolved_panel} ({file_size_mb:.1f} MB)")
+            else:
+                # Approach A: Verify MongoDB live data store has sufficient recent candles
+                mongo_bars_count = 0
+                try:
+                    mongo_bars_count = db.db["upstox_daily_ohlcv"].count_documents({"date": {"$gte": "2025-01-01"}})
+                except Exception:
+                    pass
+
+                if mongo_bars_count >= 1000:
+                    logger.info(
+                        f"✅ MongoDB market data store active: {mongo_bars_count:,} recent candles found in 'upstox_daily_ohlcv'. "
+                        f"(Running in MongoDB-backed mode, clean_panel.parquet not required on server)."
+                    )
+                else:
+                    logger.error("=" * 70)
+                    logger.error("❌ CRITICAL DATA ARTIFACT MISSING: clean_panel.parquet not found and MongoDB data is insufficient!")
+                    logger.error(f"   Searched locations:")
+                    logger.error(f"     1. {p1}")
+                    logger.error(f"     2. {p2}")
+                    logger.error(f"   MongoDB 'upstox_daily_ohlcv' recent bars: {mongo_bars_count} (< 1,000)")
+                    logger.error("   Remedy: Either transfer clean_panel.parquet or ingest recent bars via Upstox.")
+                    logger.error("=" * 70)
+                    has_failures = True
     except Exception as e:
         logger.error(f"❌ Failed to verify strategy data artifacts: {e}")
         has_failures = True
@@ -121,3 +133,4 @@ def check_production_health() -> bool:
 if __name__ == "__main__":
     success = check_production_health()
     sys.exit(0 if success else 1)
+

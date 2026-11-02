@@ -140,3 +140,26 @@ def test_symbol_isin_map_takes_latest_valid_isin(tmp_path):
 def test_gap_flag():
     assert uf.gap_flag(100.0, 70.0) and uf.gap_flag(100.0, 140.0)
     assert not uf.gap_flag(100.0, 95.0) and not uf.gap_flag(None, 50.0) and not uf.gap_flag(100.0, 0.0)
+
+def test_symbol_isin_map_falls_back_to_mongo(monkeypatch):
+    import pymongo
+
+    class _FakeCol:
+        def find(self, *args, **kwargs):
+            return [
+                {"symbol": "RELIANCE.NS", "isin": "INE002A01018"},
+                {"symbol": "TCS.NS", "isin": "INE467B01029"},
+            ]
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __getitem__(self, name):
+            return {"symbols": _FakeCol()}
+
+    monkeypatch.setattr(pymongo, "MongoClient", _FakeClient)
+
+    isin_map = uf.symbol_isin_map("nonexistent_parquet_dir", [2025, 2026])
+    assert isin_map["RELIANCE"] == "INE002A01018"
+    assert isin_map["RELIANCE.NS"] == "INE002A01018"
+    assert isin_map["TCS"] == "INE467B01029"
