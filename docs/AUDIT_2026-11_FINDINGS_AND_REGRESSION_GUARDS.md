@@ -27,6 +27,17 @@ Evidence labels: **VERIFIED** (executed), **READ** (source inspection), **INFERR
 | L5 | Low | `mode="paper"` hardcoded alongside `config.mode` | `self._mode` everywhere in the manager | — |
 | L6 | Low | Health check was shallow and could NameError | Adds order-ID namespace, idempotency-index, benchmark-freshness and holiday-calendar checks | `scripts/verify_production_health.py` |
 
+### 1b. Follow-up review of the corporate-actions commit (c6c4f80)
+
+| Defect | Fix | Guard |
+|---|---|---|
+| After applying a split, the stored `last_close` stayed on the old price basis: equity for sizing was overstated (a same-morning buy came out at 279 shares vs a correct max of 240) and a false `[POSSIBLE_CORPORATE_ACTION]` fired | `_apply_corporate_actions` rebases `last_close` by the ratio | `test_split_rebases_stored_mark_so_sizing_and_alerts_stay_correct` |
+| `parse_action_subject` returned only the bonus for combined subjects (`Fv Spl-Rs5 To Rs2/Bon 1:1` -> x2 instead of x5), so shares were under-adjusted silently | Combined subjects return one `split_bonus` action with the product ratio; if either half cannot be parsed the whole subject returns `None` (never half an action) and `needs_review()` flags it; `sync_corporate_actions` logs `[CORP_ACTION_UNPARSED]` and returns `stats["unparsed"]`; glued tokens (`Rs10tors2`) are repaired | `tests/test_corporate_actions.py` (combined, glued, half-parseable, rights ratio, unparsed reporting, dataset consistency) |
+
+Parser vs `all_corporate_actions.parquet` (provenance of that file unverified): 1,435 unique split/bonus events, 1,433 parsed, 0 disagree, 2 flagged for manual entry.
+
+Open: `NSECorporateActionClient` queries NSE's website API with a browser user-agent and cookie handshake (bot-filter workaround). Whether to keep it is a policy/terms decision for the owner; manual `--add` entries and hand-downloaded files are the alternatives. A failed sync only logs a warning; the price-discontinuity alert is the backstop. Continuity of the live price series across an ex-date (for SMA150/EMA100) is UNVERIFIED.
+
 ## 2. Known limitations that remain (documented, not hidden)
 
 * **Engine vs paper, intentionally different:** paper writes down forced delistings at a 5% haircut and force-liquidates after 10 days of lower-circuit deferral; the engine uses `delist_haircut` (default 0) and no 10-day rule. Under `TRY_NEXT` paper stages `open_slots + paper_backup_slots` (60) orders; the engine's pool is unbounded. Both are rare.

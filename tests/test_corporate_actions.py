@@ -245,3 +245,67 @@ def test_end_to_end_paper_manager_applies_synced_split():
     pos_after = mock_db.positions.find_one({"symbol": "TCS"})
     assert pos_after["shares"] == 200
     assert len(pos_after["applied_actions"]) == 1
+
+
+# ---------------------------------------------------------------- combined / partial announcements (parser audit fix)
+from nse_quant_lab.corporate_actions import needs_review
+
+
+def test_combined_bonus_and_split_applies_the_product_not_half():
+    r = parse_action_subject("Fv Spl-Rs5 To Rs2/Bon 1:1")
+    assert r["action_type"] == "split_bonus"
+    assert r["ratio"] == pytest.approx(2.5 * 2.0)          # split 5->2 (x2.5) AND bonus 1:1 (x2)
+
+    r2 = parse_action_subject("Bonus 1:1 / Face Value Split From Rs 10 To Rs 5")
+    assert r2["ratio"] == pytest.approx(4.0)
+
+
+def test_glued_tokens_from_nse_subjects_are_repaired():
+    assert parse_action_subject("Fv Spl-Rs10tors2/Bon-1:1")["ratio"] == pytest.approx(10.0)
+    assert parse_action_subject("Bon 1:1/Fv Spl Rs.5tors.2")["ratio"] == pytest.approx(5.0)
+
+
+def test_half_parseable_combined_subject_is_never_applied_and_is_flagged():
+    subj = "Agm/Spl/Bon-1:1/Div-20%"            # says split AND bonus, split amounts missing
+    assert parse_action_subject(subj) is None
+    assert needs_review(subj) is True
+
+
+def test_bonus_ratio_ignores_rights_ratio_and_non_events_are_not_flagged():
+    assert parse_action_subject("Bonus - 1:5/Rights - 1:2")["ratio"] == pytest.approx(1.2)
+    for s in ("Interim Dividend - Rs 8 Per Share", "Scheme Of Arrangement - Bonus Ncrps 4:1", "Rights 19:25 @ Premium Rs 10/-"):
+        assert parse_action_subject(s) is None and needs_review(s) is False
+
+
+def test_sync_reports_unparsed_relevant_announcements_loudly(caplog):
+    import logging
+    mock_db = MockDatabase()
+    client = MagicMock(spec=NSECorporateActionClient)
+    client.fetch_actions.return_value = [
+        {"symbol": "SUNTV", "series": "EQ", "exDate": "05-Aug-2026", "subject": "Agm/Spl/Bon-1:1/Div-20%"},
+        {"symbol": "OKCO", "series": "EQ", "exDate": "06-Aug-2026", "subject": "Fv Spl-Rs5 To Rs2/Bon 1:1"},
+    ]
+    with caplog.at_level(logging.ERROR, logger="nse_quant_lab.corporate_actions"):
+        stats = sync_corporate_actions(mock_db, client=client)
+    assert stats["unparsed"] == 1 and stats["parsed"] == 1
+    assert any("CORP_ACTION_UNPARSED" in r.message and "SUNTV" in r.message for r in caplog.records)
+    assert mock_db.get_collection("corporate_actions").find_one({"symbol": "SUNTV"}) is None, "half action must not be stored"
+    assert mock_db.get_collection("corporate_actions").find_one({"symbol": "OKCO"})["ratio"] == pytest.approx(5.0)
+
+
+def test_parser_matches_historical_dataset_factors_when_available():
+    """Consistency check against external/nse_archive/all_corporate_actions.parquet (itself of unverified provenance):
+    every subject the parser accepts must reproduce the dataset's split*bonus price factor."""
+    from pathlib import Path
+    p = Path(__file__).resolve().parents[1] / "external" / "nse_archive" / "all_corporate_actions.parquet"
+    if not p.exists():
+        pytest.skip("historical corporate actions parquet not present")
+    df = pd.read_parquet(p)
+    sb = df[df["kind"].isin(["split", "bonus"])]
+    grp = sb.groupby(["symbol", "ex_date", "subject"])["price_factor"].prod().reset_index()
+    bad = []
+    for _, r in grp.iterrows():
+        parsed = parse_action_subject(r["subject"])
+        if parsed and abs(1.0 / parsed["ratio"] - r["price_factor"]) > 1e-3:
+            bad.append((r["symbol"], str(r["ex_date"])[:10], r["subject"], r["price_factor"], round(1 / parsed["ratio"], 6)))
+    assert not bad, f"parser disagrees with dataset on {len(bad)} events, e.g. {bad[:3]}"

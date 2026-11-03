@@ -118,8 +118,15 @@ def main():
         logger.info(">> Syncing upcoming corporate actions from NSE...")
         ca_stats = sync_corporate_actions(db, days_back=7, days_ahead=30)
         logger.info(f"   Corporate actions: {ca_stats['fetched']} fetched from NSE, {ca_stats['upserted']} new/updated in DB.")
+        if ca_stats.get("unparsed"):
+            logger.error(f"   [CORP_ACTION_UNPARSED] {ca_stats['unparsed']} announcement(s) need manual entry - see log above.")
     except Exception as e:
-        logger.warning(f"Corporate actions sync skipped: {e}")
+        logger.critical(f"[CORP_ACTION_SYNC_FAILED] Failed to sync corporate actions from NSE: {e}")
+        try:
+            from nse_quant_lab.notifications.telegram import TelegramNotifier
+            TelegramNotifier().send_message(f"🚨 CRITICAL: Corporate actions sync from NSE failed: {e}")
+        except Exception:
+            pass
 
     # 2. Load recent universe for signal evaluation
     logger.info(">> Loading recent market universe...")

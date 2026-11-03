@@ -27,7 +27,12 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 )
 
-# Regex Patterns for Parsing
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def get_ist_today() -> date:
+    """Returns today's date in Indian Standard Time (IST)."""
+    return datetime.now(IST).date()
 BONUS_KEYWORD = re.compile(r"\bbonus\b|\bbon\b", re.I)
 NON_EQUITY_BONUS = re.compile(r"\b(?:deb|debenture\w*|pref|preference\w*|ncrps|nccps|dvr|ncd|redeemable)\b", re.I)
 BONUS_PATTERN = re.compile(r"(?<![\d.])(\d{1,6})\s*:\s*(\d{1,6})(?![\d.])")
@@ -42,55 +47,87 @@ SPLIT_PATTERN = re.compile(
 SERIES_OK = {"EQ", "BE", "BZ", "SM", "ST"}
 
 
+# Split/consolidation wording that makes an announcement "relevant" for the manual-review flag (bare "FV" is too common in dividends)
+REVIEW_SPLIT_KEYWORD = re.compile(r"\b(?:split|sub[\s-]?division|spl|consolidat\w*)\b", re.I)
+
+
+def _normalise(subject: str) -> str:
+    """Whitespace/'/-' cleanup plus repair of glued tokens seen in NSE subjects ('Rs10tors2' -> 'Rs 10 to rs 2')."""
+    s = " ".join(str(subject).replace("/-", " ").split())
+    s = re.sub(r"(?<=\d)(?=[A-Za-z])|(?<=[A-Za-z])(?=\d)", " ", s)        # split digit/letter junctions
+    s = re.sub(r"(?i)\bto(rs|re|inr)\b", r"to \1", s)                       # 'tors' / 'tore' -> 'to rs' / 'to re'
+    return s
+
+
+def _parse_bonus(subj: str) -> Optional[Dict[str, Any]]:
+    kw = BONUS_KEYWORD.search(subj)
+    if not kw or NON_EQUITY_BONUS.search(subj):
+        return None
+    # the ratio that follows the bonus keyword (so 'Bonus - 1:5/Rights - 1:2' reads 1:5, never the rights ratio)
+    m = BONUS_PATTERN.search(subj[kw.end():]) or BONUS_PATTERN.search(subj)
+    if not m:
+        return None
+    new_shares, held_shares = float(m.group(1)), float(m.group(2))
+    if new_shares <= 0 or held_shares <= 0:
+        return None
+    return {"action_type": "bonus", "ratio": round(1.0 + new_shares / held_shares, 6),
+            "details": f"Bonus {int(new_shares)}:{int(held_shares)}"}
+
+
+def _parse_split(subj: str) -> Optional[Dict[str, Any]]:
+    if not SPLIT_KEYWORD.search(subj):
+        return None
+    m = SPLIT_PATTERN.search(subj)
+    if not m:
+        return None
+    from_fv, to_fv = float(m.group(1)), float(m.group(2))
+    if from_fv <= 0 or to_fv <= 0 or abs(from_fv - to_fv) <= 1e-4:
+        return None
+    ratio = round(from_fv / to_fv, 6)
+    return {"action_type": "split" if ratio > 1.0 else "consolidation", "ratio": ratio,
+            "details": f"FV {from_fv:g} to {to_fv:g}"}
+
+
 def parse_action_subject(subject: str) -> Optional[Dict[str, Any]]:
     """
-    Parses an NSE announcement subject string to detect equity splits, consolidations, or bonuses.
-    Returns a dict with `action_type` and `ratio` (share multiplier), or None if irrelevant.
-    
+    Parses an NSE announcement subject to detect equity splits, consolidations, bonuses, or a combination.
+    Returns {'action_type', 'ratio' (share multiplier), 'details'} or None.
+
+    A subject that announces BOTH a bonus and a split ('Fv Spl-Rs5 To Rs2/Bon 1:1') is returned as one
+    'split_bonus' action whose ratio is the PRODUCT of the two multipliers. If one part cannot be parsed the whole
+    subject returns None (never apply half an action); `needs_review()` then flags it for a human.
+
     Examples:
-      - 'Face Value Split (Sub-Division) - From Rs 10/- To Re 1/-' -> {'action_type': 'split', 'ratio': 10.0}
-      - 'Bonus 1:1' -> {'action_type': 'bonus', 'ratio': 2.0}
-      - 'Bonus 1:2' -> {'action_type': 'bonus', 'ratio': 1.5}
-      - 'Consolidation - From Re 1/- To Rs 10/-' -> {'action_type': 'consolidation', 'ratio': 0.1}
+      - 'Face Value Split (Sub-Division) - From Rs 10/- To Re 1/-' -> split, 10.0
+      - 'Bonus 1:1' -> bonus, 2.0          - 'Bonus 1:2' -> bonus, 1.5
+      - 'Consolidation - From Re 1/- To Rs 10/-' -> consolidation, 0.1
+      - 'Fv Spl-Rs5 To Rs2/Bon 1:1' -> split_bonus, 5.0
       - 'Scheme Of Arrangement - Bonus Ncrps 4:1' -> None (non-equity)
     """
     if not subject:
         return None
+    subj = _normalise(subject)
+    bonus, split = _parse_bonus(subj), _parse_split(subj)
+    has_bonus_kw = bool(BONUS_KEYWORD.search(subj)) and not NON_EQUITY_BONUS.search(subj)
+    has_split_kw = bool(REVIEW_SPLIT_KEYWORD.search(subj))
 
-    clean_subj = " ".join(str(subject).replace("/-", " ").split())
-    clean_lower = clean_subj.lower()
+    if bonus and split:
+        return {"action_type": "split_bonus", "ratio": round(bonus["ratio"] * split["ratio"], 6),
+                "details": f"{split['details']} + {bonus['details']}"}
+    if bonus and has_split_kw:      # split announced but unparseable: do not apply the bonus alone
+        return None
+    if split and has_bonus_kw:      # bonus announced but unparseable: do not apply the split alone
+        return None
+    return bonus or split
 
-    # 1. Check for Bonus
-    if BONUS_KEYWORD.search(clean_lower):
-        if not NON_EQUITY_BONUS.search(clean_lower):
-            m_bonus = BONUS_PATTERN.search(clean_subj)
-            if m_bonus:
-                new_shares = float(m_bonus.group(1))
-                held_shares = float(m_bonus.group(2))
-                if new_shares > 0 and held_shares > 0:
-                    ratio = round(1.0 + (new_shares / held_shares), 6)
-                    return {
-                        "action_type": "bonus",
-                        "ratio": ratio,
-                        "details": f"Bonus {int(new_shares)}:{int(held_shares)}"
-                    }
 
-    # 2. Check for Split / Sub-Division / Consolidation
-    if SPLIT_KEYWORD.search(clean_lower):
-        m_split = SPLIT_PATTERN.search(clean_subj)
-        if m_split:
-            from_fv = float(m_split.group(1))
-            to_fv = float(m_split.group(2))
-            if from_fv > 0 and to_fv > 0 and abs(from_fv - to_fv) > 1e-4:
-                ratio = round(from_fv / to_fv, 6)
-                action_type = "split" if ratio > 1.0 else "consolidation"
-                return {
-                    "action_type": action_type,
-                    "ratio": ratio,
-                    "details": f"FV {from_fv:g} to {to_fv:g}"
-                }
-
-    return None
+def needs_review(subject: str) -> bool:
+    """True when the subject looks like an equity bonus/split/consolidation that the parser could NOT turn into a ratio."""
+    if not subject:
+        return False
+    subj = _normalise(subject)
+    relevant = (bool(BONUS_KEYWORD.search(subj)) and not NON_EQUITY_BONUS.search(subj)) or bool(REVIEW_SPLIT_KEYWORD.search(subj))
+    return relevant and parse_action_subject(subject) is None
 
 
 class NSECorporateActionClient:
@@ -174,7 +211,7 @@ def sync_corporate_actions(
     Synchronizes official NSE corporate actions into MongoDB collection `corporate_actions`.
     Ensures idempotency via unique compound index on (symbol, ex_date, action_type).
 
-    Returns summary stats dict: {"fetched": int, "parsed": int, "upserted": int}.
+    Returns summary stats dict: {"fetched", "parsed", "upserted", "unparsed"} (unparsed = relevant subjects needing manual entry).
     """
     coll = db.get_collection("corporate_actions")
     # Ensure unique index
@@ -183,14 +220,14 @@ def sync_corporate_actions(
     except Exception as idx_err:
         logger.warning("Index creation on corporate_actions: %s", idx_err)
 
-    today = date.today()
+    today = get_ist_today()
     start_dt = today - timedelta(days=days_back)
     end_dt = today + timedelta(days=days_ahead)
 
     client = client or NSECorporateActionClient()
     records = client.fetch_actions(start_dt, end_dt)
 
-    stats = {"fetched": len(records), "parsed": 0, "upserted": 0}
+    stats = {"fetched": len(records), "parsed": 0, "upserted": 0, "unparsed": 0}
     if not records:
         return stats
 
@@ -222,6 +259,10 @@ def sync_corporate_actions(
 
         parsed = parse_action_subject(raw_subj)
         if not parsed:
+            if needs_review(raw_subj):
+                stats["unparsed"] += 1
+                logger.error("[CORP_ACTION_UNPARSED] %s ex %s: cannot derive a share ratio from %r. Record it by hand "
+                             "(scripts/sync_corporate_actions.py --add) if the stock is held.", raw_sym, ex_date_iso, raw_subj)
             continue
 
         stats["parsed"] += 1

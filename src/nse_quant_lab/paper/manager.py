@@ -74,12 +74,9 @@ class PaperTradingManager:
             _has_exec_id = {"partialFilterExpression": {"exec_id": {"$type": "string"}}}
             self.db.executions.create_index([("strategy_id", 1), ("mode", 1), ("exec_id", 1)], unique=True, **_has_exec_id)
             self.db.trades.create_index([("strategy_id", 1), ("mode", 1), ("exec_id", 1)], unique=True, **_has_exec_id)
-            try:
-                self.db.get_collection("corporate_actions").create_index(
-                    [("symbol", 1), ("ex_date", 1), ("action_type", 1)], unique=True
-                )
-            except Exception:
-                pass
+            self.db.get_collection("corporate_actions").create_index(
+                [("symbol", 1), ("ex_date", 1), ("action_type", 1)], unique=True
+            )
         except Exception as e:
             # Missing unique indexes silently remove duplicate protection: say so loudly instead of a quiet warning.
             logger.critical(f"[INDEX_CREATION_FAILED] Unique/idempotency indexes missing: {e}")
@@ -198,11 +195,16 @@ class PaperTradingManager:
             for k in ("entry_price", "entry_fill_price"):
                 if pos.get(k):
                     pos[k] = float(pos[k]) / ratio
+            # The stored mark is on the OLD price basis: rebase it with the share count (market value is unchanged by a
+            # split). Otherwise shares x stale mark overstates equity (oversizing buys) and trips the discontinuity alert.
+            if pos.get("last_close"):
+                pos["last_close"] = float(pos["last_close"]) / ratio
             pos["applied_actions"] = list(pos.get("applied_actions") or []) + [key]
             self.db.positions.update_one(
                 {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
                 {"$set": {"shares": pos["shares"], "entry_price": pos.get("entry_price"),
-                          "entry_fill_price": pos.get("entry_fill_price"), "applied_actions": pos["applied_actions"]}},
+                          "entry_fill_price": pos.get("entry_fill_price"), "last_close": pos.get("last_close"),
+                          "applied_actions": pos["applied_actions"]}},
             )
             self._alert(f"Corporate action applied {sym} ex {ex_date} x{ratio:g}: shares -> {new_shares}")
 

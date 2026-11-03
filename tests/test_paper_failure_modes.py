@@ -240,3 +240,24 @@ def test_backdated_signal_run_is_refused():
     assert res["status"] == "REFUSED_STALE_DECISION_DATE"
     assert len(db.daily_nav.docs) == nav_before
     assert not [o for o in db.orders.docs if o["status"] == "PENDING_OPEN"]
+
+
+def test_split_rebases_stored_mark_so_sizing_and_alerts_stay_correct(caplog):
+    """Regression: after applying a split the stored last_close must move to the new price basis, otherwise
+    equity for sizing is overstated (oversized buys) and a false POSSIBLE_CORPORATE_ACTION alert fires."""
+    mgr, db, _ = _make()
+    _position(db, shares=100, price=200.0, entry_date="2026-01-02")
+    db.get_collection("corporate_actions").insert_one({"symbol": "AAA", "ex_date": "2026-03-03", "ratio": 2.0, "action_type": "split"})
+    _order(db, f"ORD_BUY_{SID}_2026-03-02_BBB", "BBB", "BUY", "2026-03-02", reason="RANK_1", shares=0)
+    mgr.quote_provider = lambda s: {"open": 100.0, "high": 100.0, "low": 100.0, "ltp": 100.0}
+    uni = {"AAA": _frame("2026-03-02", price=200.0), "BBB": _frame("2026-03-02", price=100.0)}
+    mgr.execute_morning_fills(uni, pd.Timestamp("2026-03-03"))
+    pos = db.positions.find_one({"strategy_id": SID, "symbol": "AAA"})
+    assert pos["shares"] == 200 and pos["last_close"] == pytest.approx(100.0)
+    buy = [e for e in db.executions.docs if e["action"] == "BUY"][0]
+    # true equity ~ cash 100000 + 200 x 100 = 120000 -> 5-slot target 24000 -> at most 240 shares at 100
+    assert buy["shares"] <= 240
+
+    with caplog.at_level(logging.CRITICAL, logger="nse_quant_lab.paper.manager"):
+        mgr.generate_post_market_signals({"AAA": _frame("2026-03-03", price=100.0)}, pd.Timestamp("2026-03-03"))
+    assert not any("POSSIBLE_CORPORATE_ACTION" in r.message for r in caplog.records), "false alert after a recorded split"

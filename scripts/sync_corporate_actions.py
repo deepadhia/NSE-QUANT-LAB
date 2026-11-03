@@ -146,7 +146,7 @@ def main():
     parser.add_argument("--symbol", type=str, help="Stock symbol for manual entry (e.g. TCS)")
     parser.add_argument("--ex-date", type=str, help="Ex-date in YYYY-MM-DD format for manual entry")
     parser.add_argument("--ratio", type=float, help="Share multiplier ratio for manual entry (e.g. 2.0 for 1:2 split)")
-    parser.add_argument("--action-type", type=str, default="split", choices=["split", "bonus", "consolidation"], help="Action type")
+    parser.add_argument("--action-type", type=str, default="split", choices=["split", "bonus", "split_bonus", "consolidation"], help="Action type")
     parser.add_argument("--details", type=str, default="", help="Description notes for manual entry")
     args = parser.parse_args()
 
