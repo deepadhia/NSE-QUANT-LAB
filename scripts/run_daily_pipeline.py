@@ -2,12 +2,13 @@
 run_daily_pipeline.py -- Daily Post-Market Automation Pipeline for Cloud / VPS Deployment
 ========================================================================================
 Designed to run via daily cron (e.g. 18:00 IST / 6:00 PM on Oracle Cloud server):
-1. Loads recent market universe from MongoDB.
-2. Identifies all ACTIVE strategies registered in the database (or a targeted strategy).
-3. Reads strategy configurations (capital, portfolio size, rebalance frequency) from DB.
-4. Evaluates daily exits and scheduled rebalances.
-5. Logs orders to MongoDB 'orders' collection with mode='paper' and status='PENDING_OPEN'.
-6. Broadcasts formatted alerts to Telegram.
+1. Syncs upcoming official corporate actions (splits, bonuses) from NSE.
+2. Loads recent market universe from MongoDB.
+3. Identifies all ACTIVE strategies registered in the database (or a targeted strategy).
+4. Reads strategy configurations (capital, portfolio size, rebalance frequency) from DB.
+5. Evaluates daily exits and scheduled rebalances.
+6. Logs orders to MongoDB 'orders' collection with mode='paper' and status='PENDING_OPEN'.
+7. Broadcasts formatted alerts to Telegram.
 """
 
 import os
@@ -27,6 +28,7 @@ from nse_quant_lab.data_loader import load_clean_universe, load_pit_universe
 from nse_quant_lab.paper.manager import PaperTradingManager
 from nse_quant_lab.db.mongo_client import MongoDatabase
 from nse_quant_lab.holidays import is_trading_day
+from nse_quant_lab.corporate_actions import sync_corporate_actions
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("daily_pipeline")
@@ -111,7 +113,15 @@ def main():
 
     logger.info(f">> Active strategies to process: {[d['strategy_id'] for d in strat_docs]}")
 
-    # Load recent universe for signal evaluation
+    # 1. Sync upcoming corporate actions from NSE (splits & bonuses)
+    try:
+        logger.info(">> Syncing upcoming corporate actions from NSE...")
+        ca_stats = sync_corporate_actions(db, days_back=7, days_ahead=30)
+        logger.info(f"   Corporate actions: {ca_stats['fetched']} fetched from NSE, {ca_stats['upserted']} new/updated in DB.")
+    except Exception as e:
+        logger.warning(f"Corporate actions sync skipped: {e}")
+
+    # 2. Load recent universe for signal evaluation
     logger.info(">> Loading recent market universe...")
     now_ist = datetime.now(IST)
     target_end = args.date or now_ist.strftime("%Y-%m-%d")

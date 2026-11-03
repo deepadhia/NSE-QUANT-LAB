@@ -74,6 +74,12 @@ class PaperTradingManager:
             _has_exec_id = {"partialFilterExpression": {"exec_id": {"$type": "string"}}}
             self.db.executions.create_index([("strategy_id", 1), ("mode", 1), ("exec_id", 1)], unique=True, **_has_exec_id)
             self.db.trades.create_index([("strategy_id", 1), ("mode", 1), ("exec_id", 1)], unique=True, **_has_exec_id)
+            try:
+                self.db.get_collection("corporate_actions").create_index(
+                    [("symbol", 1), ("ex_date", 1), ("action_type", 1)], unique=True
+                )
+            except Exception:
+                pass
         except Exception as e:
             # Missing unique indexes silently remove duplicate protection: say so loudly instead of a quiet warning.
             logger.critical(f"[INDEX_CREATION_FAILED] Unique/idempotency indexes missing: {e}")
