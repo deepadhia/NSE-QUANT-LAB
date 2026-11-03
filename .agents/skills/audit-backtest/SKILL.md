@@ -11,7 +11,7 @@ Produce an evidence-backed audit, not a strategy endorsement. Do not modify file
 ## Procedure
 
 ### Phase 1 — Establish scope and provenance
-1. Read `AGENTS.md` and `BACKTEST_VALIDATION.md`.
+1. Read `AGENTS.md`, `BACKTEST_VALIDATION.md`, and `docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md`.
 2. Locate the actual strategy specification, entry point, data loader, indicators, signal generation, execution simulator, accounting, metrics, and tests.
 3. Record exact file/function locations. If an expected component is absent, say so.
 4. Identify data source, historical coverage, adjustment policy, universe construction, and whether results use synthetic data.

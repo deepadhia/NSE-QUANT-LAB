@@ -76,10 +76,10 @@ def compute_fy_tax(
     lt_gross = 0.0
     lt_pre = lt_post = 0.0  # LTCG realised before / after the 2024 budget (only used to blend rates in FY2024-25)
     st_total = 0.0
-    ref_sale = pd.Timestamp(f"{fy_end_year}-03-31")
+    fy_end = pd.Timestamp(f"{fy_end_year}-03-31")
+    ref_sale = max((pd.Timestamp(t["exit_date"]) for t in trades), default=fy_end)
     for t in trades:
         sale = pd.Timestamp(t["exit_date"])
-        ref_sale = sale
         p = taxable_pnl(t)
         if int(t["hold_days"]) >= 365:
             lt_gross += p

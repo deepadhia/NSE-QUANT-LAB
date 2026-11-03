@@ -128,8 +128,11 @@ def main():
         "scripts/verify_production_health.py",
         "tests/test_minervini.py",
         "tests/test_trend_momentum_pit.py",
+        "tests/test_alpha_semivol_pit.py",
+        "tests/test_backtest_paper_parity.py",
         "tests/test_multi_strategy_incubator.py",
         "tests/test_data_loader.py",
+        "docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md",
     )
     core_files = [
         fp for fp in files_to_pack

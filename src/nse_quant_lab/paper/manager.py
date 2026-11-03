@@ -203,9 +203,19 @@ class PaperTradingManager:
                     # Extract dynamic trailing stop levels
                     ema_stop = float(last_row["ema100"]) if "ema100" in last_row and not np.isnan(last_row["ema100"]) else None
                     st_stop = float(last_row["supertrend_lower"]) if "supertrend_lower" in last_row and not np.isnan(last_row["supertrend_lower"]) else None
+                    sma150_stop = float(last_row["sma150"]) if "sma150" in last_row and not np.isnan(last_row["sma150"]) else None
 
-                    # Structural trailing stop: TrendMomentumStrategy exits strictly on Close < EMA(100)
-                    effective_stop = ema_stop if ema_stop is not None else st_stop
+                    # Structural trailing stop:
+                    # - TrendMomentum: Close < EMA(100) or Supertrend
+                    # - Minervini / AlphaSemivol: Close < SMA(150)
+                    if ema_stop is not None:
+                        effective_stop = ema_stop
+                    elif st_stop is not None:
+                        effective_stop = st_stop
+                    elif sma150_stop is not None:
+                        effective_stop = sma150_stop
+                    else:
+                        effective_stop = None
 
                     buffer_pct = None
                     if effective_stop is not None and last_pr > 0:
@@ -213,6 +223,7 @@ class PaperTradingManager:
 
                     pos["ema100_stop"] = round(ema_stop, 2) if ema_stop else None
                     pos["supertrend_stop"] = round(st_stop, 2) if st_stop else None
+                    pos["sma150_stop"] = round(sma150_stop, 2) if sma150_stop else None
                     pos["stop_loss_price"] = round(effective_stop, 2) if effective_stop else None
                     pos["stop_buffer_pct"] = buffer_pct
 
@@ -225,6 +236,7 @@ class PaperTradingManager:
                         update_dict["stop_loss_price"] = round(effective_stop, 2)
                         update_dict["supertrend_stop"] = round(st_stop, 2) if st_stop else None
                         update_dict["ema100_stop"] = round(ema_stop, 2) if ema_stop else None
+                        update_dict["sma150_stop"] = round(sma150_stop, 2) if sma150_stop else None
                         update_dict["stop_buffer_pct"] = buffer_pct
 
                     self.db.positions.update_one(
@@ -460,6 +472,7 @@ class PaperTradingManager:
                     "stop_loss_price": pos.get("stop_loss_price"),
                     "supertrend_stop": pos.get("supertrend_stop"),
                     "ema100_stop": pos.get("ema100_stop"),
+                    "sma150_stop": pos.get("sma150_stop"),
                     "stop_buffer_pct": pos.get("stop_buffer_pct"),
                 })
 
@@ -928,8 +941,8 @@ class PaperTradingManager:
             # Order size is set from the pre-slippage open (as the backtest engine does), then the cost model prices it
             buffer_mult = 1.0 + self.config.fees_buffer_pct
             sized_shares = int(avail // (open_price * buffer_mult))
-            fill_price = open_price * (1.0 + self._slip(sym, bar, open_price, max(sized_shares, 1), "BUY"))
-            est_cost_per_sh = fill_price * buffer_mult
+            est_fill_px = open_price * (1.0 + self._slip(sym, bar, open_price, max(sized_shares, 1), "BUY"))
+            est_cost_per_sh = est_fill_px * buffer_mult
             shares = int(avail // est_cost_per_sh)
 
             if shares <= 0:
@@ -939,12 +952,15 @@ class PaperTradingManager:
                 )
                 continue
 
+            # Second-pass pricing: recompute fill_price at exact submitted share count (matches BacktestEngine)
+            fill_price = open_price * (1.0 + self._slip(sym, bar, open_price, shares, "BUY"))
             gross_val = shares * fill_price
             buy_fees = calc_buy_fees_exact(gross_val, execution_date, self.config)
             total_outlay = gross_val + buy_fees["total"]
 
             while total_outlay > cash and shares > 0:
                 shares -= 1
+                fill_price = open_price * (1.0 + self._slip(sym, bar, open_price, max(shares, 1), "BUY"))
                 gross_val = shares * fill_price
                 buy_fees = calc_buy_fees_exact(gross_val, execution_date, self.config)
                 total_outlay = gross_val + buy_fees["total"]

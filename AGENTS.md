@@ -27,7 +27,7 @@ Priority order:
 ## Required workflow for code changes
 ### 1. Inspect first
 Before editing:
-- Read this file and relevant project documentation.
+- Read this file, relevant project documentation, and `docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md` whenever adding, modifying, or evaluating a strategy.
 - Inspect the exact files, functions, tests, configuration, dependencies, and callers involved.
 - Trace the current data flow from input to output.
 - Establish existing behavior and baseline failures if practical.
@@ -119,8 +119,20 @@ Quantitative systems employ two fundamentally distinct exit mechanisms that must
 - **Contract Schema Integrity**: Consumers of metrics and database models must strictly adhere to producer schemas without guessing or inventing unverified keys.
 - **Fail-Loud Principle**: When data is missing, corrupted, or an API call fails, the system must log complete diagnostic traces, preserve audit ledgers, and fail visibly. Never swallow failures silently into "default success".
 
+## Strategy Onboarding, Change Management & Parity Mandate
+Whenever adding, onboarding, refactoring, or evaluating a strategy, you MUST read and strictly adhere to `docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md`.
+
+### Non-Negotiable Strategy Onboarding Rules:
+1. **Strict Single Source of Truth**: Never duplicate a strategy class in `research/` (no `*Candidate` copy-pastes). Once implemented in `src/nse_quant_lab/strategies/<name>.py`, research runners, backtests, and paper managers must import the exact production class directly.
+2. **Indicator Namespace Isolation**: Never rely on generic column names (e.g. `mom_6m`). Compute formula-specific column names unconditionally (`raw_mom_6m`, `risk_adj_mom_6m`) and declare all required columns in `required_indicator_columns`. Never guard strategy-specific calculations behind generic `if "col" not in out.columns:`.
+3. **Decoupled Operational Wiring**: Ensure the strategy is wired into all 4 operational scripts (`scripts/execute_paper_orders.py`, `scripts/run_daily_pipeline.py`, `scripts/manage_strategy.py`, `scripts/verify_production_health.py`), and structural stop telemetry is registered in `PositionModel` and `PaperTradingManager`.
+4. **Mandatory Automated Verification Gates**:
+   - **Causal Truncation Invariance**: Candidate ranking on date $T$ must be 100% identical with or without future bars $T+1 \dots T+N$.
+   - **Backtest-to-Paper Replay Parity Gate**: Run `pytest tests/test_backtest_paper_parity.py -v`. Every execution count, symbol, action, and integer share count must match 1-for-1, and final NAV relative delta must be $< 0.01\%$.
+   - **Production Health Verification**: Run `python scripts/verify_production_health.py` and ensure all 5 pre-flight checks pass before seeding in MongoDB.
+
 ## Trading research invariants
-Before changing an indicator, signal generator, historical-data pipeline, backtester, execution simulator, portfolio accounting, or performance report, read `BACKTEST_VALIDATION.md`.
+Before changing an indicator, signal generator, historical-data pipeline, backtester, execution simulator, portfolio accounting, or performance report, read `BACKTEST_VALIDATION.md` and `docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md`.
 
 - Treat the checked-in strategy specification and approved configuration as authoritative. If missing or contradictory, stop and report the conflict.
 - Never silently change entry/exit thresholds or parameter definitions.

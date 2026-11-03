@@ -1,0 +1,3 @@
+strategy,total_trades,profit_factor,top5_profit_share_pct,top10_profit_share_pct,cagr_raw,cagr_ex_top5,cagr_ex_top10,max_drawdown_duration_days,max_underwater_start,max_underwater_end
+baseline_s0_uh_r1_15,594,1.9,17.7,30.9,19.68,18.27,16.96,1301,2010-11-11,2014-06-04
+alpha_semivol_pit,446,2.15,19.7,31.6,17.98,16.56,15.51,1196,2018-01-16,2021-04-26

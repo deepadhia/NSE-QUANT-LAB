@@ -59,7 +59,7 @@ def set_strategy_status(db: MongoDatabase, strategy_id: str, status: str, mode: 
 
 
 def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
-    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template")
+    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
     p_size = 15 if is_pit else 6
     h_buf = 1500 if is_pit else 15
     cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode,

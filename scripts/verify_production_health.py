@@ -53,7 +53,7 @@ def check_production_health() -> bool:
         active_ids = [s["strategy_id"] for s in active_strats]
         logger.info(f"   Active strategies found in DB: {active_ids}")
 
-        pit_strategies = {"trend_momentum_pit", "minervini_trend_template"}
+        pit_strategies = {"trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit"}
         active_pit = [s for s in active_ids if s in pit_strategies]
 
         if active_pit:

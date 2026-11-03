@@ -31,10 +31,12 @@ from nse_quant_lab.holidays import is_trading_day
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("morning_execution")
 
+PIT_STRATEGY_IDS = ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
+
 
 def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.Timestamp, db: MongoDatabase, quote_provider=None):
     strategy_id = strat_doc["strategy_id"]
-    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template")
+    is_pit = strategy_id in PIT_STRATEGY_IDS
     portfolio_size = int(strat_doc.get("portfolio_size", 15 if is_pit else 6))
     initial_capital = float(strat_doc.get("initial_capital", 100000.0))
     hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 1500 if is_pit else 15))
@@ -60,7 +62,7 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
     )
     strategy = get_strategy(strategy_id, cfg)
     manager = PaperTradingManager(strategy=strategy, config=cfg, db=db)
-    if quote_provider is not None and strategy_id in ("trend_momentum_pit", "minervini_trend_template"):
+    if quote_provider is not None and strategy_id in PIT_STRATEGY_IDS:
         manager.quote_provider = quote_provider  # real 09:16 opening price + bid/ask logged to fill_audit
 
     res = manager.execute_morning_fills(universe, exec_dt)
@@ -104,7 +106,7 @@ def main():
     else:
         doc = db.strategies.find_one({"strategy_id": args.strategy})
         default_doc = {"strategy_id": args.strategy, "portfolio_size": 6, "initial_capital": 100000.0, "rebalance_hold_rank_buffer": 15, "unaffordable_policy": "TRY_NEXT", "mode": "paper"}
-        if args.strategy in ("trend_momentum_pit", "minervini_trend_template"):  # researched setting: 15 slots, no rank-based drops (buffer = 100 x slots)
+        if args.strategy in PIT_STRATEGY_IDS:  # researched setting: 15 slots, no rank-based drops (buffer = 100 x slots)
             default_doc.update(portfolio_size=15, rebalance_hold_rank_buffer=1500)
         strat_docs = [doc] if doc else [default_doc]
 
@@ -128,8 +130,7 @@ def main():
     logger.info(">> Loading recent market universe...")
     now_ist = datetime.now(IST)
     target_end = args.date or now_ist.strftime("%Y-%m-%d")
-    pit_strategy_ids = {"trend_momentum_pit", "minervini_trend_template"}
-    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] in pit_strategy_ids]
+    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] in PIT_STRATEGY_IDS]
     if pit_ids and len(pit_ids) != len(strat_docs):
         raise SystemExit("PIT strategies need the full-market PIT universe; run them separately from other legacy strategies.")
     if pit_ids:
@@ -161,7 +162,7 @@ def main():
                 arch = p1 if os.path.exists(p1) else p2
                 isins = uf.symbol_isin_map(arch, [exec_dt.year - 1, exec_dt.year])
                 quote_provider = uf.UpstoxQuoteProvider(token, isins)
-                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": {"$in": ["trend_momentum_pit", "minervini_trend_template"]}, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
+                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": {"$in": list(PIT_STRATEGY_IDS)}, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
                 logger.info(">> Upstox quote provider attached for the 09:16 fills")
             else:
                 logger.warning(">> No Upstox token: morning fills will use the yfinance fallback (unreliable).")

@@ -73,7 +73,7 @@ class QuantLabScheduler:
                 "max_time": "15:25",
                 "description": "Morning Market Open Order Execution",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "execute_paper_orders.py"),
-                "args": ["--strategy", "trend_momentum_pit"]
+                "args": ["--strategy", "all"]
             },
             {
                 "id": "fulltier_ingestion",
@@ -94,7 +94,7 @@ class QuantLabScheduler:
                 "time": "18:00",
                 "description": "Daily Strategy Signal Generation and Portfolio Rebalance",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "run_daily_pipeline.py"),
-                "args": ["--strategy", "trend_momentum_pit"]
+                "args": ["--strategy", "all"]
             },
             {
                 "id": "weekly_report",
@@ -132,7 +132,7 @@ class QuantLabScheduler:
                 "time": "23:05",
                 "description": "Nightly Final Signal Verification & Catch-Up (11:05 PM IST)",
                 "script": os.path.join(PROJECT_ROOT, "scripts", "run_daily_pipeline.py"),
-                "args": ["--strategy", "trend_momentum_pit"],
+                "args": ["--strategy", "all"],
             }
         ]
 

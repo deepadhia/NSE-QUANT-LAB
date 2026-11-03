@@ -69,6 +69,7 @@ class PositionModel:
     stop_loss_price: Optional[float] = None
     supertrend_stop: Optional[float] = None
     ema100_stop: Optional[float] = None
+    sma150_stop: Optional[float] = None
     stop_buffer_pct: Optional[float] = None
     updated_at: str = datetime.now(timezone.utc).isoformat()
 
