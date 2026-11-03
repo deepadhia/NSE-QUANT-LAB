@@ -174,5 +174,18 @@ When evaluating a repository or claim:
 - Do not select the best result from many trials without discussing multiple-testing/selection bias.
 - Avoid "confirmation-only" analysis: actively search for failure cases and counterevidence.
 
+## Audit-derived production safety invariants (2026-11 forensic audit; enforced by tests)
+Full finding list, fixes and guard tests: `docs/AUDIT_2026-11_FINDINGS_AND_REGRESSION_GUARDS.md`. Before editing `paper/manager.py`, `engine.py`, `db/`, `scripts/run_*.py`, `scripts/execute_paper_orders.py`, `holidays.py`, `base_strategy.py` or any strategy, read that document's "Rules for changing this code" section.
+1. **Shared collections need namespaced identity.** Every ID/upsert key in a collection shared by several strategies must include `strategy_id` (and `mode`). Build order IDs only with `PaperTradingManager._order_id` and write orders only with `_stage_order`. Never upsert on `order_id` alone.
+2. **Every state-changing write sequence must be resumable.** Fills write in a fixed order (execution -> cash -> trade/position -> order FILLED); each step is idempotent and keyed by the deterministic `exec_id = EXEC_{order_id}`. Cash changes only through `_persist_cash`. No random IDs (`uuid`) as idempotency keys.
+3. **Missing data is never an action.** A data gap must not become a sale, a haircut, an expiry or a "no signal". Retain the order, alert, and make the run exit non-zero so the scheduler retries. Only a confirmed delisting (no tradeable quote) may be written down.
+4. **Fail loud, not guessed.** No `except Exception: return <guess>` in calendar, rebalance, pricing or accounting code. Operational scripts must exit non-zero when any strategy fails or any order is unpriced.
+5. **Time-travel guard.** Signal generation for a decision date older than the newest recorded signal/execution is refused. Morning-path tests must omit the execution day's EOD bar and supply the open via a quote stub.
+6. **Corporate actions are data.** Share counts change only through a recorded `corporate_actions` document (applied once, tracked in `applied_actions`); an unrecorded price discontinuity must produce a CRITICAL alert.
+7. **Strategy-specific formulas compute unconditionally under formula-specific names.** No `if "generic_col" not in out.columns:` in strategies; selection reads only the strategy's own columns. Gate: `tests/test_production_invariants.py`.
+8. **Scheduler guards trust only successes.** "Completed" (given up / skipped) is not "succeeded"; safety nets (catch-up runs) key off `succeeded_today`. A timeout is a failure, not a completion.
+9. **No hardcoded calendar dates in defaults**; model timestamps use `default_factory`, never an import-time `datetime.now()`.
+10. **Test to break.** A change to the above areas must add or keep a failure-mode test (crash-mid-fill, outage, gap, circuit, cash exhaustion, duplicate trigger, back-dated rerun). `pytest tests/test_production_invariants.py tests/test_paper_failure_modes.py tests/test_order_id_isolation.py tests/test_backtest_paper_parity.py` must pass.
+
 ## Completion gate
 Do not call a task complete until the requested behavior is implemented, relevant checks have been run where possible, the diff is reviewed, and unresolved risks are disclosed. If any critical acceptance check fails, label the result FAILED or INCOMPLETE—not successful.

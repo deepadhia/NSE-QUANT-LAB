@@ -12,7 +12,7 @@ A deterministic day-by-day causal replay feeding identical point-in-time market 
 | `minervini_trend_template` |             1,108,594.79 |                 1,108,594.79 | 0.000000% (Rs 0.00) |                      27 vs 27 | **100% Identical**   |
 | `alpha_semivol_pit`        |             1,214,288.43 |                 1,214,288.41 | 0.000002% (Rs 0.02) |                      45 vs 45 | **100% Identical**   |
 
-_Note on the Rs 0.02 delta_: `PaperTradingManager` persists `round(cash, 2)` to MongoDB after each fill (`src/nse_quant_lab/paper/manager.py:785, 1023`), whereas `BacktestEngine` accumulates `cash` in unrounded 64-bit IEEE-754 floating point in memory (`src/nse_quant_lab/engine.py:501, 692`). Every single candidate rank, entry signal, structural exit, share count, and fill price is identical.
+_Note on the Rs 0.02 delta_: `PaperTradingManager` persists `round(cash, 2)` to MongoDB after each fill (`PaperTradingManager._persist_cash`), whereas `BacktestEngine` accumulates `cash` in unrounded 64-bit IEEE-754 floating point in memory (`src/nse_quant_lab/engine.py:501, 692`). Every single candidate rank, entry signal, structural exit, share count, and fill price is identical.
 
 ### Why Live Paper Trading Can Still Differ Slightly From Historical Backtests (Expected Microstructure Variance, Not Code Bugs)
 
@@ -142,3 +142,33 @@ python scripts/manage_strategy.py --strategy <strategy_id> --init --capital 1000
 python scripts/verify_production_health.py
 pytest -m "not live_upstox"
 ```
+
+### Step 8: Run the Audit-Regression Gates (added after the 2026-11 forensic audit)
+
+A new or changed strategy must also pass the gates that encode the audit's defect classes. They are generic: they iterate every registered strategy that declares `required_indicator_columns`, so a new strategy is covered automatically.
+
+```bash
+pytest tests/test_production_invariants.py tests/test_paper_failure_modes.py tests/test_order_id_isolation.py tests/test_backtest_paper_parity.py -v
+```
+
+What they will catch for your strategy:
+
+| Gate | Fails when |
+| :--- | :--- |
+| `test_declared_required_columns_are_actually_produced` | `required_indicator_columns` lists a column `compute_indicators` does not produce |
+| `test_precomputed_generic_columns_never_change_any_strategy_ranking` | ranking changes when the input frame already carries generic columns (`mom12_1`, `sma150`, ...) |
+| `test_m3_no_generic_column_guards_in_strategy_indicator_code` | `if "col" not in out.columns:` guards a strategy formula |
+| `test_every_pit_strategy_is_wired_into_all_operational_scripts` | the strategy id is missing from any of the four operational scripts (step 3) |
+| `test_all_three_strategies_share_one_db_without_collisions` / `test_two_strategies_*` | orders of different strategies collide in the shared `orders` collection |
+| `test_live_morning_path_parity_without_execution_day_bar` | the live-quote morning path diverges from the backtest (extend the parametrize list with your strategy) |
+
+**Add your strategy to the parametrized lists** in `test_order_id_isolation.py` (shared-DB test) and `test_backtest_paper_parity.py` (both parity tests).
+
+## 5. Why the Gates Exist: the Second Audit's Six Recurring Mistakes
+
+The 2026-11 audit found a critical order-ID collision, non-resumable fills, data gaps turned into sales, unapplied corporate actions, silent order expiry and a skipped safety net. All six trace to the same habits. Before you touch `paper/manager.py`, `engine.py`, `db/`, the scheduler, the pipeline scripts, the holiday calendar or a strategy, answer the checklist in `docs/AUDIT_2026-11_FINDINGS_AND_REGRESSION_GUARDS.md` §4 (identity, crash points, missing-data-is-not-a-decision, time, shared names, defaults). The rules are mirrored in `AGENTS.md` ("Audit-derived production safety invariants").
+
+Two changes to existing guidance from this audit:
+
+* **Backtest-to-paper parity is now checked on two morning paths:** the replay path (execution day's bar present) and the live-quote path (bar absent, open from a quote). Passing only the first is not sufficient.
+* **Adding a strategy still touches the four operational scripts** until the declarative `BaseStrategy` attributes in §3 are adopted; `test_every_pit_strategy_is_wired_into_all_operational_scripts` now fails loudly if one is forgotten.

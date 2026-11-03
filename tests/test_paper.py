@@ -49,6 +49,13 @@ class InMemoryCollection:
                 if "$gt" in v:
                     if not (doc.get(k, "") > v["$gt"]):
                         return False
+                if "$ne" in v:
+                    cur = doc.get(k)
+                    if cur == v["$ne"] or (isinstance(cur, list) and v["$ne"] in cur):
+                        return False
+                if "$nin" in v:
+                    if doc.get(k) in v["$nin"]:
+                        return False
             elif doc.get(k) != v:
                 return False
         return True
@@ -85,6 +92,11 @@ class InMemoryCollection:
                 if "$set" in update:
                     for k, v in update["$set"].items():
                         d[k] = copy.deepcopy(v)
+                for k, v in update.get("$push", {}).items():
+                    items = v["$each"] if isinstance(v, dict) and "$each" in v else [v]
+                    d.setdefault(k, []).extend(copy.deepcopy(items))
+                    if isinstance(v, dict) and "$slice" in v and v["$slice"] < 0:
+                        d[k] = d[k][v["$slice"]:]
                 return type("UpdateResult", (), {"matched_count": 1, "modified_count": 1})()
         if upsert:
             new_doc = copy.deepcopy(query)

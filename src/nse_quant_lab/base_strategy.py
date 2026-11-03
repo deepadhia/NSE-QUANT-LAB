@@ -89,18 +89,16 @@ class BaseStrategy(ABC):
 
             # Live/Forward mode: decision_date is the latest available date in universe.
             # Check if there are any remaining trading days in the current calendar month.
-            try:
-                from nse_quant_lab.holidays import is_trading_day
-                curr_month = decision_date.month
-                test_dt = decision_date + pd.Timedelta(days=1)
-                while test_dt.month == curr_month:
-                    if is_trading_day(test_dt):
-                        return False
-                    test_dt += pd.Timedelta(days=1)
-                return True
-            except Exception:
-                # Conservative fallback: check if decision_date is within last 3 days of month
-                return decision_date.day >= 26
+            # No try/except guess: a calendar failure must surface, not silently turn every session after the 26th
+            # into a rebalance day (or hide a missed month-end).
+            from nse_quant_lab.holidays import is_trading_day
+            curr_month = decision_date.month
+            test_dt = decision_date + pd.Timedelta(days=1)
+            while test_dt.month == curr_month:
+                if is_trading_day(test_dt):
+                    return False
+                test_dt += pd.Timedelta(days=1)
+            return True
 
         return False
 

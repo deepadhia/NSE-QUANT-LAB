@@ -5,7 +5,6 @@ manager.py -- Forward Paper Trading Engine & Database Lifecycle Manager
 from __future__ import annotations
 import logging
 import math
-import uuid
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import numpy as np
@@ -18,6 +17,12 @@ from ..db.models import OrderModel, ExecutionModel, PositionModel, TradeModel, D
 from ..execution import is_locked_down, is_locked_up
 from ..fees import calc_buy_fees_exact, calc_sell_fees_exact
 from ..notifications.telegram import TelegramNotifier
+
+try:
+    from pymongo.errors import DuplicateKeyError
+except ImportError:  # pragma: no cover
+    class DuplicateKeyError(Exception):
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -34,25 +39,56 @@ class PaperTradingManager:
         self.config = config
         self.db = db or MongoDatabase.get_instance(config.mongo_uri, config.db_name)
         self.notifier = TelegramNotifier(config.telegram_bot_token, config.telegram_chat_id, config.telegram_enabled)
+        self._mode = getattr(config, "mode", "paper")
 
-    def initialize_portfolio(self):
-        """Initializes empty paper trading portfolio in MongoDB if not present."""
-        # Ensure compound indexes exist for performance (V6-A)
+    def _order_id(self, kind: str, date_str: str, sym: str) -> str:
+        """Order IDs are namespaced by strategy: all strategies share one `orders` collection, so an ID without
+        strategy_id lets one strategy's staged order overwrite another's."""
+        return f"ORD_{kind}_{self.config.strategy_id}_{date_str}_{sym}"
+
+    def _stage_order(self, order: OrderModel) -> None:
+        """Idempotent upsert scoped to this strategy. If the order_id unique index sees the same ID under another
+        strategy this raises DuplicateKeyError (fail loud) instead of silently re-owning the other strategy's order."""
+        self.db.orders.replace_one(
+            {"order_id": order.order_id, "strategy_id": order.strategy_id, "mode": order.mode},
+            order.to_dict(),
+            upsert=True,
+        )
+
+    def _alert(self, text: str) -> None:
+        """Best-effort operator alert; never raises (the log line is the system of record)."""
+        try:
+            self.notifier.send_message(f"[{self.config.strategy_id}] {text}")
+        except Exception as exc:
+            logger.error("alert send failed: %s", exc)
+
+    def ensure_indexes(self) -> None:
+        """Create performance + idempotency indexes (safe to call every run; called from both pipelines)."""
         try:
             self.db.daily_nav.create_index([("strategy_id", 1), ("mode", 1), ("date", -1)], unique=True)
             self.db.positions.create_index([("strategy_id", 1), ("mode", 1), ("symbol", 1)], unique=True)
             self.db.orders.create_index([("order_id", 1)], unique=True)
             self.db.orders.create_index([("strategy_id", 1), ("mode", 1), ("status", 1)])
             self.db.trades.create_index([("strategy_id", 1), ("mode", 1), ("exit_date", -1)])
+            # Idempotency keys: one execution / one trade per order, enforced by the database (partial: legacy docs lack exec_id)
+            _has_exec_id = {"partialFilterExpression": {"exec_id": {"$type": "string"}}}
+            self.db.executions.create_index([("strategy_id", 1), ("mode", 1), ("exec_id", 1)], unique=True, **_has_exec_id)
+            self.db.trades.create_index([("strategy_id", 1), ("mode", 1), ("exec_id", 1)], unique=True, **_has_exec_id)
         except Exception as e:
-            logger.warning(f"Could not create compound indexes: {e}")
+            # Missing unique indexes silently remove duplicate protection: say so loudly instead of a quiet warning.
+            logger.critical(f"[INDEX_CREATION_FAILED] Unique/idempotency indexes missing: {e}")
+            self._alert(f"INDEX CREATION FAILED for {self.config.strategy_id}: {e}")
+
+    def initialize_portfolio(self):
+        """Initializes empty paper trading portfolio in MongoDB if not present."""
+        self.ensure_indexes()
 
         nav_col = self.db.daily_nav
-        existing = nav_col.find_one({"strategy_id": self.config.strategy_id, "mode": "paper"})
+        existing = nav_col.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode})
         if not existing:
             nav_col.insert_one({
                 "strategy_id": self.config.strategy_id,
-                "mode": "paper",
+                "mode": self._mode,
                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "cash": float(self.config.initial_capital),
                 "holdings_val": 0.0,
@@ -130,6 +166,155 @@ class PaperTradingManager:
         positions = {p["symbol"]: p for p in positions_cursor}
         return {"cash": cash, "positions": positions}
 
+    def _apply_corporate_actions(self, positions: Dict[str, Any], as_of_date: str) -> None:
+        """Apply recorded splits/bonuses to open positions, exactly once each.
+        `corporate_actions` docs: {symbol, ex_date 'YYYY-MM-DD', ratio} where ratio = new shares per 1 old share
+        (1:2 split -> 2.0, 1:2 bonus -> 1.5). Price data is split-adjusted by the loader, so share counts must follow
+        or the position is valued at a fraction of its true worth. Dividends are NOT modelled (price-only series)."""
+        try:
+            actions = list(self.db.get_collection("corporate_actions").find({"symbol": {"$in": list(positions.keys())}}))
+        except Exception as exc:
+            logger.error("corporate_actions lookup failed: %s", exc)
+            return
+        for act in actions:
+            if not isinstance(act, dict):
+                continue
+            sym, ex_date, ratio = act.get("symbol"), str(act.get("ex_date", ""))[:10], float(act.get("ratio") or 0.0)
+            pos = positions.get(sym)
+            if pos is None or ratio <= 0 or not ex_date or ex_date > as_of_date:
+                continue
+            key = f"{sym}:{ex_date}:{ratio}"
+            if ex_date <= str(pos.get("entry_date", ""))[:10] or key in (pos.get("applied_actions") or []):
+                continue
+            new_shares = int(math.floor(pos["shares"] * ratio + 1e-9))
+            logger.warning("[CORPORATE_ACTION] %s ex %s ratio %.4f: shares %d -> %d", sym, ex_date, ratio, pos["shares"], new_shares)
+            pos["shares"] = new_shares
+            for k in ("entry_price", "entry_fill_price"):
+                if pos.get(k):
+                    pos[k] = float(pos[k]) / ratio
+            pos["applied_actions"] = list(pos.get("applied_actions") or []) + [key]
+            self.db.positions.update_one(
+                {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
+                {"$set": {"shares": pos["shares"], "entry_price": pos.get("entry_price"),
+                          "entry_fill_price": pos.get("entry_fill_price"), "applied_actions": pos["applied_actions"]}},
+            )
+            self._alert(f"Corporate action applied {sym} ex {ex_date} x{ratio:g}: shares -> {new_shares}")
+
+    def _prior_execution(self, order: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Execution already written for this order (crash/retry recovery), else None."""
+        prior = self.db.executions.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "order_id": order["order_id"]})
+        return prior if isinstance(prior, dict) else None
+
+    def _record_execution(self, exec_model: ExecutionModel) -> None:
+        try:
+            self.db.executions.insert_one(exec_model.to_dict())
+        except DuplicateKeyError:
+            logger.warning("execution %s already recorded; continuing idempotently", exec_model.exec_id)
+
+    def _persist_cash(self, cash: float, date_str: str, exec_id: str) -> None:
+        """Persist cash exactly once per execution: the applied-marker and the new balance are one atomic document update."""
+        self.db.strategies.update_one(
+            {"strategy_id": self.config.strategy_id, "mode": self._mode, "applied_execs": {"$ne": exec_id}},
+            {"$set": {"cash": round(cash, 2)},
+             "$push": {"applied_execs": {"$each": [exec_id], "$slice": -500}}},
+        )
+        self.db.daily_nav.update_one(
+            {"strategy_id": self.config.strategy_id, "mode": self._mode, "date": date_str},
+            {"$set": {"cash": round(cash, 2), "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+
+    def _cash_already_applied(self, exec_id: str) -> bool:
+        strat = self.db.strategies.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode})
+        return isinstance(strat, dict) and exec_id in (strat.get("applied_execs") or [])
+
+    def _record_trade(self, pos: Dict[str, Any], order: Dict[str, Any], shares: int, open_price: float, fill_price: float,
+                      net_proceeds: float, fees_total: float, execution_date: pd.Timestamp, date_str: str, exec_id: str) -> None:
+        entry_date_dt = pd.to_datetime(pos.get("entry_date") or execution_date)
+        hold_days = (execution_date - entry_date_dt).days
+        entry_price = float(pos["entry_price"])
+        entry_fill_px = float(pos.get("entry_fill_price", entry_price))
+        outlay = float(pos.get("entry_outlay", shares * entry_fill_px + float(pos.get("entry_fees", 0.0))))
+        gross_pnl = (shares * fill_price) - (shares * entry_fill_px)
+        total_fees = float(pos.get("entry_fees", 0.0)) + fees_total
+        net_pnl = net_proceeds - outlay
+        ret_pct = (net_pnl / outlay) * 100.0 if outlay > 0 else 0.0
+        pos_entry_slip = float(pos.get("entry_slip_loss", (entry_fill_px - entry_price) * shares))
+        exit_slip = (open_price - fill_price) * shares
+        trade_model = TradeModel(
+            strategy_id=self.config.strategy_id,
+            mode=self._mode,
+            symbol=order["symbol"],
+            entry_date=pos["entry_date"],
+            entry_price=entry_fill_px,
+            exit_date=date_str,
+            exit_price=fill_price,
+            shares=shares,
+            hold_days=hold_days,
+            gross_pnl=round(gross_pnl, 2),
+            net_pnl=round(net_pnl, 2),
+            total_fees=round(total_fees, 2),
+            total_slippage=round(pos_entry_slip + exit_slip, 2),
+            return_pct=round(ret_pct, 4),
+            exit_reason=order.get("reason") or "FORCED_DELISTING_LIQUIDATION",
+            exec_id=exec_id,
+        )
+        try:
+            self.db.trades.insert_one(trade_model.to_dict())
+        except DuplicateKeyError:
+            logger.warning("trade for %s already recorded; continuing idempotently", exec_id)
+
+    def _recover_fill(self, order: Dict[str, Any], prior: Dict[str, Any], positions: Dict[str, Any], cash: float,
+                      date_str: str, execution_date: pd.Timestamp, fills_log: List[Dict[str, Any]]) -> float:
+        """An execution exists for this order but the order is not FILLED: a previous run crashed mid-fill.
+        Finish the remaining bookkeeping steps idempotently (cash once, trade/position once, order FILLED). Never re-fill."""
+        sym, exec_id = order["symbol"], prior["exec_id"]
+        logger.critical("[FILL_RECOVERY] order %s already executed as %s; completing bookkeeping without re-filling.", order["order_id"], exec_id)
+        if not self._cash_already_applied(exec_id):
+            cash += float(prior["net_cash"])
+            self._persist_cash(cash, date_str, exec_id)
+        shares, fill_price = int(prior["shares"]), float(prior["fill_price"])
+        if order["action"] == "SELL":
+            pos = positions.get(sym)
+            have_trade = isinstance(self.db.trades.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "exec_id": exec_id}), dict)
+            if pos and not have_trade:
+                self._record_trade(pos, order, shares, float(prior["raw_price"]), fill_price, float(prior["net_cash"]),
+                                   float(prior["fees"]), execution_date, date_str, exec_id)
+            self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym})
+            positions.pop(sym, None)
+        else:
+            if sym not in positions:
+                outlay = -float(prior["net_cash"])
+                pos_model = PositionModel(
+                    strategy_id=self.config.strategy_id, mode=self._mode, symbol=sym, shares=shares,
+                    entry_price=float(prior["raw_price"]), entry_fill_price=fill_price, entry_date=date_str,
+                    entry_outlay=outlay, entry_fees=float(prior["fees"]), last_close=float(prior["raw_price"]),
+                    market_value=float(prior["gross_val"]), unrealized_pnl=0.0,
+                )
+                self.db.positions.replace_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
+                                              pos_model.to_dict(), upsert=True)
+                positions[sym] = pos_model.to_dict()
+        self.db.orders.update_one({"order_id": order["order_id"]},
+                                  {"$set": {"status": "FILLED", "shares": shares, "execution_date": date_str}})
+        fills_log.append({"action": order["action"], "symbol": sym, "shares": shares, "fill_price": fill_price, "recovered": True})
+        return cash
+
+    def _reconcile_cash(self, cash: float) -> None:
+        """Fail loudly if stored cash disagrees with initial capital + execution ledger (paper has no other cash flows)."""
+        try:
+            execs = [e for e in self.db.executions.find({"strategy_id": self.config.strategy_id, "mode": self._mode}) if isinstance(e, dict)]
+        except Exception as exc:
+            logger.error("cash reconciliation skipped: %s", exc)
+            return
+        if not execs:
+            return
+        ledger = float(self.config.initial_capital) + sum(float(e.get("net_cash", 0.0)) for e in execs)
+        tol = max(1.0, 0.01 * len(execs))
+        if abs(ledger - cash) > tol:
+            msg = f"CASH DRIFT: stored {cash:,.2f} vs ledger {ledger:,.2f} (delta {cash - ledger:+,.2f}) over {len(execs)} executions"
+            logger.critical("[CASH_RECONCILIATION_FAILED] %s", msg)
+            self._alert(msg)
+
     def _ensure_indicators(self, universe: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         enriched = {}
         # Strategy-aware indicator check
@@ -174,9 +359,25 @@ class PaperTradingManager:
         4. Broadcasts Telegram alert.
         """
         date_str = decision_date.strftime("%Y-%m-%d")
+
+        # Back-dated run guard: signals for a date older than the newest signal/execution already recorded would mix
+        # as-of-T cash with current positions, overwrite the T NAV record and re-stage orders from stale prices.
+        newest_recorded = max(
+            [d for d in (strat_entry.get("last_signal_date") if strat_entry else None,
+                         strat_entry.get("last_execution_date") if strat_entry else None) if isinstance(d, str)],
+            default=None,
+        )
+        if newest_recorded is not None and date_str < newest_recorded:
+            msg = (f"Refusing signals for {date_str}: strategy '{self.config.strategy_id}' already recorded activity "
+                   f"through {newest_recorded}. Re-running an older decision date is unsafe.")
+            logger.critical("[REFUSED_STALE_DECISION_DATE] %s", msg)
+            self._alert(msg)
+            return {"status": "REFUSED_STALE_DECISION_DATE", "exits": [], "buys": [], "message": msg}
+
         state = self.get_current_state(as_of_date=date_str)
         cash = state["cash"]
         positions = state["positions"]
+        self._apply_corporate_actions(positions, date_str)
 
         # Mark open positions to today's EOD close from universe
         current_holdings_val = 0.0
@@ -194,6 +395,12 @@ class PaperTradingManager:
                     elif stale_days > 5:
                         logger.critical(f"[SUSPENSION_OR_DELISTING_ALERT] Position '{sym}' last bar was on {last_row['date'].strftime('%Y-%m-%d')} (>5 days stale). Potential halt or delisting.")
                     last_pr = float(last_row["close"])
+                    prev_mark = float(pos.get("last_close") or 0.0)
+                    if prev_mark > 0 and not (0.6 <= last_pr / prev_mark <= 1.0 / 0.6):
+                        # Splits/bonuses must be recorded in `corporate_actions`; an unrecorded one halves NAV silently.
+                        logger.critical(f"[POSSIBLE_CORPORATE_ACTION] {sym}: close moved {prev_mark:.2f} -> {last_pr:.2f} "
+                                        f"({last_pr / prev_mark - 1:+.1%}). Record it in `corporate_actions` or verify the data.")
+                        self._alert(f"POSSIBLE CORPORATE ACTION {sym}: {prev_mark:.2f} -> {last_pr:.2f}. Check `corporate_actions`.")
                     pos["last_close"] = last_pr
                     pos["market_value"] = pos["shares"] * last_pr
                     entry_px = float(pos.get("entry_price", pos.get("last_close", 0.0)))
@@ -232,6 +439,10 @@ class PaperTradingManager:
                         "market_value": pos["market_value"],
                         "unrealized_pnl": pos["unrealized_pnl"],
                     }
+                    try:
+                        update_dict["days_held"] = int((decision_date - pd.to_datetime(pos.get("entry_date"))).days)
+                    except (TypeError, ValueError):
+                        pass
                     if effective_stop is not None:
                         update_dict["stop_loss_price"] = round(effective_stop, 2)
                         update_dict["supertrend_stop"] = round(st_stop, 2) if st_stop else None
@@ -293,11 +504,11 @@ class PaperTradingManager:
                     })
                 continue
 
-            ord_id = f"ORD_EXIT_{date_str}_{sym}"
+            ord_id = self._order_id("EXIT", date_str, sym)
             order = OrderModel(
                 order_id=ord_id,
                 strategy_id=self.config.strategy_id,
-                mode="paper",
+                mode=self._mode,
                 symbol=sym,
                 action="SELL",
                 shares=pos["shares"],
@@ -307,7 +518,7 @@ class PaperTradingManager:
                 reason=reason,
                 signal_date=date_str,
             )
-            self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
+            self._stage_order(order)
             exits_to_log.append({
                 "symbol": sym,
                 "shares": pos["shares"],
@@ -378,11 +589,11 @@ class PaperTradingManager:
                         logger.info(f"Active sell order {existing_active_sell.get('order_id')} already exists for rebal drop {sym}; skipping duplicate.")
                         continue
                     pos = positions[sym]
-                    ord_id = f"ORD_DROP_{date_str}_{sym}"
+                    ord_id = self._order_id("DROP", date_str, sym)
                     order = OrderModel(
                         order_id=ord_id,
                         strategy_id=self.config.strategy_id,
-                        mode="paper",
+                        mode=self._mode,
                         symbol=sym,
                         action="SELL",
                         shares=pos["shares"],
@@ -392,7 +603,7 @@ class PaperTradingManager:
                         reason=reason,
                         signal_date=date_str,
                     )
-                    self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
+                    self._stage_order(order)
                     exits_to_log.append({
                         "symbol": sym,
                         "shares": pos["shares"],
@@ -412,7 +623,7 @@ class PaperTradingManager:
             target_alloc = est_total_equity / float(self.config.portfolio_size)
 
             for sym in new_buys:
-                ord_id = f"ORD_BUY_{date_str}_{sym}"
+                ord_id = self._order_id("BUY", date_str, sym)
                 c_px = float(candidates_df.loc[sym, "close"])
                 lim_px = c_px * (1.0 + self.config.limit_cap_pct)
                 denom = c_px * (1.0 + self.config.slippage_pct + self.config.fees_buffer_pct)
@@ -422,7 +633,7 @@ class PaperTradingManager:
                 order = OrderModel(
                     order_id=ord_id,
                     strategy_id=self.config.strategy_id,
-                    mode="paper",
+                    mode=self._mode,
                     symbol=sym,
                     action="BUY",
                     shares=0,  # Sized dynamically at open fill
@@ -432,7 +643,7 @@ class PaperTradingManager:
                     reason=rk,
                     signal_date=date_str,
                 )
-                self.db.orders.replace_one({"order_id": ord_id}, order.to_dict(), upsert=True)
+                self._stage_order(order)
                 buys_to_log.append({
                     "symbol": sym,
                     "alloc": target_alloc,
@@ -526,7 +737,7 @@ class PaperTradingManager:
             except Exception as exc:  # audit only: never block paper execution, but say so loudly
                 logger.error("quote_provider failed for %s: %s", sym, exc)
         doc = {
-            "strategy_id": self.config.strategy_id, "mode": "paper", "date": date_str, "symbol": sym, "side": side,
+            "strategy_id": self.config.strategy_id, "mode": self._mode, "date": date_str, "symbol": sym, "side": side,
             "shares": shares, "order_id": order["order_id"], "open_price": open_price, "fill_price": fill_price,
             "model_slip_bps": round((fill_price / open_price - 1.0) * 1e4 * (1 if side == "BUY" else -1), 2),
             "adt_prev": bar.get("adt_prev"), "sig_prev": bar.get("sig_prev"), "series": bar.get("series"),
@@ -615,7 +826,8 @@ class PaperTradingManager:
             import yfinance as yf
             ticker = sym if sym.endswith(".NS") else f"{sym}.NS"
             fast_info = yf.Ticker(ticker).fast_info
-            open_val = getattr(fast_info, "open", None) or getattr(fast_info, "last_price", None)
+            # `open` only: at 09:16 `last_price` is NOT the opening price, and a wrong open corrupts gap checks and fills.
+            open_val = getattr(fast_info, "open", None)
             if open_val is not None and float(open_val) > 0:
                 open_px = float(open_val)
                 high_px = float(getattr(fast_info, "day_high", None) or open_px)
@@ -651,6 +863,7 @@ class PaperTradingManager:
                 "status": status,
                 "fills": [],
                 "deferred": [],
+                "no_quote": [],
                 "cash": cur_state["cash"],
                 "holdings_val": 0.0,
                 "nav": cur_state["cash"],
@@ -668,10 +881,15 @@ class PaperTradingManager:
         state = self.get_current_state(as_of_date=date_str)
         cash = state["cash"]
         positions = state["positions"]
+        self.ensure_indexes()
+        self._reconcile_cash(cash)
+        self._apply_corporate_actions(positions, date_str)
+        no_quote: List[Dict[str, Any]] = []        # orders that could not be priced this run (retained; run exits non-zero)
+        retained_ids: set = set()
 
         pending_orders = list(self.db.orders.find({
             "strategy_id": self.config.strategy_id,
-            "mode": "paper",
+            "mode": self._mode,
             "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]},
             "signal_date": {"$lt": date_str},
         }))
@@ -690,12 +908,38 @@ class PaperTradingManager:
 
         buy_orders.sort(key=_order_rank)
 
+        # Stale-signal guard: a BUY retained after an outage must not fill on a signal older than the last completed session.
+        last_session = None
+        for o in buy_orders:
+            df_o = universe.get(o["symbol"])
+            if df_o is not None and not df_o.empty:
+                prior_dates = df_o.loc[df_o["date"] < execution_date, "date"]
+                if not prior_dates.empty:
+                    d_last = prior_dates.max()
+                    last_session = d_last if last_session is None else max(last_session, d_last)
+        if last_session is not None:
+            last_session_str = last_session.strftime("%Y-%m-%d")
+            fresh = []
+            for o in buy_orders:
+                if str(o.get("signal_date", "")) < last_session_str:
+                    self.db.orders.update_one({"order_id": o["order_id"]},
+                                              {"$set": {"status": "SKIPPED_EXPIRED", "cancel_reason": "STALE_SIGNAL", "execution_date": date_str}})
+                    logger.warning("BUY %s expired: signal %s older than last session %s", o["order_id"], o.get("signal_date"), last_session_str)
+                else:
+                    fresh.append(o)
+            buy_orders = fresh
+
         fills_log: List[Dict[str, Any]] = []
         deferred_log: List[Dict[str, Any]] = []
 
         # 1. Execute Sells First
         for order in sell_orders:
             sym = order["symbol"]
+            # Crash/retry recovery: an execution already exists for this order -> finish bookkeeping, never re-fill.
+            prior = self._prior_execution(order)
+            if prior is not None:
+                cash = self._recover_fill(order, prior, positions, cash, date_str, execution_date, fills_log)
+                continue
             # Guard against double-sell / phantom cash if position already sold
             if sym not in positions:
                 logger.warning(f"Position {sym} already closed or not found. Cancelling orphan/duplicate sell order {order['order_id']}.")
@@ -713,6 +957,13 @@ class PaperTradingManager:
                 order.get("reason") == "DATA_ENDED_FORCED_EXIT"
                 or int(order.get("deferral_days", 0)) >= 10
             )
+            if order.get("reason") == "DATA_ENDED_FORCED_EXIT" and bar is not None and int(order.get("deferral_days", 0)) < 10:
+                # The symbol trades normally this morning: the staged 'data ended' exit was a data gap, not a delisting.
+                logger.critical("[DATA_RECOVERED] %s has a live bar; cancelling forced delisting exit %s (no haircut sale of a healthy stock).", sym, order["order_id"])
+                self._alert(f"Forced-exit order for {sym} cancelled: symbol is trading normally (data gap, not delisting).")
+                self.db.orders.update_one({"order_id": order["order_id"]},
+                                          {"$set": {"status": "CANCELLED", "cancel_reason": "DATA_RECOVERED", "execution_date": date_str}})
+                continue
             if bar is None or is_forced_delisting:
                 if is_forced_delisting:
                     logger.warning(f"Executing forced liquidation for {sym} (reason={order.get('reason')}, deferral_days={order.get('deferral_days', 0)}).")
@@ -728,6 +979,8 @@ class PaperTradingManager:
                         "is_live_quote": False,
                     }
                 else:
+                    logger.error("[NO_QUOTE] cannot price SELL %s for %s; order retained for the next attempt", order["order_id"], sym)
+                    no_quote.append({"symbol": sym, "reason": "NO_QUOTE: sell retained"})
                     continue
             prev_close = bar["prev_close"]
             open_px = bar["open"]
@@ -753,6 +1006,8 @@ class PaperTradingManager:
                 no_buyers = (bar.get("bid") is None) or (float(bar.get("bid") or 0.0) <= 0.0)
                 flat_tick = abs(high_px - low_px) / prev_close < 0.001 if prev_close > 0 else (open_px == high_px == low_px == close_px)
                 is_down = (pct_down >= 0.048) and flat_tick and no_buyers
+                if is_down:
+                    logger.warning("[DEGRADED_CIRCUIT_HEURISTIC] %s deferred on yfinance fallback (no circuit band/bid data): gap %.1f%%", sym, pct_down * 100)
 
             if is_down:
                 def_days = int(order.get("deferral_days", 0)) + 1
@@ -762,41 +1017,31 @@ class PaperTradingManager:
                 )
                 if sym in positions:
                     self.db.positions.update_one(
-                        {"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym},
+                        {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
                         {"$set": {"deferral_days": def_days}}
                     )
                 deferred_log.append({"symbol": sym, "days": def_days})
                 continue
 
             open_price = float(row["open"])
+            shares = int(pos["shares"])  # always the CURRENT holding (a corporate action may have changed it since staging)
             if is_forced_delisting:
-                fill_price = open_price  # Preserves 5% haircut from line 660 without double slippage
+                fill_price = open_price  # Preserves 5% haircut from the forced-liquidation bar without double slippage
             else:
-                fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, int(order["shares"]), "SELL"))
-            shares = int(order["shares"])
+                fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, shares, "SELL"))
             gross_val = shares * fill_price
             fees_dict = calc_sell_fees_exact(gross_val, execution_date, self.config)
             net_proceeds = gross_val - fees_dict["total"]
             cash += net_proceeds
 
-            # Persist cash atomically after fill so mid-batch failures do not desynchronize balance
-            self.db.strategies.update_one(
-                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
-                {"$set": {"cash": round(cash, 2)}}
-            )
-            self.db.daily_nav.update_one(
-                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
-                {"$set": {"cash": round(cash, 2), "updated_at": datetime.now(timezone.utc).isoformat()}},
-                upsert=True,
-            )
-
-            # Record Execution
-            exec_id = f"EXEC_{date_str}_{sym}_{uuid.uuid4().hex[:6]}"
+            # Ordered, idempotent writes (each step is safe to repeat; _recover_fill resumes from any crash point):
+            # execution -> cash (once, keyed by exec_id) -> trade (once) -> position delete -> order FILLED.
+            exec_id = f"EXEC_{order['order_id']}"
             exec_model = ExecutionModel(
                 exec_id=exec_id,
                 order_id=order["order_id"],
                 strategy_id=self.config.strategy_id,
-                mode="paper",
+                mode=self._mode,
                 symbol=sym,
                 action="SELL",
                 shares=shares,
@@ -807,45 +1052,12 @@ class PaperTradingManager:
                 fees=fees_dict["total"],
                 slippage=round((open_price - fill_price) * shares, 2),
             )
-            self.db.executions.insert_one(exec_model.to_dict())
+            self._record_execution(exec_model)
+            self._persist_cash(cash, date_str, exec_id)
             self._audit_fill(order, sym, "SELL", shares, bar, open_price, fill_price, date_str)
-
-            # Close Position & Record Trade
-            pos = positions.get(sym)
-            if pos:
-                entry_date_dt = pd.to_datetime(pos.get("entry_date") or execution_date)
-                hold_days = (execution_date - entry_date_dt).days
-                entry_price = float(pos["entry_price"])
-                entry_fill_px = float(pos.get("entry_fill_price", entry_price))
-                outlay = float(pos.get("entry_outlay", shares * entry_fill_px + float(pos.get("entry_fees", 0.0))))
-                gross_pnl = (shares * fill_price) - (shares * entry_fill_px)
-                total_fees = float(pos.get("entry_fees", 0.0)) + fees_dict["total"]
-                net_pnl = net_proceeds - outlay
-                ret_pct = (net_pnl / outlay) * 100.0 if outlay > 0 else 0.0
-                
-                pos_entry_slip = float(pos.get("entry_slip_loss", (entry_fill_px - entry_price) * shares))
-                exit_slip = (open_price - fill_price) * shares
-
-                trade_model = TradeModel(
-                    strategy_id=self.config.strategy_id,
-                    mode="paper",
-                    symbol=sym,
-                    entry_date=pos["entry_date"],
-                    entry_price=entry_fill_px,
-                    exit_date=date_str,
-                    exit_price=fill_price,
-                    shares=shares,
-                    hold_days=hold_days,
-                    gross_pnl=round(gross_pnl, 2),
-                    net_pnl=round(net_pnl, 2),
-                    total_fees=round(total_fees, 2),
-                    total_slippage=round(pos_entry_slip + exit_slip, 2),
-                    return_pct=round(ret_pct, 4),
-                    exit_reason=order.get("reason") or "FORCED_DELISTING_LIQUIDATION",
-                )
-                self.db.trades.insert_one(trade_model.to_dict())
-                self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym})
-                positions.pop(sym, None)
+            self._record_trade(pos, order, shares, open_price, fill_price, net_proceeds, fees_dict["total"], execution_date, date_str, exec_id)
+            self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym})
+            positions.pop(sym, None)
 
             # Update Order
             self.db.orders.update_one(
@@ -862,6 +1074,10 @@ class PaperTradingManager:
 
         for order in buy_orders:
             sym = order["symbol"]
+            prior = self._prior_execution(order)
+            if prior is not None:
+                cash = self._recover_fill(order, prior, positions, cash, date_str, execution_date, fills_log)
+                continue
             
             # Prevent duplicate buy if symbol is already held in open positions
             if sym in positions:
@@ -886,6 +1102,13 @@ class PaperTradingManager:
                 continue
             bar = self._get_execution_bar(sym, execution_date, universe)
             if bar is None:
+                # An outage must not silently forfeit the month's entry: retain the order, say so, and make the run fail
+                # (the scheduler retries; stale signals are expired by the stale-signal guard on the next session).
+                logger.error("[NO_QUOTE] cannot price BUY %s for %s; order retained for the next attempt", order["order_id"], sym)
+                self.db.orders.update_one({"order_id": order["order_id"]},
+                                          {"$set": {"note": "NO_QUOTE", "last_attempt": date_str}})
+                retained_ids.add(order["order_id"])
+                no_quote.append({"symbol": sym, "reason": "NO_QUOTE: buy retained"})
                 continue
             prev_close = bar["prev_close"]
             open_px = bar["open"]
@@ -975,13 +1198,13 @@ class PaperTradingManager:
             cash -= total_outlay
             buy_slip_total = round((fill_price - open_price) * shares, 2)
 
-            # Record Execution
-            exec_id = f"EXEC_{date_str}_{sym}_{uuid.uuid4().hex[:6]}"
+            # Record Execution (deterministic id: a retry can never create a second execution for the same order)
+            exec_id = f"EXEC_{order['order_id']}"
             exec_model = ExecutionModel(
                 exec_id=exec_id,
                 order_id=order["order_id"],
                 strategy_id=self.config.strategy_id,
-                mode="paper",
+                mode=self._mode,
                 symbol=sym,
                 action="BUY",
                 shares=shares,
@@ -992,13 +1215,14 @@ class PaperTradingManager:
                 fees=buy_fees["total"],
                 slippage=buy_slip_total,
             )
-            self.db.executions.insert_one(exec_model.to_dict())
+            self._record_execution(exec_model)
+            self._persist_cash(cash, date_str, exec_id)
             self._audit_fill(order, sym, "BUY", shares, bar, open_price, fill_price, date_str)
 
             # Add Position
             pos_model = PositionModel(
                 strategy_id=self.config.strategy_id,
-                mode="paper",
+                mode=self._mode,
                 symbol=sym,
                 shares=shares,
                 entry_price=open_price,
@@ -1011,22 +1235,11 @@ class PaperTradingManager:
                 unrealized_pnl=0.0,
             )
             self.db.positions.replace_one(
-                {"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym},
+                {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
                 pos_model.to_dict(),
                 upsert=True
             )
             positions[sym] = pos_model.to_dict()
-
-            # Persist cash atomically after fill so mid-batch failures do not desynchronize balance
-            self.db.strategies.update_one(
-                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
-                {"$set": {"cash": round(cash, 2)}}
-            )
-            self.db.daily_nav.update_one(
-                {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "date": date_str},
-                {"$set": {"cash": round(cash, 2), "updated_at": datetime.now(timezone.utc).isoformat()}},
-                upsert=True,
-            )
 
             # Update Order
             self.db.orders.update_one(
@@ -1035,36 +1248,22 @@ class PaperTradingManager:
             )
             fills_log.append({"action": "BUY", "symbol": sym, "shares": shares, "fill_price": fill_price})
 
-        # Expire any leftover PENDING_OPEN buy orders from this batch (e.g. unreached backup slots)
-        if hasattr(self.db.orders, "update_many"):
-            self.db.orders.update_many(
-                {
-                    "strategy_id": self.config.strategy_id,
-                    "mode": "paper",
-                    "action": "BUY",
-                    "status": "PENDING_OPEN",
-                    "signal_date": {"$lt": date_str},
-                },
-                {
-                    "$set": {
-                        "status": "SKIPPED_EXPIRED",
-                        "execution_date": date_str,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                }
+        # Expire leftover PENDING_OPEN buys from earlier signal dates (e.g. unreached backup slots), except orders
+        # retained this run because no price was available.
+        for pending_o in list(self.db.orders.find({
+            "strategy_id": self.config.strategy_id,
+            "mode": self._mode,
+            "action": "BUY",
+            "status": "PENDING_OPEN",
+            "signal_date": {"$lt": date_str},
+        })):
+            if not isinstance(pending_o, dict) or pending_o.get("order_id") in retained_ids:
+                continue
+            self.db.orders.update_one(
+                {"order_id": pending_o["order_id"]},
+                {"$set": {"status": "SKIPPED_EXPIRED", "execution_date": date_str,
+                          "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
-        else:
-            for pending_o in list(self.db.orders.find({
-                "strategy_id": self.config.strategy_id,
-                "mode": "paper",
-                "action": "BUY",
-                "status": "PENDING_OPEN",
-                "signal_date": {"$lt": date_str},
-            })):
-                self.db.orders.update_one(
-                    {"order_id": pending_o["order_id"]},
-                    {"$set": {"status": "SKIPPED_EXPIRED", "execution_date": date_str}}
-                )
 
         # 3. Update NAV Record
         current_holdings_val = 0.0
@@ -1084,7 +1283,7 @@ class PaperTradingManager:
                 entry_outlay = float(pos.get("entry_outlay", pos["shares"] * pos["entry_price"]))
                 pos["unrealized_pnl"] = pos["market_value"] - entry_outlay
                 self.db.positions.update_one(
-                    {"strategy_id": self.config.strategy_id, "mode": "paper", "symbol": sym},
+                    {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
                     {"$set": {
                         "last_close": last_pr,
                         "market_value": pos["market_value"],
@@ -1096,7 +1295,7 @@ class PaperTradingManager:
         current_nav = cash + current_holdings_val
         nav_model = DailyNavModel(
             strategy_id=self.config.strategy_id,
-            mode="paper",
+            mode=self._mode,
             date=date_str,
             cash=round(cash, 2),
             holdings_val=round(current_holdings_val, 2),
@@ -1104,7 +1303,7 @@ class PaperTradingManager:
             open_positions_count=len(positions),
         )
         self.db.daily_nav.replace_one(
-            {"strategy_id": self.config.strategy_id, "mode": "paper", "date": date_str},
+            {"strategy_id": self.config.strategy_id, "mode": self._mode, "date": date_str},
             nav_model.to_dict(),
             upsert=True
         )
@@ -1143,11 +1342,12 @@ class PaperTradingManager:
         )
 
         # 4. Broadcast Telegram Execution Alert
-        self.notifier.send_execution_alert(self.config.strategy_id, date_str, fills_log, deferred_log, current_nav, cash=cash)
+        self.notifier.send_execution_alert(self.config.strategy_id, date_str, fills_log, deferred_log + no_quote, current_nav, cash=cash)
 
         return {
             "fills": fills_log,
             "deferred": deferred_log,
+            "no_quote": no_quote,
             "cash": cash,
             "holdings_val": current_holdings_val,
             "nav": current_nav,

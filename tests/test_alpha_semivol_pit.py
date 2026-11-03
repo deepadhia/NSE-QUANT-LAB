@@ -188,3 +188,32 @@ def test_sma150_stop_extraction_in_paper_manager():
     assert pos is not None
     assert pos.get("sma150_stop") is not None
     assert pos.get("stop_loss_price") == pos["sma150_stop"]
+
+
+def test_precomputed_generic_columns_cannot_change_ranking():
+    """Indicator namespace isolation: a cache carrying differently defined mom12_1 / semi_vol126 must not feed the ranking."""
+    import numpy as np
+    import pandas as pd
+    from nse_quant_lab.strategies.alpha_semivol_pit import AlphaSemivolPITStrategy
+
+    rng = np.random.default_rng(7)
+    dates = pd.bdate_range("2022-01-03", periods=330)
+    frames, poisoned = {}, {}
+    for i, sym in enumerate(["AAA", "BBB", "CCC", "DDD"]):
+        c = 100.0 * (i + 1) * np.exp(np.cumsum(0.003 + 0.012 * rng.standard_normal(len(dates))))
+        df = pd.DataFrame({"date": dates, "open": c, "high": c * 1.01, "low": c * 0.99, "close": c,
+                           "volume": 2e6, "turnover": c * 2e6, "series": "EQ"})
+        frames[sym] = df
+        p = df.copy()
+        p["mom12_1"] = rng.standard_normal(len(p))          # garbage, different formula
+        p["semi_vol126"] = rng.random(len(p)).astype("float32")
+        poisoned[sym] = p
+
+    strat = AlphaSemivolPITStrategy(use_regime=False)
+    clean = {s: strat.compute_indicators(d) for s, d in frames.items()}
+    dirty = {s: strat.compute_indicators(d) for s, d in poisoned.items()}
+    dd = dates[-1]
+    a = strat.select_entry_candidates(clean, dd, {}, None)
+    b = strat.select_entry_candidates(dirty, dd, {}, None)
+    assert len(a) > 0
+    assert list(a.index) == list(b.index)

@@ -26,6 +26,7 @@ def check_production_health() -> bool:
     logger.info("=" * 70)
 
     has_failures = False
+    db = None
 
     # 1. Check MongoDB Connectivity
     logger.info("--> [1/5] Checking MongoDB Atlas Connection...")
@@ -49,6 +50,8 @@ def check_production_health() -> bool:
     # 2. Check Active Strategies and Required Production Datasets
     logger.info("--> [2/5] Checking Active Strategies & Data Artifacts...")
     try:
+        if db is None:
+            raise RuntimeError("no MongoDB connection (check 1 failed)")
         active_strats = list(db.strategies.find({"status": "ACTIVE"}))
         active_ids = [s["strategy_id"] for s in active_strats]
         logger.info(f"   Active strategies found in DB: {active_ids}")
@@ -88,6 +91,37 @@ def check_production_health() -> bool:
                     logger.error("   Remedy: Either transfer clean_panel.parquet or ingest recent bars via Upstox.")
                     logger.error("=" * 70)
                     has_failures = True
+
+        # 2b. Order-ID namespacing: PENDING orders whose id lacks their strategy_id predate the C1 fix and can be
+        #     cross-owned by another strategy. Clear and re-stage them before trading.
+        legacy = [o["order_id"] for o in db.orders.find({"status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}})
+                  if o.get("strategy_id") not in str(o.get("order_id", ""))]
+        if legacy:
+            logger.error(f"❌ {len(legacy)} pending order(s) use legacy non-namespaced IDs (e.g. {legacy[:3]}). Re-stage them.")
+            has_failures = True
+        else:
+            logger.info("✅ All pending order IDs are strategy-namespaced.")
+
+        # 2c. Idempotency indexes must exist (duplicate-fill protection is enforced by the database)
+        for coll_name in ("executions", "trades"):
+            idx = db.db[coll_name].index_information()
+            if not any(v.get("unique") and [k for k, _ in v["key"]] == ["strategy_id", "mode", "exec_id"] for v in idx.values()):
+                logger.error(f"❌ Missing unique (strategy_id, mode, exec_id) index on '{coll_name}'. Run initialize_portfolio / manage_strategy --init.")
+                has_failures = True
+
+        # 2d. Benchmark freshness: a stale ^CRSLDX silently blocks all new entries (regime fails safe)
+        import pandas as pd
+        bench = db.db["benchmark_ohlcv"].find_one({"symbol": "^CRSLDX"}, sort=[("date", -1)])
+        if not bench:
+            logger.error("❌ No ^CRSLDX benchmark rows in 'benchmark_ohlcv'.")
+            has_failures = True
+        else:
+            age = (pd.Timestamp.now().normalize() - pd.to_datetime(bench["date"])).days
+            if age > 7:
+                logger.error(f"❌ Benchmark ^CRSLDX is {age} days stale (latest {bench['date']}).")
+                has_failures = True
+            else:
+                logger.info(f"✅ Benchmark ^CRSLDX latest {bench['date']} ({age}d old).")
     except Exception as e:
         logger.error(f"❌ Failed to verify strategy data artifacts: {e}")
         has_failures = True
@@ -115,6 +149,17 @@ def check_production_health() -> bool:
         from nse_quant_lab.registry import list_strategies
         strats = list_strategies()
         logger.info(f"✅ Registry contains {len(strats)} registered strategies: {strats}")
+
+        # Holiday calendar sanity: a wrong/empty calendar silently skips trading days or invents rebalances
+        from nse_quant_lab.holidays import get_nse_holidays
+        from datetime import datetime as _dt
+        for yr in (_dt.now().year, _dt.now().year + 1):
+            hol = get_nse_holidays(yr)
+            if not any(h.startswith(str(yr)) for h in hol):
+                logger.error(f"❌ No NSE holiday data for {yr}: weekdays would all be treated as trading days.")
+                has_failures = True
+            else:
+                logger.info(f"✅ Holiday calendar for {yr}: {len([h for h in hol if h.startswith(str(yr))])} entries (verify against the NSE circular).")
     except Exception as e:
         logger.error(f"❌ Strategy registry check failed: {e}")
         has_failures = True

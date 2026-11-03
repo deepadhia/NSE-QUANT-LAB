@@ -82,7 +82,7 @@ def synthetic_market():
     return dates, bench, stocks
 
 
-def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks):
+def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morning=False):
     eval_start = dates[226].strftime("%Y-%m-%d")
     eval_end = dates[-1].strftime("%Y-%m-%d")
 
@@ -123,7 +123,14 @@ def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks):
     for d in eval_dates:
         # Causal slice: strictly date <= d
         d_uni = {s: df[df["date"] <= d].copy() for s, df in stocks.items()}
-        mgr.execute_morning_fills(d_uni, d)
+        if live_morning:
+            # 09:16 reality: the execution day's bar does NOT exist; the only same-day information is the broker's opening
+            # quote (open only - no same-day high/low/close). Exercises the live-quote code path (AGENTS.md temporal rule).
+            opens = {s: float(df.loc[df["date"] == d, "open"].iloc[0]) for s, df in stocks.items()}
+            mgr.quote_provider = lambda sym, _o=opens: {"open": _o[sym], "high": _o[sym], "low": _o[sym], "ltp": _o[sym]}
+            mgr.execute_morning_fills({s: df[df["date"] < d].copy() for s, df in stocks.items()}, d)
+        else:
+            mgr.execute_morning_fills(d_uni, d)
         mgr.generate_post_market_signals(d_uni, d)
 
     paper_execs = mock_db.executions.docs
@@ -161,3 +168,14 @@ def test_alpha_semivol_pit_parity(synthetic_market):
     dates, bench, stocks = synthetic_market
     _verify_strategy_parity(AlphaSemivolPITStrategy, "alpha_semivol_pit", dates, bench, stocks)
 
+
+
+@pytest.mark.parametrize("strat_cls,strat_id", [
+    (TrendMomentumPITStrategy, "trend_momentum_pit"),
+    (MinerviniStrategy, "minervini_trend_template"),
+    (AlphaSemivolPITStrategy, "alpha_semivol_pit"),
+])
+def test_live_morning_path_parity_without_execution_day_bar(synthetic_market, strat_cls, strat_id):
+    """Same parity gate, but morning fills run on a universe that ends the session BEFORE the fill and prices from a quote."""
+    dates, bench, stocks = synthetic_market
+    _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morning=True)

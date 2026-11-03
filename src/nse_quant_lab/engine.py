@@ -28,7 +28,7 @@ from .config import BacktestConfig
 from .execution import is_locked_down, is_locked_up
 from .fees import calc_buy_fees_exact, calc_sell_fees_exact
 from .metrics import calculate_financial_metrics as compute_metrics
-from .tax_india import compute_fy_tax
+from .tax_india import compute_fy_tax, LTCG_MIN_HOLD_DAYS
 
 
 class BacktestEngine:
@@ -52,7 +52,7 @@ class BacktestEngine:
         self,
         universe: Dict[str, pd.DataFrame],
         eval_start_date: str = "2019-01-01",
-        eval_end_date: str = "2026-10-23",
+        eval_end_date: Optional[str] = None,
         save_results: bool = False,
         output_dir: Optional[str] = None,
     ) -> Tuple[Dict[str, Any], pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -73,7 +73,9 @@ class BacktestEngine:
         timeline = sorted(list(all_dates))
 
         eval_start_dt = pd.to_datetime(eval_start_date)
-        eval_end_dt = pd.to_datetime(eval_end_date)
+        # No hardcoded calendar date: default to the last session in the supplied data.
+        eval_end_dt = pd.to_datetime(eval_end_date) if eval_end_date else max(timeline)
+        eval_end_date = eval_end_dt.strftime("%Y-%m-%d")
         eval_timeline = [d for d in timeline if eval_start_dt <= d <= eval_end_dt]
 
         if not eval_timeline:
@@ -667,13 +669,16 @@ class BacktestEngine:
                     # Scale down shares if fees/slippage caused outlay to slightly exceed available cash
                     while total_outlay > cash and shares_submitted > 0:
                         shares_submitted -= 1
+                        # Re-price slippage at the reduced size (order-size-aware cost model), exactly as the paper manager does.
+                        fill_price = actual_open * (1.0 + self._slip(sym, bar, actual_open, max(shares_submitted, 1), "BUY"))
                         gross_buy_val = shares_submitted * actual_open
                         slipped_buy_val = shares_submitted * fill_price
                         buy_slip_loss = slipped_buy_val - gross_buy_val
                         buy_fees = calc_buy_fees_exact(slipped_buy_val, current_date, self.config)
                         total_outlay = slipped_buy_val + buy_fees["total"]
 
-                    if shares_submitted <= 0 or gross_buy_val < 0.25 * target_alloc_per_stock:
+                    # Minimum-size test on the slipped value, matching PaperTradingManager (gross_val = shares * fill_price)
+                    if shares_submitted <= 0 or slipped_buy_val < 0.25 * target_alloc_per_stock:
                         skipped_orders_count += 1
                         order_id_counter += 1
                         order_ledger.append({
@@ -780,8 +785,8 @@ class BacktestEngine:
                     last_tax_processed_trade_idx = len(closed_trades)
 
                     if getattr(self.config, "tax_model", "india_fy") == "flat_legacy":
-                        stcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] < 365)
-                        ltcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] >= 365)
+                        stcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] < LTCG_MIN_HOLD_DAYS)
+                        ltcg_gross = sum(t["net_pnl"] for t in fy_trades if t["hold_days"] >= LTCG_MIN_HOLD_DAYS)
                         net_stcg = stcg_gross - carried_forward_stcl
                         if net_stcg < 0:
                             carried_forward_stcl = abs(net_stcg)

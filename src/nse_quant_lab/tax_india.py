@@ -33,6 +33,8 @@ D_STCG_15 = pd.Timestamp("2008-04-01")
 D_LTCG_START = pd.Timestamp("2018-04-01")
 D_BUDGET_2024 = pd.Timestamp("2024-07-23")
 CARRY_YEARS = 8
+# s.2(42A): long-term means held for MORE than 12 months. A sale on the 365th day after purchase is still short-term.
+LTCG_MIN_HOLD_DAYS = 366
 
 
 def stcg_rate(sale: pd.Timestamp) -> float:
@@ -81,7 +83,7 @@ def compute_fy_tax(
     for t in trades:
         sale = pd.Timestamp(t["exit_date"])
         p = taxable_pnl(t)
-        if int(t["hold_days"]) >= 365:
+        if int(t["hold_days"]) >= LTCG_MIN_HOLD_DAYS:
             lt_gross += p
             if sale < D_BUDGET_2024:
                 lt_pre += p

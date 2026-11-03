@@ -83,8 +83,17 @@ def get_nse_holidays(year: Optional[int] = None, mongo_uri: Optional[str] = None
                     fetched = set()
                     for item in data:
                         h_date = item.get("date")
-                        if h_date:
-                            fetched.add(str(h_date)[:10])
+                        if not h_date or not str(h_date).startswith(str(current_year)):
+                            continue
+                        # Only dates on which NSE itself is closed for trading count: the feed also lists other exchanges'
+                        # closures and settlement-only holidays (trading open). Fields absent -> keep (static list is the cross-check).
+                        closed = item.get("closed_exchanges")
+                        if closed and "NSE" not in closed:
+                            continue
+                        h_type = item.get("holiday_type")
+                        if h_type and h_type != "TRADING_HOLIDAY":
+                            continue
+                        fetched.add(str(h_date)[:10])
                     if fetched:
                         _MEM_CACHE[current_year] = fetched
                         return fetched
@@ -93,7 +102,10 @@ def get_nse_holidays(year: Optional[int] = None, mongo_uri: Optional[str] = None
 
     # Fallback to static verified baseline
     filtered = {h for h in STATIC_NSE_HOLIDAYS if h.startswith(str(current_year))}
-    res = filtered if filtered else STATIC_NSE_HOLIDAYS
+    if not filtered:
+        logger.critical("[HOLIDAY_CALENDAR_MISSING] No NSE holiday data for %s (MongoDB/Upstox/static all empty): every weekday "
+                        "will be treated as a trading day. Update STATIC_NSE_HOLIDAYS or the market_holidays collection.", current_year)
+    res = filtered
     _MEM_CACHE[current_year] = res
     return res
 

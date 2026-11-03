@@ -55,7 +55,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
     rebalance_frequency = "MONTHLY"
     paper_backup_slots = 60
     required_indicator_columns = [
-        "sma150", "ma200", "raw_mom_6m", "mom_6m", "mom12_1", "semi_vol126",
+        "sma150", "ma200", "raw_mom_6m", "mom_6m", "mom12_1", "semi_vol126", "alpha_mom12_1", "alpha_semi_vol126",
         "adt50m", "adt_prev", "sig_prev", "series", "hist_n"
     ]
 
@@ -94,18 +94,21 @@ class AlphaSemivolPITStrategy(BaseStrategy):
 
         # Momentum inputs: unconditionally compute raw 6M price return into raw_mom_6m
         out["raw_mom_6m"] = (pd.Series(close) / pd.Series(close).shift(126) - 1.0).values
-        if "mom_6m" not in out.columns:
-            out["mom_6m"] = out["raw_mom_6m"]
-        if "mom12_1" not in out.columns:
-            out["mom12_1"] = (pd.Series(close).shift(21) / pd.Series(close).shift(252) - 1.0).values
+        # Formula-specific columns are computed unconditionally so a pre-computed cache with a differently defined
+        # generic column (mom12_1, semi_vol126, ...) can never feed the ranking. Selection reads only alpha_* names.
+        out["alpha_mom12_1"] = (pd.Series(close).shift(21) / pd.Series(close).shift(252) - 1.0).values
 
         # Downside semivolatility 126
-        if "semi_vol126" not in out.columns:
-            r = np.zeros(n)
-            r[1:] = (close[1:] - close[:-1]) / np.where(close[:-1] > 0, close[:-1], 1.0)
-            r_down = np.minimum(0.0, r)
-            s_down = pd.Series(r_down ** 2).rolling(126, min_periods=60).mean().values
-            out["semi_vol126"] = np.sqrt(s_down * 252.0).astype("float32")
+        r = np.zeros(n)
+        r[1:] = (close[1:] - close[:-1]) / np.where(close[:-1] > 0, close[:-1], 1.0)
+        r_down = np.minimum(0.0, r)
+        s_down = pd.Series(r_down ** 2).rolling(126, min_periods=60).mean().values
+        out["alpha_semi_vol126"] = np.sqrt(s_down * 252.0).astype("float32")
+
+        # Legacy-named aliases (same values), kept for existing consumers/tests; never read by selection.
+        out["mom_6m"] = out["raw_mom_6m"]
+        out["mom12_1"] = out["alpha_mom12_1"]
+        out["semi_vol126"] = out["alpha_semi_vol126"]
 
         # Liquidity & slippage inputs
         adt = pd.Series(turnover).rolling(50, min_periods=50).median()
@@ -284,8 +287,8 @@ class AlphaSemivolPITStrategy(BaseStrategy):
                 float(r["sma150"]),
                 float(r["ma200"]),
                 float(r.get("raw_mom_6m", np.nan)),
-                float(r.get("mom12_1", np.nan)),
-                float(r.get("semi_vol126", np.nan)),
+                float(r.get("alpha_mom12_1", np.nan)),
+                float(r.get("alpha_semi_vol126", np.nan)),
                 float(r["adt50m"]),
                 int(r["hist_n"])
             ))

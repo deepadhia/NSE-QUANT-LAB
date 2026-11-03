@@ -32,7 +32,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("daily_pipeline")
 
 
-def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Timestamp, db: MongoDatabase):
+def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Timestamp, db: MongoDatabase) -> list:
+    """Returns a list of problem strings (empty == clean)."""
     strategy_id = strat_doc["strategy_id"]
     is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
     portfolio_size = int(strat_doc.get("portfolio_size", 15 if is_pit else 6))
@@ -64,11 +65,15 @@ def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Times
 
     res = manager.generate_post_market_signals(universe, decision_dt)
     if res.get("status") in ("PAUSED", "ARCHIVED"):
+        if res["status"] == "REFUSED_STALE_DECISION_DATE":
+            logger.error(f"   Strategy '{strategy_id}': {res.get('message')}")
+            return [f"{strategy_id}: {res['status']}"]
         logger.warning(f"   Strategy '{strategy_id}' is {res['status']}. Skipping signal generation.")
-        return
+        return []
 
     logger.info(f"   Exits generated: {len(res.get('exits', []))}")
     logger.info(f"   Buys generated:  {len(res.get('buys', []))}")
+    return []
 
 
 def main():
@@ -156,13 +161,19 @@ def main():
     except Exception as e:
         logger.warning(f"Failed to check benchmark recency: {e}")
 
+    problems = []
     for s_doc in strat_docs:
         try:
-            run_strategy_pipeline(s_doc, universe, decision_dt, db)
+            problems.extend(run_strategy_pipeline(s_doc, universe, decision_dt, db))
         except Exception as e:
             logger.error(f"Error processing strategy {s_doc.get('strategy_id')}: {e}", exc_info=True)
+            problems.append(f"{s_doc.get('strategy_id')}: EXCEPTION {e}")
 
     logger.info("=" * 70)
+    if problems:
+        logger.error(">> Daily pipeline INCOMPLETE (%d problem(s)): %s", len(problems), "; ".join(problems))
+        logger.info("=" * 70)
+        sys.exit(4)
     logger.info(">> Daily post-market pipeline completed successfully.")
     logger.info("=" * 70)
 

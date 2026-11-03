@@ -3,7 +3,7 @@ models.py -- Unified Schema Models for Backtest, Paper Trading & Real Execution
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 
@@ -23,7 +23,7 @@ class OrderModel:
     signal_date: str                    # YYYY-MM-DD
     execution_date: Optional[str] = None
     deferral_days: int = 0
-    created_at: str = datetime.now(timezone.utc).isoformat()
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -44,7 +44,7 @@ class ExecutionModel:
     net_cash: float
     fees: float
     slippage: float
-    executed_at: str = datetime.now(timezone.utc).isoformat()
+    executed_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -71,7 +71,8 @@ class PositionModel:
     ema100_stop: Optional[float] = None
     sma150_stop: Optional[float] = None
     stop_buffer_pct: Optional[float] = None
-    updated_at: str = datetime.now(timezone.utc).isoformat()
+    applied_actions: list = field(default_factory=list)   # corporate-action keys already applied to shares/prices
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -94,7 +95,8 @@ class TradeModel:
     total_slippage: float
     return_pct: float
     exit_reason: str
-    created_at: str = datetime.now(timezone.utc).isoformat()
+    exec_id: Optional[str] = None       # idempotency key: one trade per execution
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -109,7 +111,7 @@ class DailyNavModel:
     holdings_val: float
     nav: float
     open_positions_count: int
-    updated_at: str = datetime.now(timezone.utc).isoformat()
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -139,8 +141,8 @@ class StrategyModel:
     last_signal_date: Optional[str] = None
     last_execution_date: Optional[str] = None
     last_run_at: Optional[str] = None
-    created_at: str = datetime.now(timezone.utc).isoformat()
-    updated_at: str = datetime.now(timezone.utc).isoformat()
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

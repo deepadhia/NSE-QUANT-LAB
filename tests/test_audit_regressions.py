@@ -482,7 +482,8 @@ def test_paper_manager_alert_ticket_and_skipped_orders():
     assert "RANK_" in b["reason"]
 
     # 2. Test 09:16 Morning Fills: Gap-Up Exceeded Appends to deferred_log
-    yesterday_str = (dec_dt - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    # Signal date is the last completed session (dec_dt): the stale-signal guard expires BUYs older than that session.
+    yesterday_str = dec_dt.strftime("%Y-%m-%d")
     today_dt = dec_dt + pd.Timedelta(days=1)
     today_str = today_dt.strftime("%Y-%m-%d")
     buy_order = OrderModel(

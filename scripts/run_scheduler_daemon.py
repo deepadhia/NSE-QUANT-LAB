@@ -58,7 +58,8 @@ class QuantLabScheduler:
 
     def __init__(self):
         self.running = True
-        self.completed_today = set()
+        self.completed_today = set()      # job finished OR was given up on / skipped for today
+        self.succeeded_today = set()      # job finished with exit code 0 (the ONLY set safety guards may trust)
         self.retry_counts = {}
         self.next_retry_time = {}
         self.current_date = get_ist_now().strftime("%Y-%m-%d")
@@ -145,6 +146,7 @@ class QuantLabScheduler:
                     data = json.load(f)
                 if data.get("date") == today_str:
                     self.completed_today = set(data.get("completed", []))
+                    self.succeeded_today = set(data.get("succeeded", []))
                     jobs_str = ", ".join(sorted(self.completed_today)) if self.completed_today else "none"
                     logger.info(f"Restored scheduler state from file: {len(self.completed_today)} jobs already completed today ({jobs_str})")
             except Exception as e:
@@ -156,7 +158,7 @@ class QuantLabScheduler:
             import json
             os.makedirs(os.path.dirname(state_file), exist_ok=True)
             with open(state_file, "w", encoding="utf-8") as f:
-                json.dump({"date": today_str, "completed": list(self.completed_today)}, f, indent=2)
+                json.dump({"date": today_str, "completed": list(self.completed_today), "succeeded": list(self.succeeded_today)}, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not save scheduler state to {state_file}: {e}")
 
@@ -241,6 +243,7 @@ class QuantLabScheduler:
             if res.returncode == 0:
                 logger.info(f"SUCCESS: Job {job_id} finished in {elapsed:.1f}s (Exit code: 0)")
                 self.completed_today.add(job_id)
+                self.succeeded_today.add(job_id)
                 self.retry_counts.pop(job_id, None)
                 self.next_retry_time.pop(job_id, None)
                 self._save_state(today_str)
@@ -274,11 +277,17 @@ class QuantLabScheduler:
             t_msg = (
                 f"🚨 <b>ALERT: Job Timeout in NSE Quant Lab</b>\n"
                 f"Job: <code>{html.escape(job_id)}</code>\n"
-                f"Status: Timed out after 30 minutes"
+                f"Status: Timed out after 30 minutes (will retry; order/fill writes are idempotent)"
             )
             self.notifier.send_message(t_msg)
-            self.completed_today.add(job_id)
-            self._save_state(today_str)
+            attempt = self.retry_counts.get(job_id, 0) + 1
+            self.retry_counts[job_id] = attempt
+            if attempt < 3:
+                self.next_retry_time[job_id] = get_ist_now() + timedelta(minutes=15)
+            else:
+                # Given up for today, but NOT counted as a success: the nightly catch-up must still run.
+                self.completed_today.add(job_id)
+                self._save_state(today_str)
         except Exception as e:
             logger.error(f"Unexpected exception executing {job_id}: {e}", exc_info=True)
             err_str = html.escape(str(e)[:200])
@@ -313,6 +322,7 @@ class QuantLabScheduler:
                 logger.info(f"Calendar day changed from {self.current_date} to {today_str}. Resetting job trackers.")
                 self.current_date = today_str
                 self.completed_today.clear()
+                self.succeeded_today.clear()
                 self.retry_counts.clear()
                 self.next_retry_time.clear()
                 self._save_state(today_str)
@@ -324,7 +334,7 @@ class QuantLabScheduler:
 
                 if job_id not in self.completed_today:
                     # Defense-in-depth: Skip nightly catchup pipeline if daily_pipeline succeeded today
-                    if job_id == "nightly_catchup_pipeline" and "daily_pipeline" in self.completed_today:
+                    if job_id == "nightly_catchup_pipeline" and "daily_pipeline" in self.succeeded_today:
                         logger.info("Skipping nightly_catchup_pipeline: daily_pipeline already completed successfully today.")
                         self.completed_today.add(job_id)
                         self._save_state(today_str)
