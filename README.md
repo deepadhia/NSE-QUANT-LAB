@@ -16,8 +16,9 @@
 4. **Prospective Forward Paper Trading**: Daily post-market scan and morning execution pipeline designed for automated deployment (e.g. on Oracle Cloud VPS) logging all orders/positions into MongoDB with `mode: "paper"` and Telegram notifications.
 5. **Cryptographic Proof**: Every backtest produces a complete JSON manifest with SHA-256 hashes of all ledgers and outputs.
 6. **Built-in Agent Rules & Skills**: Full `.agents/skills/audit-backtest/` and `AGENTS.md` guidelines preventing AI hallucination and enforcing research integrity.
-7. **Point-in-Time Realism & 100% Paper Parity (`trend_momentum_pit`)**: Full unconstrained historical Bhavcopy panel (including delisted stocks), 226-day dynamic point-in-time history gating, dated Indian STCG/LTCG tax models (`tax_india.py`), liquidity-tiered execution friction (`cost_model.py`), and 100% mathematical parity with live paper trading (`replay_reconcile.py`).
-8. **Arm 2 Event-Driven Macro Catch-Up**: Asynchronous cash deployment on mid-month Nifty 500 200-SMA recoveries, eliminating up to 27 days of cash drag (+3.02 pp annualized post-tax CAGR over 20 years across all disjoint market regimes).
+7. **Point-in-Time Realism & 100% Paper Parity (`trend_momentum_pit`)**: Full unconstrained historical Bhavcopy panel (including delisted stocks), 226-day dynamic point-in-time history gating, dated Indian STCG/LTCG tax models (`tax_india.py`), liquidity-tiered execution friction (`cost_model.py`), and engine-vs-paper parity checks (synthetic-market tests plus one real-data 83-session replay; see `docs/RESULTS_REGISTER.md` §4 for what that does and does not prove).
+8. **Arm 2 Event-Driven Macro Catch-Up**: Asynchronous cash deployment on mid-month Nifty 500 200-SMA recoveries. 20-year A/B: +1.71 pp post-tax CAGR vs monthly-only (mostly from 2021-26, chosen after viewing four arms); see the register.
+9. **Honest numbers**: all backtest results are defined in [`docs/RESULTS_REGISTER.md`](docs/RESULTS_REGISTER.md) (production code: 21.3% post-tax 20-year CAGR in backtest, planning range 17–19% after removing one outlier position; Nifty 500 price 10.0%; not out-of-sample, costs uncalibrated).
 
 ---
 

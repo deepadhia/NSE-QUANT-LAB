@@ -2,6 +2,12 @@
 """
 candidate_backtests.py -- 20-Year Historical Backtest & Parity Audit for Multi-Strategy Candidates.
 
+NOT AUTHORITATIVE (2026-11-04): this script re-implements strategy logic in `S0BaselineCandidate` / `AlphaSemivolCandidate`, which
+`docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md` forbids (research copies drift from `src/`). Some of its result rows were loaded from
+a cache (`tax_paid` = 0.0 in the CSV is a cache artifact, not proof of a pre-tax run). Its outputs are kept only as register rows R4/R6-R8 in
+`docs/RESULTS_REGISTER.md`. For production-class numbers use `minervini_20y.py` (imports the classes from `src/`).
+`fip_momentum_pit`, `pocket_pivot_pit` and `uptrend_pullback_mr` exist only here (not in `src/`).
+
 Evaluates 4 candidate strategies alongside baseline S0 UH R1 15:
 1. Baseline: S0_UH_R1_15 (trend_momentum_pit)
 2. Candidate 1: fip_momentum_pit (Frog-in-the-Pan Continuous Momentum, ID <= 0, Semivol, Jump Filter)

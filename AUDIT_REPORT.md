@@ -3,7 +3,9 @@
 **Date of Audit**: November 1, 2026  
 **Audited Target**: NSE-Quant-Lab Release 1.1.0 (Production Core & Paper Trading Engine)  
 **Primary Strategy**: `trend_momentum_pit` (Point-in-Time Trend-Momentum on Full Liquid Tier)  
-**Verification Verdict**: **VERIFIED PRODUCTION GRADE & STRICT HISTORICAL AUDIT CONCORDANCE**
+**Verification Verdict (corrected 2026-11-04)**: **Software mechanics well tested; trading edge NOT proven; several original claims withdrawn.**
+
+> **CORRECTION NOTICE (2026-11-04).** This report was drafted on 2026-11-01, before the forensic audit (`docs/AUDIT_2026-11_FINDINGS_AND_REGRESSION_GUARDS.md`). Its "verified production grade" verdict, "survivorship verified" row and the UB/UA return table (22.0% / 21.6%) were not supported by the evidence and have been replaced. Sections 2, 3, 4, 6 and 8 are corrected below. **All return and drawdown numbers are defined in `docs/RESULTS_REGISTER.md`.**
 
 ---
 
@@ -21,12 +23,12 @@ Quantitative systems routinely fail when deploying to live markets due to invisi
 
 | Audit Dimension | Standard Industry Vulnerability | NSE-Quant-Lab Implementation | Status |
 | :--- | :--- | :--- | :--- |
-| **Lookahead Bias** | Evaluating Day $T$ close signals using Day $T+1$'s open or intraday price | Signals computed strictly on Day $T$ post-market close ($15:30$ IST). Executions simulate at Day $T+1$ open ($09:16$ IST). | **VERIFIED (0 Lookahead)** |
-| **Survivorship Bias** | Filtering universe using today's current Nifty 500 constituents | Point-in-Time (PIT) reconstitutions tracked back to 2006. Delisted names, past constituents, and ticker changes included via `clean_panel.parquet` (8.78M bhavcopy rows). | **VERIFIED** |
+| **Lookahead Bias** | Evaluating Day $T$ close signals using Day $T+1$'s open or intraday price | Signals computed strictly on Day $T$ post-market close ($15:30$ IST). Executions simulate at Day $T+1$ open ($09:16$ IST). | **TESTED** (causal-slice replay and truncation tests; tests cannot prove zero look-ahead) |
+| **Survivorship Bias** | Filtering universe using today's current Nifty 500 constituents | Point-in-Time (PIT) reconstitutions tracked back to 2006. Delisted names, past constituents, and ticker changes included via `clean_panel.parquet` (8.78M bhavcopy rows).  Panel provenance and completeness were NOT audited; ~333 once-liquid names were absent from the Upstox DB and split/bonus adjustments for the 90 ingested delisted names are hand-decided (HANDOFF_2026-10-31). | **PARTIAL - NOT AUDITED** |
 | **Bar Availability Invariant** | Morning execution engine querying today's end-of-day bar | Execution engine operating at $09:16$ IST operates strictly on previous close and opening quotes; zero reliance on future EOD bar. | **VERIFIED** |
-| **Decoupled Exit Semantics** | Periodic rebalance logic prematurely liquidating trend positions | Pure event-driven structural exit on `Close < EMA(100)` at next open. Rebalance drops buffered by 1,500 ranks ($100\times \text{slots}$). | **VERIFIED** |
-| **Market Friction & Sizing** | Static slippage or zero transaction cost assumptions | Statutory Indian delivery taxes: STT ($0.1\%$), Stamp Duty ($0.015\%$), Exchange Turnover, SEBI, GST ($18\%$), and DP charges ($₹14.75$). Slippage scaled dynamically by order size vs 50-day ADT. | **VERIFIED** |
-| **Mark-to-Market Sizing** | Sizing new positions based on historical acquisition cost | Portfolio equity marked to current market prices prior to sizing allocation. Cash buffers ($1.8\%$) preserved. | **VERIFIED** |
+| **Decoupled Exit Semantics** | Periodic rebalance logic prematurely liquidating trend positions | Pure event-driven structural exit on `Close < EMA(100)` at next open. Rebalance drops buffered by 1,500 ranks ($100\times \text{slots}$). | **TESTED** (note: at month-end a held name now stays while close >= EMA(100) and EQ, i.e. HoldFix) |
+| **Market Friction & Sizing** | Static slippage or zero transaction cost assumptions | Statutory Indian delivery taxes: STT ($0.1\%$), Stamp Duty ($0.015\%$), Exchange Turnover, SEBI, GST ($18\%$), and DP charges ($₹14.75$). Slippage scaled dynamically by order size vs 50-day ADT. | **TESTED** (costs are assumed tiers, not measured against real fills) |
+| **Mark-to-Market Sizing** | Sizing new positions based on historical acquisition cost | Portfolio equity marked to current market prices prior to sizing allocation. Cash buffers ($1.8\%$) preserved. | **TESTED** |
 
 ---
 
@@ -39,35 +41,19 @@ A rigorous backtest-to-paper parity verification was executed across 83 historic
 * **Portfolio NAV Delta**: **₹0.04 over 4 months** (attributable solely to standard floating-point roundoff).
 * **Execution Timing**: Identical order staging on post-market close and execution on next session open.
 
+**Scope of this parity result (added 2026-11-04):** one real-data 4-month window for `trend_momentum_pit` only; the pytest parity gate uses a seeded synthetic market. See `docs/RESULTS_REGISTER.md` section 4.
+
 **Parity Conclusion**: The backtest simulation engine (`BacktestEngine`) and the production forward execution manager (`PaperTradingManager`) share identical sizing logic, circuit checks, fee calculations, and rebalance rules.
 
 ---
 
-## 4. Empirical 20-Year Post-Tax Performance (2007 – 2026)
+## 4. Empirical 20-Year Performance (replaced 2026-11-04)
 
-Evaluated on the unconstrained, survivorship-bias-free PIT clean panel (`clean_panel.parquet`, 8.78M bhavcopy rows, 2,737 stocks) with **dated statutory Indian capital gains tax** and **realistic liquidity-tiered slippage** (from `HANDOFF_2026-10-31.md` §3 & §9):
+The original table here (22.0% UB / 21.6% UA, from a research harness before the production tier switched to UH and before the audit fixes) is **withdrawn**. See `docs/RESULTS_REGISTER.md`. Summary:
 
-### Strategy Rules (`trend_momentum_pit`)
-* **Universe**: Series `EQ`, $\ge 226$ history sessions, 50-session median turnover $\ge ₹2.5\text{ Cr}$ (`UB` tier) or $\ge ₹10\text{ Cr}$ (`UA` tier), `Close >= ₹10`.
-* **Entry Filter**: `Close >= 1.03 * EMA(100)` AND `Supertrend(10, 3.0) == 1` (bullish).
-* **Ranking**: Blended 6M (126d) and 12M (252d) return divided by 6M annualized volatility (`mom_6m`).
-* **Exits**: Daily `Close < EMA(100)` executed at next open (`STRUCTURAL_EMA100`); no Supertrend flip exit; no rank-drop exits (`rebalance_hold_rank_buffer = 1500`).
-* **Regime Filter (`R1`)**: Nifty 500 (`^CRSLDX`) `Close < 200-session SMA` blocks new entries.
-
-### Verified Post-Tax Results (S0 R1 15 Slots, 100x Hold Buffer)
-| Metric | UB Tier (cost x1.0) | UB Tier (cost x1.5) | UA Tier (cost x1.0) | Nifty 500 Price Benchmark |
-| :--- | :--- | :--- | :--- | :--- |
-| **20-Year Post-Tax CAGR (2007–2026)** | **22.0%** | **21.0%** | **21.6%** | **9.4% – 9.9%** |
-| **10-Year Post-Tax CAGR (2016–2026)** | **16.6%** | **15.5%** | **16.3%** | **10.9%** |
-| **Maximum Drawdown** | **-44.2%** | **-46.8%** | **-43.0%** | **-64.3%** |
-| **Total Completed Trades** | **968** | **968** | **973** | N/A |
-| **Average Hold Duration** | **~74 days** | **~74 days** | **~74 days** | Buy & Hold |
-| **Tax Regime** | Dated STCG/LTCG + Cess | Dated STCG/LTCG + Cess | Dated STCG/LTCG + Cess | 12.5% LTCG |
-
-### Honest Reality Checks & Limitations
-1. **Tax Drag**: Because average hold duration is ~74 days, >99% of gains are taxed as Short-Term Capital Gains (STCG). Realized profits pay significant statutory tax on March 31.
-2. **Recent Alpha Compression**: During 2016–2020, strategy returns were modest (~11–14% vs Nifty 500 ~11%). The 2021–2026 surge was largely small/mid-cap beta (no-skill basket returned ~21–22%).
-3. **Drawdown Tolerance**: The strategy experiences maximum drawdowns of -43% to -47% (e.g., 2008 crash). Investors must expect 1–2 losing or flat years per 5-year cycle.
+* Production tier: `UH` (50-session median turnover >= Rs 10 Cr), EQ, >= 226 sessions of history, close >= Rs 10; entry close >= 1.03 x EMA(100) and Supertrend(10,3) bullish; momentum rank; 15 slots; exit close < EMA(100); Nifty 500 200-day regime filter on new entries; Arm 2 catch-up; HoldFix hold rule.
+* 20-year post-tax backtest, production code: **21.3% CAGR, max drawdown -41.3%** vs Nifty 500 price 10.0%; **~19% if the single largest open position (CUPID, 9.4x, 39% of final NAV) is marked at cost**, 17.9-18.8% with all open positions at cost; 17.1% under the older hold rule. Planning range **17-19%**.
+* Honest limits: nothing out-of-sample (~177 configurations tried), costs are assumed tiers (no real fills, `fill_audit` empty), benchmark is price-only, 2016-20 close to the index, survivorship only partly addressed, terminal wealth concentrated in a few positions, average hold ~110 days so almost all gains are short-term taxed.
 
 ---
 
@@ -88,20 +74,12 @@ Paper trading is **strictly MongoDB-driven**. No state is maintained in CSV file
 
 ---
 
-## 6. Verification & Test Suite Execution
+## 6. Verification & Test Suite Execution (re-run 2026-11-04)
 
-### Automated Test Suite
-* **Total Tests Executed**: 137
-* **Passed**: **136**
-* **Skipped**: **1** (optional parity check requiring external live disk archive)
-* **Failed**: **0**
-* **Execution Time**: 16.28 seconds
-* **Compiler & Contracts Gate**: 100% clean compilation via `python -m py_compile` across all repository modules.
-
-### Warnings & Deprecations Audit
-* **Yahoo Finance `auto_adjust` Warning**: Resolved by explicitly setting `auto_adjust=False` across all benchmark and price ingestion pipelines.
-* **Python 3.12 `datetime.utcnow()` Deprecation**: Replaced throughout all database models and paper managers with `datetime.now(timezone.utc)`.
-* **Missing-Bar Bound**: Held stock fallback bounded to $\le 5$ calendar days to prevent zombie positions on halted/delisted stocks.
+* `pytest -q` on `main` = `4c879b8`: **227 passed, 1 skipped, 0 failed** (195 s). The skip is in `tests/test_trend_momentum_pit.py`.
+* The earlier "137 tests / 136 passed / 16.28 s" figure was from 2026-11-01 and is stale.
+* The compile/contract gate (`tests/test_compilation_and_contracts.py`) is part of that run.
+* Warnings fixed earlier: Yahoo `auto_adjust` default, `datetime.utcnow()` deprecation; held-stock missing-bar fallback bounded to <= 5 calendar days.
 
 ---
 
@@ -125,7 +103,6 @@ Automated post-market and morning cron workflows on Oracle Cloud VPS (`deploy/cr
 
 ---
 
-## 8. Conclusion
+## 8. Conclusion (corrected 2026-11-04)
 
-**Verdict: READY FOR FORWARD PAPER DEPLOYMENT**  
-The codebase meets all requirements of institutional quantitative research: deterministic accounting, zero forward-looking bias, survivorship-free point-in-time universe loading, 100% database persistence, bound halt protection, and automated cloud scheduling. Forward paper trading on live Upstox data is the final proving ground.
+**Verdict: the software is reasonable to run for forward paper trading; the strategy's edge is unproven.** Mechanics are well tested (227 tests, crash/idempotency/duplicate-trigger guards, parity checks of limited scope). The backtest edge versus the index is real on this data but not out-of-sample, not cost-calibrated, partly dependent on one outlier position, and concentrated in 2021-26. Survivorship and panel provenance are not audited. Forward paper trading with real quote logging is the next test, and the account may stay in cash for months while the regime filter is bearish.

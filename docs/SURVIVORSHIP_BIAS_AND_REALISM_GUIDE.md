@@ -4,7 +4,7 @@
 *Author:* Senior Quantitative Research & Engineering Team  
 *Target Strategy:* `TrendMomentumStrategy` (NSE Cash Delivery)  
 *Benchmark:* Nifty 500 Index (TRI / Capital Index)  
-*Status:* Authoritative Research Reference  
+*Status:* **HISTORICAL (2026-10-25) — SUPERSEDED, do not cite its returns.** Written for the older `TrendMomentumStrategy` on ~500-stock data before the bhavcopy panel, dated tax and tiered costs existed. Its 25.8% / 29.3% / 28.0% CAGRs and "realistic 20–22%" haircut are not reproduced by any current run. Authoritative numbers: [`docs/RESULTS_REGISTER.md`](RESULTS_REGISTER.md). The qualitative survivorship discussion below may still be useful.  
 
 ---
 

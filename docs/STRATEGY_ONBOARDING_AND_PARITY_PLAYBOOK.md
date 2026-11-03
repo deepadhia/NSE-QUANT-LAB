@@ -12,6 +12,8 @@ A deterministic day-by-day causal replay feeding identical point-in-time market 
 | `minervini_trend_template` |             1,108,594.79 |                 1,108,594.79 | 0.000000% (Rs 0.00) |                      27 vs 27 | **100% Identical**   |
 | `alpha_semivol_pit`        |             1,214,288.43 |                 1,214,288.41 | 0.000002% (Rs 0.02) |                      45 vs 45 | **100% Identical**   |
 
+_Scope note (added 2026-11-04)_: the NAVs in this table come from `tests/test_backtest_paper_parity.py`, which replays a **seeded synthetic market** (5 stocks, 320 days of 2023-24, 2 slots, `numpy` seed 42). They demonstrate engine-vs-paper agreement, not performance or profitability, and "verified at 100%" applies to that fixture (plus the separate real-data replay and 4-month-end checks listed in `docs/RESULTS_REGISTER.md` §4), not to full history or to live execution.
+
 _Note on the Rs 0.02 delta_: `PaperTradingManager` persists `round(cash, 2)` to MongoDB after each fill (`PaperTradingManager._persist_cash`), whereas `BacktestEngine` accumulates `cash` in unrounded 64-bit IEEE-754 floating point in memory (`src/nse_quant_lab/engine.py:501, 692`). Every single candidate rank, entry signal, structural exit, share count, and fill price is identical.
 
 ### Why Live Paper Trading Can Still Differ Slightly From Historical Backtests (Expected Microstructure Variance, Not Code Bugs)

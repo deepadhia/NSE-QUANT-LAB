@@ -1,12 +1,20 @@
 # Changelog
 
-Newest first. Entries describe what changed in the code, not investment performance. Nothing below has been committed at the time of
-writing; see `research/audit_2026-10/HANDOFF_2026-10-31.md` section 17 for the commit plan and open items.
+Newest first. Entries describe what changed in the code, not investment performance. Performance numbers live only in `docs/RESULTS_REGISTER.md`.
+(Corrected 2026-11-04: everything below is committed and pushed up to `4c879b8`; the earlier "nothing committed" note and the performance claims in
+1.1.0 were wrong or unsupported and have been fixed in place.)
+
+## [Unreleased] - 2026-11-04 (documentation reconciliation; no engine/strategy logic changed)
+- Added `docs/RESULTS_REGISTER.md` (single source for every backtest number) and the research scripts `research/audit_2026-10/scripts/minervini_20y.py`, `open_positions_check.py`.
+- Corrected claims in this file, `README.md`, `AUDIT_REPORT.md`, `docs/STRATEGY_TREND_MOMENTUM_PIT.md`, the `trend_momentum_pit.py` docstring and the parity playbook (see below and the register).
+- First real-panel 20-year runs of `minervini_trend_template` (19.3% CAGR, max DD -47.6%) and of the production `trend_momentum_pit` (21.3%, max DD -41.3%): register rows R5/R1.
+- Documented a previously unrecorded behaviour change: commit `9c7813f` applied the pre-registered, user-approved "HoldFix" hold rule to `trend_momentum_pit` (held names only need close >= EMA(100) and EQ, not the entry filter). Earlier lab figures (17.1%) were produced with the old rule.
 
 ## [1.1.0] - 2026-11-01 (Arm 2 Catch-Up & 100% Backtest/Paper Parity)
 
 ### Added
-- **Arm 2 Event-Driven Regime Catch-Up (`trend_momentum_pit.py`)**: Asynchronous rebalancing triggered whenever the benchmark (`^CRSLDX` Nifty 500) crosses above its 200-session SMA mid-month (Bear $\to$ Bull transition). Deploys idle cash at next morning open ($T+1$) while preserving existing winning holdings. Empirically validated over 20 years (2007–2026) with +3.02 pp annualized post-tax CAGR and Sharpe ratio improvement (0.95 $\to$ 1.05) across all three disjoint market eras.
+- **Arm 2 Event-Driven Regime Catch-Up (`trend_momentum_pit.py`)**: Asynchronous rebalancing triggered whenever the benchmark (`^CRSLDX` Nifty 500) crosses above its 200-session SMA mid-month (Bear $\to$ Bull transition). Deploys idle cash at next morning open ($T+1$) while preserving existing winning holdings. A/B over 20 years (`results/ab_regime_catchup/ab_results_summary.csv`, 4 arms, post-tax): Arm 2 vs monthly-only baseline = **+1.71 pp** full period (19.31% -> 21.02%, window to 2026-10-23), Sharpe 1.04 -> 1.06, max drawdown 2.5 pp worse; by era +0.54 pp (2007-15), +0.29 pp (2016-20), +5.43 pp (2021-26). The gain is concentrated in 2021-26; Arm 2 was chosen after seeing four arms (selection bias). *(An earlier version of this line claimed +3.02 pp and Sharpe 0.95 -> 1.05 "across all three eras"; the CSV does not support that.)*
+- **Hold rule (HoldFix, not previously listed here)**: the PIT strategy's month-end candidate set now keeps a held name while close >= EMA(100) and series is EQ, instead of re-applying the 1.03x-EMA/Supertrend entry filter (pre-registered in `PROTOCOL_HOLDRULE.md`, approved 2026-10-28). Effect in the ledgers: 1,001 -> 594 trades (monthly only).
 - **20-Year Multi-Era Validation Harness**: Pre-registered A/B backtest runner `research/audit_2026-10/scripts/ab_regime_catchup.py` testing 4 distinct rebalance arms across 4 windows (`Full_2007_2026`, `W1_2007_2015`, `W2_2016_2020`, `W3_2021_2026`). Summary results tracked in `research/audit_2026-10/results/ab_regime_catchup/ab_results_summary.csv`.
 - **Live Circuit Bands & Exchange Quotes in Paper Manager**: `_get_execution_bar()` now extracts live broker quote parameters (`upper_circuit`, `lower_circuit`, `bid`, `ask`), with real-time lower circuit lockout guards during morning sell fills.
 - **Atomic Re-Run Cash Durability**: `execute_morning_fills()` persists cash to both `strategies` and `daily_nav` collections on every fill, and `get_current_state()` synchronizes real-time cash when querying today's date, preventing state desynchronization on mid-batch process interruptions.

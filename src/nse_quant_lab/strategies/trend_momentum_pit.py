@@ -9,9 +9,12 @@ Rules (all evaluated with data up to the decision date's close; fills happen at 
   Rank   : blended 6M/12M return divided by 6M annualised volatility (indicators.mom_6m), highest first.
   Hold   : up to `portfolio_size` (15) names; a holding is sold when
              (a) daily: close < EMA(100)  [sell next open], or
-             (b) month-end: it no longer passes the entry filter (rank is NOT used to drop winners), or
+             (b) month-end: it is no longer EQ or its close is below EMA(100) ("HoldFix": a HELD name does not have to re-pass the
+                 1.03x-EMA / Supertrend entry filter; rank is NOT used to drop winners), or
              (c) regime R1 only blocks NEW entries: if Nifty 500 close < its 200-session SMA at the month-end,
-                 only current holdings that still qualify are kept and nothing new is bought.
+                 nothing new is bought and held names stay under (b).
+           Arm 2: when Nifty 500 crosses from below to at/above its 200-session SMA, an extra decision date fills open slots (holdings stay under rule (b)).
+           (The 17.1% research figure in HANDOFF_2026-10-31 predates HoldFix and Arm 2; see docs/RESULTS_REGISTER.md.)
   Costs  : liquidity-tiered, order-size-aware slippage from cost_model.py (inputs from the previous close only).
 Set config.rebalance_hold_rank_buffer = 100 * portfolio_size (the researched setting) so no rank-based drops occur.
 """
