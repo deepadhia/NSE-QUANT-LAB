@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary: Current System Parity & Confidence Level
 
-Across the three active Point-in-Time (PIT) strategies running in production paper trading (`trend_momentum_pit`, `minervini_trend_template`, and `alpha_semivol_pit`), **logical, mathematical, and execution-rule parity between `BacktestEngine` and `PaperTradingManager` is verified at 100%**.
+Across the three active Point-in-Time (PIT) strategies running in production paper trading (`trend_momentum_pit`, `minervini_trend_template`, and `alpha_semivol_pit`), **`BacktestEngine` and `PaperTradingManager` agree on every execution count, symbol, action and share count in the parity fixtures (a seeded synthetic market, plus a separate real-data replay for `trend_momentum_pit`; see the scope note below the table)**. This is not a statement about full history or live execution.
 
 A deterministic day-by-day causal replay feeding identical point-in-time market slices (`date <= T`) into both `BacktestEngine.run()` and `PaperTradingManager` (`execute_morning_fills()` at `09:16 IST` + `generate_post_market_signals()` at `18:00 IST`) confirms zero rule divergence:
 

@@ -1,5 +1,8 @@
 """
 reproduce_baseline.py -- Reproduces Baseline 2019-2026 (INR 10L, 12 Slots)
+
+LEGACY (noted 2026-11-04): reproduces the OLD `trend_momentum` strategy on the older ~500-stock survivorship-limited data. The "Reported"
+figures printed below (28.04% CAGR etc.) are that legacy run, not current production results; current numbers are in docs/RESULTS_REGISTER.md.
 """
 
 import sys
