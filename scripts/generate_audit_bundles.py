@@ -24,12 +24,13 @@ ALLOWED_DIRS = {"src", "scripts", "tests", "deploy", "docs", "research", ".agent
 ALLOWED_EXTS = {".py", ".md", ".json", ".yaml", ".yml", ".ini", ".toml", ".txt", ".sh", ".service", ".csv"}
 EXCLUDED_DIRS = {
     ".git", ".pytest_cache", "__pycache__", "node_modules", "external",
-    "data", "results", ".gemini", "scratch", "venv", ".venv", "dist", "build"
+    "data", ".gemini", "scratch", "venv", ".venv", "dist", "build"
 }
 EXCLUDED_FILES = {
     ".env", ".env.local", ".env.production", ZIP_NAME, TXT_FULL, TXT_SRC, TXT_CORE,
     "deploy.zip", "nse-quant-v8.zip"
 }
+BULK_PREFIXES = ("nav_", "trades_", "orders_", "navfull_", "execs_")
 
 
 def collect_files():
@@ -55,6 +56,9 @@ def collect_files():
             for f in files:
                 fp = pathlib.Path(root) / f
                 if f in EXCLUDED_FILES or f.startswith(".env.") or fp.suffix.lower() in [".parquet", ".pkl", ".gz", ".zip"]:
+                    continue
+                # Skip bulk per-run research outputs (nav, trades, orders) to keep bundle fast & concise
+                if "results" in fp.parts and f.startswith(("nav_", "trades_", "orders_")):
                     continue
                 ext = fp.suffix.lower()
                 if ext in ALLOWED_EXTS or f in [".gitignore", ".env.example"]:
