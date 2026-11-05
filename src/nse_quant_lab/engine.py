@@ -627,6 +627,7 @@ class BacktestEngine:
 
                     alloc = min(target_alloc_per_stock, cash, max_exec_val)
                     if alloc < 0.25 * target_alloc_per_stock:
+                        had_rebal_skips = True
                         continue
 
                     df_sym = universe_ind.get(sym)

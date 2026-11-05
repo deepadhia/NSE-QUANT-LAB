@@ -671,6 +671,7 @@ def test_volume_participation_cap_with_try_next():
         initial_capital=1_000_000.0,
         portfolio_size=1,
         unaffordable_policy="TRY_NEXT",
+        execution_approach="BASELINE",
         min_turnover_50d=0.0,
         min_price=10.0,
         max_volume_participation_pct=0.10,
