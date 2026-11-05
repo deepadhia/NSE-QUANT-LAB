@@ -92,6 +92,7 @@ def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morn
         portfolio_size=2,
         rebalance_hold_rank_buffer=1500,
         rebalance_frequency="MONTHLY",
+        execution_approach="APPROACH_3",
         min_turnover_50d=0.0,
         min_price=0.0,
         enforce_pit_universe=False,

@@ -573,7 +573,7 @@ class PaperTradingManager:
                 "strategy_id": self.config.strategy_id,
                 "mode": getattr(self.config, "mode", "paper"),
             })
-            if strat_doc and strat_doc.get("catchup_eligible"):
+            if isinstance(strat_doc, dict) and bool(strat_doc.get("catchup_eligible", False)):
                 is_catchup = True
 
         if is_rebal or is_catchup:
@@ -1335,6 +1335,7 @@ class PaperTradingManager:
                 "mode": self._mode,
                 "action": "BUY",
                 "execution_date": date_str,
+                "signal_date": {"$lt": date_str},
                 "status": {"$in": ["SKIPPED_GAP_LIMIT_EXCEEDED", "SKIPPED_LOCKED_UP", "SKIPPED_UNAFFORDABLE"]},
             }))
             had_skips_today = had_rebal_skips or (len(db_skips_today) > 0)

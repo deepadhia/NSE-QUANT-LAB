@@ -26,7 +26,7 @@ class BacktestConfig:
     enforce_lower_circuit_deferral: bool = True # Limit-down exits deferred
     enforce_upper_circuit_rejection: bool = True # Limit-up buys skipped
     unaffordable_policy: str = "TRY_NEXT"        # "TRY_NEXT" (queues backup slots) or "SKIP"
-    execution_approach: str = "APPROACH_3"       # "APPROACH_3" (budget-gated + Day T+2 catchup), "APPROACH_1B", "APPROACH_1A", "BASELINE"
+    execution_approach: str = "BASELINE"         # "APPROACH_3" (budget-gated + Day T+2 catchup), "APPROACH_1B", "APPROACH_1A", "BASELINE"
     min_turnover_50d: float = 10_000_000.0       # Rs 1.0 Crore / day default (realistic production floor)
     min_price: float = 20.0                      # Rs 20 minimum stock price (filters penny stocks)
     enforce_pit_universe: bool = True            # Point-in-time constituent gating (Nifty 500)
