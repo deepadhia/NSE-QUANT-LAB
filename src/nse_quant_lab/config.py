@@ -26,6 +26,7 @@ class BacktestConfig:
     enforce_lower_circuit_deferral: bool = True # Limit-down exits deferred
     enforce_upper_circuit_rejection: bool = True # Limit-up buys skipped
     unaffordable_policy: str = "TRY_NEXT"        # "TRY_NEXT" (queues backup slots) or "SKIP"
+    execution_approach: str = "APPROACH_3"       # "APPROACH_3" (budget-gated + Day T+2 catchup), "APPROACH_1B", "APPROACH_1A", "BASELINE"
     min_turnover_50d: float = 10_000_000.0       # Rs 1.0 Crore / day default (realistic production floor)
     min_price: float = 20.0                      # Rs 20 minimum stock price (filters penny stocks)
     enforce_pit_universe: bool = True            # Point-in-time constituent gating (Nifty 500)
@@ -71,6 +72,7 @@ class PaperTradingConfig(BacktestConfig):
     mode: str = field(default_factory=lambda: os.environ.get("EXECUTION_MODE", "paper"))
     strategy_id: str = field(default_factory=lambda: os.environ.get("STRATEGY_ID", "trend_momentum"))
     rebalance_hold_rank_buffer: int = field(default_factory=lambda: int(os.environ.get("REBALANCE_HOLD_RANK_BUFFER", "15")))
+    execution_approach: str = field(default_factory=lambda: os.environ.get("EXECUTION_APPROACH", "APPROACH_3"))
     initial_capital: float = field(default_factory=lambda: float(os.environ.get("INITIAL_CAPITAL", "100000.0")))
     portfolio_size: int = field(default_factory=lambda: int(os.environ.get("PORTFOLIO_SIZE", "6")))
     mongo_uri: str = field(default_factory=lambda: os.environ.get("MONGO_URI", "mongodb://localhost:27017/"))

@@ -61,3 +61,8 @@ audit_bundle.txt
 src_and_scripts_only.txt
 
 core_strategies_and_execution.txt
+
+# Audit & Export packages
+export_package/
+export_full_repo_audit/
+FULL_REPO_AUDIT_PROMPT_FOR_ARGON.md

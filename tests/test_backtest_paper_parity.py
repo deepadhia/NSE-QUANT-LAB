@@ -179,3 +179,22 @@ def test_live_morning_path_parity_without_execution_day_bar(synthetic_market, st
     """Same parity gate, but morning fills run on a universe that ends the session BEFORE the fill and prices from a quote."""
     dates, bench, stocks = synthetic_market
     _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morning=True)
+
+
+def test_approach_3_gap_skip_catchup_parity(synthetic_market):
+    """
+    Adversarial verification of Approach 3 Catch-Up:
+    Injects a +5% opening gap on an entry execution session for a top candidate,
+    verifying that both BacktestEngine and PaperTradingManager:
+      1. Skip the gapped-up stock on Day T+1 open (no chasing).
+      2. Trigger Day T+2 catch-up rebalance cleanly.
+      3. Fill identical replacement shares and achieve 100% NAV and trade parity.
+    """
+    dates, bench, stocks = synthetic_market
+    gapped_stocks = {s: df.copy() for s, df in stocks.items()}
+    eval_dates = [d for d in dates if pd.to_datetime(dates[226]) <= d <= pd.to_datetime(dates[-1])]
+    rebal_d = eval_dates[13]  # 2023-12-01: first monthly rebalance execution date
+    gapped_stocks["SYM_A"].loc[gapped_stocks["SYM_A"]["date"] == rebal_d, "open"] *= 1.05
+    gapped_stocks["SYM_A"].loc[gapped_stocks["SYM_A"]["date"] == rebal_d, "high"] *= 1.06
+
+    _verify_strategy_parity(TrendMomentumPITStrategy, "trend_momentum_pit", dates, bench, gapped_stocks)

@@ -42,12 +42,13 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
     initial_capital = float(strat_doc.get("initial_capital", 100000.0))
     hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 1500 if is_pit else 15))
     unaffordable_pol = strat_doc.get("unaffordable_policy", "TRY_NEXT")
+    exec_approach = strat_doc.get("execution_approach", "APPROACH_3")
     mode = strat_doc.get("mode", "paper")
     rebal_freq = strat_doc.get("rebalance_frequency", "MONTHLY")
 
     logger.info("-" * 65)
     logger.info(f"EXECUTING STRATEGY MORNING FILLS: {strategy_id.upper()} (Mode: {mode.upper()})")
-    logger.info(f"   Config from DB: Capital=INR {initial_capital:,.2f} | Slots={portfolio_size} | Rebalance={rebal_freq}")
+    logger.info(f"   Config from DB: Capital=INR {initial_capital:,.2f} | Slots={portfolio_size} | Rebalance={rebal_freq} | Approach={exec_approach}")
     logger.info("-" * 65)
 
     cfg = PaperTradingConfig(
@@ -56,6 +57,7 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
         initial_capital=initial_capital,
         rebalance_hold_rank_buffer=hold_buffer,
         unaffordable_policy=unaffordable_pol,
+        execution_approach=exec_approach,
         brokerage_per_order=0.0,
         dp_charge_sell=14.75,
         mode=mode,

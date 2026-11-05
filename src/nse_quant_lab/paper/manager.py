@@ -565,8 +565,18 @@ class PaperTradingManager:
         cal = sorted(list(set(d for df in universe.values() for d in df["date"])))
         buys_to_log = []
         rebal_drops: Dict[str, str] = {}
+        approach = getattr(self.config, "execution_approach", "APPROACH_3")
         is_rebal = self.strategy.is_rebalance_decision_date(cal, decision_date, self.config)
-        if is_rebal:
+        is_catchup = False
+        if approach == "APPROACH_3" and not is_rebal:
+            strat_doc = self.db.strategies.find_one({
+                "strategy_id": self.config.strategy_id,
+                "mode": getattr(self.config, "mode", "paper"),
+            })
+            if strat_doc and strat_doc.get("catchup_eligible"):
+                is_catchup = True
+
+        if is_rebal or is_catchup:
             # Idempotency: clear any existing PENDING_OPEN rebalance buy orders for this signal date before staging fresh batch
             if hasattr(self.db.orders, "delete_many"):
                 self.db.orders.delete_many({
@@ -582,53 +592,75 @@ class PaperTradingManager:
             hold_buf = getattr(self.config, "rebalance_hold_rank_buffer", self.config.portfolio_size)
             allowed_hold_symbols = list(candidates_df.head(hold_buf).index)
 
-            # Rebalance drops: retain positions if rank <= hold_buffer and trend intact
-            rebal_drops = self.strategy.evaluate_rebalance_exits(universe, decision_date, positions, allowed_hold_symbols, self.config)
-            for sym, reason in rebal_drops.items():
-                if sym not in requested_exits and sym in positions:
-                    existing_active_sell = self.db.orders.find_one({
-                        "strategy_id": self.config.strategy_id,
-                        "mode": getattr(self.config, "mode", "paper"),
-                        "symbol": sym,
-                        "action": "SELL",
-                        "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]},
-                    })
-                    if existing_active_sell:
-                        logger.info(f"Active sell order {existing_active_sell.get('order_id')} already exists for rebal drop {sym}; skipping duplicate.")
-                        continue
-                    pos = positions[sym]
-                    ord_id = self._order_id("DROP", date_str, sym)
-                    order = OrderModel(
-                        order_id=ord_id,
-                        strategy_id=self.config.strategy_id,
-                        mode=self._mode,
-                        symbol=sym,
-                        action="SELL",
-                        shares=pos["shares"],
-                        price=pos.get("last_close", 0.0),
-                        order_type="EXIT_AT_OPEN",
-                        status="PENDING_OPEN",
-                        reason=reason,
-                        signal_date=date_str,
-                    )
-                    self._stage_order(order)
-                    exits_to_log.append({
-                        "symbol": sym,
-                        "shares": pos["shares"],
-                        "close": pos.get("last_close", 0.0),
-                        "reason": reason,
-                    })
+            # Rebalance drops: only evaluate on scheduled rebalances (never on 1-day catch-up sessions)
+            if not is_catchup:
+                rebal_drops = self.strategy.evaluate_rebalance_exits(universe, decision_date, positions, allowed_hold_symbols, self.config)
+                for sym, reason in rebal_drops.items():
+                    if sym not in requested_exits and sym in positions:
+                        existing_active_sell = self.db.orders.find_one({
+                            "strategy_id": self.config.strategy_id,
+                            "mode": getattr(self.config, "mode", "paper"),
+                            "symbol": sym,
+                            "action": "SELL",
+                            "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]},
+                        })
+                        if existing_active_sell:
+                            logger.info(f"Active sell order {existing_active_sell.get('order_id')} already exists for rebal drop {sym}; skipping duplicate.")
+                            continue
+                        pos = positions[sym]
+                        ord_id = self._order_id("DROP", date_str, sym)
+                        order = OrderModel(
+                            order_id=ord_id,
+                            strategy_id=self.config.strategy_id,
+                            mode=self._mode,
+                            symbol=sym,
+                            action="SELL",
+                            shares=pos["shares"],
+                            price=pos.get("last_close", 0.0),
+                            order_type="EXIT_AT_OPEN",
+                            status="PENDING_OPEN",
+                            reason=reason,
+                            signal_date=date_str,
+                        )
+                        self._stage_order(order)
+                        exits_to_log.append({
+                            "symbol": sym,
+                            "shares": pos["shares"],
+                            "close": pos.get("last_close", 0.0),
+                            "reason": reason,
+                        })
 
             # New candidate buys
             open_slots = self.config.portfolio_size - len(positions) + len(exits_to_log)
-            # Wash trade prevention: do not rebuy dropped stocks on the same rebalance session
-            candidate_pool = [s for s in list(candidates_df.index) if s not in positions and s not in rebal_drops]
-            # Queue primary open slots + up to 4 backup candidates so morning execution fills empty slots if top picks gap > 2%
-            backup_slots = int(getattr(self.strategy, "paper_backup_slots", 4)) if getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT" else 0
-            new_buys = candidate_pool[:max(0, open_slots + backup_slots)]
             holdings_est_val = sum(p["shares"] * p.get("last_close", 0.0) for p in positions.values())
             est_total_equity = cash + holdings_est_val
             target_alloc = est_total_equity / float(self.config.portfolio_size)
+
+            # Approach-aware candidate filtering and backup slots
+            if approach in ("APPROACH_1B", "APPROACH_3"):
+                # Multiplicative buffer with dynamic slippage ceiling (25 bps) + cash-per-slot bounding
+                slip_cap = max(float(self.config.slippage_pct), 0.0025)
+                buffer_div = (1.0 + self.config.limit_cap_pct) * (1.0 + slip_cap) * (1.0 + self.config.fees_buffer_pct)
+                est_avail_cash = cash + sum(
+                    positions[e["symbol"]]["shares"] * float(positions[e["symbol"]].get("last_close", 0.0))
+                    for e in exits_to_log if e["symbol"] in positions
+                )
+                effective_slot_alloc = min(target_alloc, est_avail_cash / max(1, open_slots))
+                max_alloc_px = effective_slot_alloc / buffer_div
+                candidate_pool = [
+                    s for s in list(candidates_df.index)
+                    if s not in positions and s not in rebal_drops
+                    and float(candidates_df.loc[s, "close"]) <= max_alloc_px
+                ]
+                backup_slots = 0
+            elif approach == "APPROACH_1A":
+                candidate_pool = [s for s in list(candidates_df.index) if s not in positions and s not in rebal_drops]
+                backup_slots = 0
+            else:
+                candidate_pool = [s for s in list(candidates_df.index) if s not in positions and s not in rebal_drops]
+                backup_slots = int(getattr(self.strategy, "paper_backup_slots", 4)) if getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT" else 0
+
+            new_buys = candidate_pool[:max(0, open_slots + backup_slots)]
 
             for sym in new_buys:
                 ord_id = self._order_id("BUY", date_str, sym)
@@ -660,6 +692,18 @@ class PaperTradingManager:
                     "est_shares": est_sh,
                     "reason": rk,
                 })
+
+            if is_rebal:
+                self.db.strategies.update_one(
+                    {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
+                    {"$set": {"catchup_eligible": False, "is_catchup_session": False}}
+                )
+            elif is_catchup:
+                # Catch-up session: clear eligibility flag and set is_catchup_session only if orders were staged
+                self.db.strategies.update_one(
+                    {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
+                    {"$set": {"catchup_eligible": False, "is_catchup_session": bool(len(new_buys) > 0)}}
+                )
 
         # Update strategies collection with full post-market mark-to-market metadata
         unrealized_pnl = sum(float(p.get("unrealized_pnl", p.get("market_value", 0.0) - p.get("entry_outlay", 0.0))) for p in positions.values())
@@ -1079,6 +1123,7 @@ class PaperTradingManager:
         holdings_val = sum(p["shares"] * float(p.get("last_close", p["entry_price"])) for p in positions.values())
         total_equity = cash + holdings_val
         target_alloc = total_equity / float(self.config.portfolio_size)
+        had_rebal_skips = False
 
         for order in buy_orders:
             sym = order["symbol"]
@@ -1142,6 +1187,8 @@ class PaperTradingManager:
                 is_up = (pct_up >= 0.048) and flat_tick and no_sellers
 
             if is_up:
+                order["status"] = "SKIPPED_LOCKED_UP"
+                had_rebal_skips = True
                 self.db.orders.update_one(
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_LOCKED_UP", "execution_date": date_str}}
@@ -1156,6 +1203,8 @@ class PaperTradingManager:
             if ref_close > 0:
                 limit_cap_price = ref_close * (1.0 + self.config.limit_cap_pct)
                 if open_price > limit_cap_price:
+                    order["status"] = "SKIPPED_GAP_LIMIT_EXCEEDED"
+                    had_rebal_skips = True
                     self.db.orders.update_one(
                         {"order_id": order["order_id"]},
                         {"$set": {"status": "SKIPPED_GAP_LIMIT_EXCEEDED", "execution_date": date_str}}
@@ -1177,6 +1226,8 @@ class PaperTradingManager:
             shares = int(avail // est_cost_per_sh)
 
             if shares <= 0:
+                order["status"] = "SKIPPED_UNAFFORDABLE"
+                had_rebal_skips = True
                 self.db.orders.update_one(
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_UNAFFORDABLE", "execution_date": date_str}}
@@ -1197,6 +1248,8 @@ class PaperTradingManager:
                 total_outlay = gross_val + buy_fees["total"]
 
             if shares <= 0 or gross_val < 0.25 * target_alloc:
+                order["status"] = "SKIPPED_UNAFFORDABLE"
+                had_rebal_skips = True
                 self.db.orders.update_one(
                     {"order_id": order["order_id"]},
                     {"$set": {"status": "SKIPPED_UNAFFORDABLE", "execution_date": date_str}}
@@ -1250,6 +1303,7 @@ class PaperTradingManager:
             positions[sym] = pos_model.to_dict()
 
             # Update Order
+            order["status"] = "FILLED"
             self.db.orders.update_one(
                 {"order_id": order["order_id"]},
                 {"$set": {"status": "FILLED", "shares": shares, "execution_date": date_str}}
@@ -1272,6 +1326,38 @@ class PaperTradingManager:
                 {"$set": {"status": "SKIPPED_EXPIRED", "execution_date": date_str,
                           "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
+
+        # Check if Approach 3 catch-up is eligible for the upcoming post-market scan
+        approach = getattr(self.config, "execution_approach", "APPROACH_3")
+        if approach == "APPROACH_3" and not no_quote:
+            db_skips_today = list(self.db.orders.find({
+                "strategy_id": self.config.strategy_id,
+                "mode": self._mode,
+                "action": "BUY",
+                "execution_date": date_str,
+                "status": {"$in": ["SKIPPED_GAP_LIMIT_EXCEEDED", "SKIPPED_LOCKED_UP", "SKIPPED_UNAFFORDABLE"]},
+            }))
+            had_skips_today = had_rebal_skips or (len(db_skips_today) > 0)
+            strat_doc = self.db.strategies.find_one({
+                "strategy_id": self.config.strategy_id,
+                "mode": self._mode,
+            })
+            was_catchup_session = bool(strat_doc.get("is_catchup_session", False)) if isinstance(strat_doc, dict) else False
+
+            if len(positions) < self.config.portfolio_size and had_skips_today and not was_catchup_session:
+                logger.info(
+                    f"[{self.config.strategy_id}] Empty slots ({len(positions)}/{self.config.portfolio_size}) after skips. "
+                    f"Flagging catch-up eligible for post-market scan."
+                )
+                self.db.strategies.update_one(
+                    {"strategy_id": self.config.strategy_id, "mode": self._mode},
+                    {"$set": {"catchup_eligible": True}}
+                )
+            else:
+                self.db.strategies.update_one(
+                    {"strategy_id": self.config.strategy_id, "mode": self._mode},
+                    {"$set": {"catchup_eligible": False, "is_catchup_session": False}}
+                )
 
         # 3. Update NAV Record
         current_holdings_val = 0.0

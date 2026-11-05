@@ -111,6 +111,7 @@ class BacktestEngine:
 
         pending_circuit_exits: Dict[str, Dict[str, Any]] = {}
         queued_structural_exits: Dict[str, str] = {}
+        scheduled_catchup_sessions: set = set()
 
         carried_forward_stcl = 0.0
         carried_forward_ltcl = 0.0
@@ -442,6 +443,7 @@ class BacktestEngine:
             # STEP 3: SCHEDULED REBALANCE (IF TODAY IS AN EXECUTION DATE)
             # ------------------------------------------------------------------
             if current_date in exec_dates_set:
+                is_catchup_session = current_date in scheduled_catchup_sessions
                 d_dec = exec_to_decision_map[current_date]
                 ranked_df = self.strategy.select_entry_candidates(
                     universe_ind, d_dec, open_positions, self.config
@@ -453,10 +455,12 @@ class BacktestEngine:
                 allowed_hold_symbols = list(ranked_df.head(hold_buf).index)
                 target_symbols_list = list(ranked_df.head(self.config.portfolio_size).index)
 
-                # Rebalance Exits:
-                rebal_exits = self.strategy.evaluate_rebalance_exits(
-                    universe_ind, d_dec, open_positions, allowed_hold_symbols, self.config
-                )
+                # Rebalance Exits: Only evaluate rebalance drops on standard rebalances (never on 1-day catch-up sessions)
+                rebal_exits = {}
+                if not is_catchup_session:
+                    rebal_exits = self.strategy.evaluate_rebalance_exits(
+                        universe_ind, d_dec, open_positions, allowed_hold_symbols, self.config
+                    )
 
                 for sym, exit_reason in rebal_exits.items():
                     if sym not in open_positions or sym in pending_circuit_exits:
@@ -580,14 +584,35 @@ class BacktestEngine:
                     cash -= tax_payment
                     fy_tax_payable_accrued -= tax_payment
 
-                if getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT":
+                approach = getattr(self.config, "execution_approach", "APPROACH_3")
+                just_sold_today = set(rebal_exits.keys())
+                open_slots = max(0, self.config.portfolio_size - len(open_positions))
+                if approach in ("APPROACH_1B", "APPROACH_3"):
+                    # Budget-gating: filter out non-held candidates where close > target_alloc_per_stock
+                    slip_cap = max(float(self.config.slippage_pct), 0.0025)
+                    buffer_div = (1.0 + self.config.limit_cap_pct) * (1.0 + slip_cap) * (1.0 + self.config.fees_buffer_pct)
+                    effective_slot_alloc = min(target_alloc_per_stock, cash / max(1, open_slots))
+                    max_alloc_px = effective_slot_alloc / buffer_div
+                    candidate_pool = [
+                        s for s in list(ranked_df.index)
+                        if s not in open_positions and s not in just_sold_today and s not in pending_circuit_exits
+                        and float(ranked_df.loc[s, "close"]) <= max_alloc_px
+                    ]
+                    new_buys = candidate_pool[:open_slots]
+                elif approach == "APPROACH_1A":
+                    candidate_pool = [
+                        s for s in list(ranked_df.index)
+                        if s not in open_positions and s not in just_sold_today and s not in pending_circuit_exits
+                    ]
+                    new_buys = candidate_pool[:open_slots]
+                elif getattr(self.config, "unaffordable_policy", "SKIP") == "TRY_NEXT":
                     candidate_pool = list(ranked_df.index)
+                    new_buys = [s for s in candidate_pool if s not in open_positions and s not in just_sold_today and s not in pending_circuit_exits]
                 else:
                     candidate_pool = target_symbols_list
-                # Wash trade prevention: do not rebuy a stock that was just sold today
-                just_sold_today = set(rebal_exits.keys())
-                new_buys = [s for s in candidate_pool if s not in open_positions and s not in just_sold_today and s not in pending_circuit_exits]
+                    new_buys = [s for s in candidate_pool if s not in open_positions and s not in just_sold_today and s not in pending_circuit_exits]
 
+                had_rebal_skips = False
                 for sym in new_buys:
                     if len(open_positions) >= self.config.portfolio_size or cash < 1000.0:
                         break
@@ -616,6 +641,7 @@ class BacktestEngine:
                     # Buy limit price cap (+2%)
                     limit_cap_price = p_decision_close * (1.0 + self.config.limit_cap_pct)
                     if actual_open > limit_cap_price:
+                        had_rebal_skips = True
                         skipped_orders_count += 1
                         order_id_counter += 1
                         order_ledger.append({
@@ -636,6 +662,7 @@ class BacktestEngine:
                     if self.config.enforce_upper_circuit_rejection and is_locked_up(
                         actual_open, float(bar["high"]), float(bar["low"]), float(bar["close"]), prev_close
                     ):
+                        had_rebal_skips = True
                         skipped_orders_count += 1
                         order_id_counter += 1
                         order_ledger.append({
@@ -656,6 +683,7 @@ class BacktestEngine:
                     est_fill_px = actual_open * (1.0 + self._slip(sym, bar, actual_open, max(sized_shares, 1), "BUY"))
                     shares_submitted = int(alloc // (est_fill_px * buffer_mult))
                     if shares_submitted <= 0:
+                        had_rebal_skips = True
                         skipped_orders_count += 1
                         continue
 
@@ -679,6 +707,7 @@ class BacktestEngine:
 
                     # Minimum-size test on the slipped value, matching PaperTradingManager (gross_val = shares * fill_price)
                     if shares_submitted <= 0 or slipped_buy_val < 0.25 * target_alloc_per_stock:
+                        had_rebal_skips = True
                         skipped_orders_count += 1
                         order_id_counter += 1
                         order_ledger.append({
@@ -744,6 +773,22 @@ class BacktestEngine:
                         "total_entry_outlay": total_outlay,
                         "deferral_days": 0,
                     }
+
+                # Approach 3 Catch-Up Scheduling:
+                # If after rebalance entries, slots remain unfilled and today was NOT already a catchup session,
+                # schedule Day T+2 morning open as a 1-day catch-up attempt!
+                if (
+                    approach == "APPROACH_3"
+                    and len(open_positions) < self.config.portfolio_size
+                    and had_rebal_skips
+                    and not is_catchup_session
+                ):
+                    if idx + 1 < len(eval_timeline):
+                        next_day = eval_timeline[idx + 1]
+                        if next_day not in exec_dates_set:
+                            exec_dates_set.add(next_day)
+                            exec_to_decision_map[next_day] = current_date  # Decision based on Day T+1 close
+                            scheduled_catchup_sessions.add(next_day)
 
             # ------------------------------------------------------------------
             # STEP 4: DAILY STRUCTURAL EXIT CHECK AT TODAY'S CLOSE
