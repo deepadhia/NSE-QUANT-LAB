@@ -145,3 +145,63 @@ def test_quote_fallback_populates_missing_same_day_eod_bars():
     assert doc['low'] == 101.0
     assert doc['volume'] == 50000.0
     assert doc['source'] == 'upstox_quote'
+
+
+def test_panel_stats_mongo_fallback_unions_collections_and_retains_partial_lag(monkeypatch):
+    from nse_quant_lab.db.mongo_client import MongoDatabase
+
+    dates = pd.date_range("2026-08-01", "2026-10-30", freq="B")
+    docs_hist = []
+    for d in dates:
+        d_str = d.strftime("%Y-%m-%d")
+        docs_hist.append({"symbol": "SYM_HIST.NS", "date": d_str, "open": 100.0, "close": 100.0, "volume": 1_000_000})
+
+    # SYM_NEW is only in fulltier, up to 2026-10-30
+    docs_full = []
+    for d in dates:
+        d_str = d.strftime("%Y-%m-%d")
+        docs_full.append({"symbol": "SYM_NEW.NS", "date": d_str, "open": 200.0, "close": 200.0, "volume": 1_000_000})
+
+    # SYM_LAG missed today (ends on 2026-10-28, 2 days before 2026-10-30)
+    for d in dates[:-2]:
+        d_str = d.strftime("%Y-%m-%d")
+        docs_full.append({"symbol": "SYM_LAG.NS", "date": d_str, "open": 50.0, "close": 50.0, "volume": 1_000_000})
+
+    class _MockCursor:
+        def __init__(self, data):
+            self.data = data
+        def sort(self, *args, **kwargs):
+            return self
+        def limit(self, n):
+            return self.data[:n]
+        def __iter__(self):
+            return iter(self.data)
+
+    class _MockColl:
+        def __init__(self, data):
+            self.data = data
+        def find(self, *args, **kwargs):
+            return _MockCursor(self.data)
+
+    mock_db = {
+        "upstox_daily_ohlcv": _MockColl(docs_hist),
+        "upstox_fulltier_daily": _MockColl(docs_full),
+        "symbols": _MockColl([{"symbol": "SYM_NEW", "series": "BE"}]),
+    }
+
+    class _MockMongoDbInstance:
+        def __init__(self):
+            self.db = mock_db
+
+    monkeypatch.setattr(MongoDatabase, "get_instance", lambda: _MockMongoDbInstance())
+
+    out = ing.panel_stats(panel=Path("/nonexistent/clean_panel.parquet"))
+    assert out.attrs["panel_last"] is None
+    symbols = set(out["symbol"])
+    assert "SYM_HIST" in symbols
+    assert "SYM_NEW" in symbols
+    assert "SYM_LAG" in symbols  # Retained despite 2-day lag for partial run recovery
+
+    # Series verification
+    new_row = out[out["symbol"] == "SYM_NEW"].iloc[0]
+    assert new_row["series"] == "BE"

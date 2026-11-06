@@ -1124,6 +1124,7 @@ class PaperTradingManager:
         total_equity = cash + holdings_val
         target_alloc = total_equity / float(self.config.portfolio_size)
         had_rebal_skips = False
+        approach = getattr(self.config, "execution_approach", "APPROACH_3")
 
         for order in buy_orders:
             sym = order["symbol"]
@@ -1216,7 +1217,9 @@ class PaperTradingManager:
             max_vol_pct = getattr(self.config, "max_volume_participation_pct", 0.10)
             to50 = float(bar["turnover_50d"]) if (hasattr(bar, "__getitem__") and "turnover_50d" in bar and not pd.isna(bar["turnover_50d"])) else float("inf")
             max_exec_val = to50 * max_vol_pct if to50 > 0 else float("inf")
-            avail = min(target_alloc, cash, max_exec_val)
+            open_slots_remain = max(1, self.config.portfolio_size - len(positions))
+            slot_cash_share = cash / float(open_slots_remain) if approach in ("APPROACH_1B", "APPROACH_3") else cash
+            avail = min(target_alloc, slot_cash_share, cash, max_exec_val)
 
             # Order size is set from the pre-slippage open (as the backtest engine does), then the cost model prices it
             buffer_mult = 1.0 + self.config.fees_buffer_pct
@@ -1336,7 +1339,13 @@ class PaperTradingManager:
                 "action": "BUY",
                 "execution_date": date_str,
                 "signal_date": {"$lt": date_str},
-                "status": {"$in": ["SKIPPED_GAP_LIMIT_EXCEEDED", "SKIPPED_LOCKED_UP", "SKIPPED_UNAFFORDABLE"]},
+                "status": {"$in": [
+                    "SKIPPED_GAP_LIMIT_EXCEEDED",
+                    "SKIPPED_LOCKED_UP",
+                    "SKIPPED_UNAFFORDABLE",
+                    "SKIPPED_MIN_OUTLAY",
+                    "SKIPPED_LOW_LIQUIDITY",
+                ]},
             }))
             had_skips_today = had_rebal_skips or (len(db_skips_today) > 0)
             strat_doc = self.db.strategies.find_one({

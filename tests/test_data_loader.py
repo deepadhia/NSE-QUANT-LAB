@@ -167,3 +167,84 @@ def test_load_pit_universe_empty_mongo_raises_value_error(monkeypatch):
 
     with pytest.raises(ValueError, match="returned no valid market data"):
         load_pit_universe(end_date="2026-10-30")
+
+
+def test_load_pit_universe_mongo_maps_series_and_filters_be(monkeypatch):
+    import os
+    from nse_quant_lab.data_loader import load_pit_universe
+
+    orig_exists = os.path.exists
+    monkeypatch.setattr(os.path, "exists", lambda p: False if "clean_panel.parquet" in str(p) else orig_exists(p))
+
+    dates = pd.date_range("2026-08-01", "2026-10-30", freq="B")
+    docs = []
+    for d in dates:
+        d_str = d.strftime("%Y-%m-%d")
+        docs.append({"symbol": "GOOD.NS", "date": d_str, "open": 100.0, "high": 105.0, "low": 95.0, "close": 102.0, "volume": 1_000_000})
+        docs.append({"symbol": "SURV.NS", "date": d_str, "open": 50.0, "high": 52.0, "low": 48.0, "close": 51.0, "volume": 1_000_000})
+
+    sym_docs = [
+        {"symbol": "GOOD.NS", "series": "EQ"},
+        {"symbol": "SURV.NS", "series": "BE"},
+    ]
+
+    class _FakeCollection:
+        def __init__(self, data):
+            self.data = data
+        def find(self, *args, **kwargs):
+            return iter(self.data)
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.admin = _FakeAdmin(None)
+        def __getitem__(self, name):
+            return {
+                "upstox_daily_ohlcv": _FakeCollection(docs),
+                "upstox_fulltier_daily": _FakeCollection([]),
+                "symbols": _FakeCollection(sym_docs),
+            }
+
+    monkeypatch.setattr(pymongo, "MongoClient", _FakeClient)
+
+    universe = load_pit_universe(end_date="2026-10-30", min_adt_ever=1.0e6, min_rows=50, include_live=False)
+    assert universe["GOOD"]["series"].iloc[-1] == "EQ"
+    assert universe["SURV"]["series"].iloc[-1] == "BE"
+
+
+def test_load_pit_universe_mongo_coverage_gate_raises(monkeypatch):
+    import os
+    from nse_quant_lab.data_loader import load_pit_universe
+
+    orig_exists = os.path.exists
+    monkeypatch.setattr(os.path, "exists", lambda p: False if "clean_panel.parquet" in str(p) else orig_exists(p))
+
+    # Create 3 liquid stocks (turnover >= 1e8) up to 2026-10-29, but on 2026-10-30 only 1 stock has a bar
+    dates = pd.date_range("2026-08-01", "2026-10-29", freq="B")
+    docs = []
+    for d in dates:
+        d_str = d.strftime("%Y-%m-%d")
+        for sym in ["SYM1", "SYM2", "SYM3"]:
+            docs.append({"symbol": sym, "date": d_str, "open": 200.0, "high": 205.0, "low": 195.0, "close": 200.0, "volume": 1_000_000})
+    # Only SYM1 has 2026-10-30 (1/3 = 33.3% < 90% gate)
+    docs.append({"symbol": "SYM1", "date": "2026-10-30", "open": 200.0, "high": 205.0, "low": 195.0, "close": 200.0, "volume": 1_000_000})
+
+    class _FakeCollection:
+        def __init__(self, data):
+            self.data = data
+        def find(self, *args, **kwargs):
+            return iter(self.data)
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.admin = _FakeAdmin(None)
+        def __getitem__(self, name):
+            return {
+                "upstox_daily_ohlcv": _FakeCollection(docs),
+                "upstox_fulltier_daily": _FakeCollection([]),
+                "symbols": _FakeCollection([]),
+            }
+
+    monkeypatch.setattr(pymongo, "MongoClient", _FakeClient)
+
+    with pytest.raises(ValueError, match="live data incomplete for sessions"):
+        load_pit_universe(end_date="2026-10-30", min_adt_ever=1.0e6, min_rows=50, include_live=True, live_coverage_gate=0.90)

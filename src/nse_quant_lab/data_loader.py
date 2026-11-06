@@ -283,13 +283,16 @@ def _load_pit_universe_from_mongo(
     mongo_uri: Optional[str] = None,
     db_name: Optional[str] = None,
     lookback_days: int = 700,
+    include_live: bool = True,
+    live_coverage_gate: float = 0.90,
 ) -> Dict[str, pd.DataFrame]:
     """
     Server/production live fallback when clean_panel.parquet is not present on disk.
     Loads recent market history directly from MongoDB collections ('upstox_daily_ohlcv'
-    and 'upstox_fulltier_daily'). Provides identical DataFrame schemas and clean symbols
-    so live forward trading and paper incubation run without needing a 200MB parquet archive.
+    and 'upstox_fulltier_daily'). Provides identical DataFrame schemas, symbol series metadata,
+    and session coverage gating so live forward trading and paper incubation run safely.
     """
+    import datetime as _dt
     from pymongo import MongoClient
 
     uri = mongo_uri or os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
@@ -314,25 +317,40 @@ def _load_pit_universe_from_mongo(
     }
 
     # 1. Fetch from upstox_daily_ohlcv
-    docs_hist = list(db["upstox_daily_ohlcv"].find(
-        query_filter,
-        {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
-    ))
+    docs_hist = []
+    try:
+        docs_hist = list(db["upstox_daily_ohlcv"].find(
+            query_filter,
+            {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
+        ))
+    except Exception:
+        pass
 
-    # 2. Fetch from upstox_fulltier_daily (for latest daily bars if separate)
+    # 2. Fetch from upstox_fulltier_daily directly (without list_collection_names() so mock dicts & restricted roles work)
     docs_full = []
     try:
-        if "upstox_fulltier_daily" in db.list_collection_names():
-            docs_full = list(db["upstox_fulltier_daily"].find(
-                {"date": {"$gte": start_str, "$lte": end_str}, "open": {"$gt": 0}, "close": {"$gt": 0}},
-                {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
-            ))
+        docs_full = list(db["upstox_fulltier_daily"].find(
+            {"date": {"$gte": start_str, "$lte": end_str}, "open": {"$gt": 0}, "close": {"$gt": 0}},
+            {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
+        ))
     except Exception:
         pass
 
     all_docs = docs_hist + docs_full
     if not all_docs:
         raise ValueError(f"MongoDB ({db_n}.upstox_daily_ohlcv) returned no valid market data between {start_str} and {end_str}.")
+
+    # 3. Map series metadata from symbols collection (defaulting to EQ when unrecorded)
+    series_map: Dict[str, str] = {}
+    try:
+        for sdoc in db["symbols"].find({}, {"_id": 0, "symbol": 1, "series": 1}):
+            sym_raw = str(sdoc.get("symbol", ""))
+            clean_s = sym_raw.replace(".NS", "").replace(".BO", "")
+            ser_val = str(sdoc.get("series") or "EQ")
+            if clean_s:
+                series_map[clean_s] = ser_val
+    except Exception:
+        pass
 
     raw_df = pd.DataFrame(all_docs)
     raw_df["symbol"] = raw_df["symbol"].astype(str).str.replace(".NS", "", regex=False).str.replace(".BO", "", regex=False)
@@ -349,23 +367,52 @@ def _load_pit_universe_from_mongo(
     ]
 
     universe: Dict[str, pd.DataFrame] = {}
+    liquid: set = set()
     effective_min_rows = min(min_rows, 50)
+    max_db_ts = raw_df["date"].max() if not raw_df.empty else end_dt
+
     for sym, g in raw_df.groupby("symbol", sort=False):
         if len(g) < effective_min_rows:
             continue
         g = g.sort_values("date").reset_index(drop=True)
-        g["series"] = "EQ"
+        sym_str = str(sym)
+        sym_series = series_map.get(sym_str, "EQ")
+        g["series"] = sym_series
         g["turnover"] = g["close"] * g["volume"]
         med = g["turnover"].rolling(50, min_periods=min(50, len(g))).median()
         if not (med >= min_adt_ever).any():
             continue
         cols = ["symbol", "date", "series", "open", "high", "low", "close", "volume", "turnover"]
-        universe[str(sym)] = g[cols]
+        universe[sym_str] = g[cols]
+        if (max_db_ts - g["date"].iloc[-1]).days <= 10 and med.iloc[-1] >= 1.0e8 and sym_series == "EQ":
+            liquid.add(sym_str)
 
     if not universe:
         raise ValueError(f"No symbols in MongoDB met liquidity and history criteria between {start_str} and {end_str}.")
 
     last_dt = max(g["date"].iloc[-1] for g in universe.values()).date()
+
+    # 4. Enforce live session coverage gate across the liquid tier
+    if include_live and live_coverage_gate > 0 and liquid:
+        from .holidays import is_trading_day
+
+        target_end = end_dt.date() if end_date is not None else (_dt.datetime.now().date() - _dt.timedelta(days=1))
+        check_days = [last_dt]
+        if 0 < (target_end - last_dt).days <= 14:
+            cur_d = last_dt + _dt.timedelta(days=1)
+            while cur_d <= target_end:
+                if is_trading_day(cur_d):
+                    check_days.append(cur_d)
+                cur_d += _dt.timedelta(days=1)
+
+        liq_df = raw_df[raw_df["symbol"].isin(liquid)]
+        have = liq_df.groupby(liq_df["date"].dt.date)["symbol"].nunique() if len(liq_df) else pd.Series(dtype=int)
+        short = [str(d) for d in check_days if have.get(d, 0) < live_coverage_gate * len(liquid)]
+        if short:
+            raise ValueError(
+                f"live data incomplete for sessions {short}: MongoDB bars cover < {live_coverage_gate:.0%} of the {len(liquid)} liquid-tier names. Run scripts/ingest_upstox_fulltier.py before trading."
+            )
+
     logger.info("PIT universe (MongoDB fallback): %d symbols loaded, last bar %s", len(universe), last_dt)
     return universe
 
@@ -406,6 +453,8 @@ def load_pit_universe(
                 end_date=end_date,
                 min_adt_ever=min_adt_ever,
                 min_rows=min_rows,
+                include_live=include_live,
+                live_coverage_gate=live_coverage_gate,
             )
     panel = pd.read_parquet(path)
     panel["series"] = panel["series"].astype(str)

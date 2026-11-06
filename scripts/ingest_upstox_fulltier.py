@@ -67,33 +67,72 @@ def panel_stats(panel: Path = PANEL) -> pd.DataFrame:
     # MongoDB Atlas fallback for server deployments
     log.info("clean_panel.parquet not found at %s; computing panel stats from MongoDB...", panel)
     from nse_quant_lab.db.mongo_client import MongoDatabase
+
     db = MongoDatabase.get_instance().db
 
-    latest_doc = list(db["upstox_daily_ohlcv"].find({"open": {"$gt": 0}}).sort([("date", -1)]).limit(1))
-    if not latest_doc:
-        log.warning("No records in upstox_daily_ohlcv to compute panel_stats fallback.")
+    latest_dates = []
+    for coll_name in ("upstox_fulltier_daily", "upstox_daily_ohlcv"):
+        try:
+            doc = list(db[coll_name].find({"open": {"$gt": 0}}).sort([("date", -1)]).limit(1))
+            if doc and doc[0].get("date"):
+                latest_dates.append(str(doc[0]["date"]))
+        except Exception:
+            pass
+
+    if not latest_dates:
+        log.warning("No records in upstox_fulltier_daily or upstox_daily_ohlcv to compute panel_stats fallback.")
         out = pd.DataFrame(columns=["symbol", "adt", "hist", "series", "last_close"])
         out.attrs["panel_last"] = dt.date(2000, 1, 1)
         return out
 
-    last_str = latest_doc[0]["date"]
+    last_str = max(latest_dates)
     last_dt = pd.to_datetime(last_str)
     # Query trailing 400 calendar days (~270 trading sessions) so hist >= 200 passes in select_targets()
     start_dt = last_dt - pd.Timedelta(days=400)
     start_str = start_dt.strftime("%Y-%m-%d")
 
-    cursor = db["upstox_daily_ohlcv"].find(
-        {"date": {"$gte": start_str, "$lte": last_str}, "open": {"$gt": 0}, "close": {"$gt": 0}},
-        {"_id": 0, "symbol": 1, "date": 1, "close": 1, "volume": 1}
-    )
-    docs = list(cursor)
+    q_filter = {
+        "date": {"$gte": start_str, "$lte": last_str},
+        "open": {"$gt": 0},
+        "close": {"$gt": 0},
+    }
+    q_proj = {"_id": 0, "symbol": 1, "date": 1, "close": 1, "volume": 1}
+
+    docs_hist, docs_full = [], []
+    try:
+        docs_hist = list(db["upstox_daily_ohlcv"].find(q_filter, q_proj))
+    except Exception:
+        pass
+    try:
+        docs_full = list(db[COLLECTION].find(q_filter, q_proj))
+    except Exception:
+        pass
+
+    docs = docs_hist + docs_full
     if not docs:
         out = pd.DataFrame(columns=["symbol", "adt", "hist", "series", "last_close"])
         out.attrs["panel_last"] = None
         return out
 
+    series_map: Dict[str, str] = {}
+    try:
+        for sdoc in db["symbols"].find({}, {"_id": 0, "symbol": 1, "series": 1}):
+            sym_raw = str(sdoc.get("symbol", ""))
+            clean_s = sym_raw.replace(".NS", "").replace(".BO", "")
+            ser_val = str(sdoc.get("series") or "EQ")
+            if clean_s:
+                series_map[clean_s] = ser_val
+    except Exception:
+        pass
+
     df = pd.DataFrame(docs)
-    df["symbol"] = df["symbol"].astype(str).str.replace(".NS", "", regex=False).str.replace(".BO", "", regex=False)
+    df["symbol"] = (
+        df["symbol"]
+        .astype(str)
+        .str.replace(".NS", "", regex=False)
+        .str.replace(".BO", "", regex=False)
+    )
+    df = df.drop_duplicates(subset=["symbol", "date"], keep="last")
     df["date"] = pd.to_datetime(df["date"])
     df["turnover"] = df["close"] * df["volume"].fillna(0)
 
@@ -101,13 +140,23 @@ def panel_stats(panel: Path = PANEL) -> pd.DataFrame:
     hist_counts = df.groupby("symbol").size()
     for s, g in df.groupby("symbol", sort=False):
         g = g.sort_values("date")
-        if g["date"].iloc[-1] != last_dt or len(g) < 10:
+        # Allow up to 10 calendar days lag from last_dt so symbols that failed a partial same-day run remain in targets
+        if (last_dt - g["date"].iloc[-1]).days > 10 or len(g) < 10:
             continue
-        adt = float(g["turnover"].tail(50).median()) if len(g) >= 50 else float(g["turnover"].median())
-        hist_val = max(int(hist_counts[s]), 200) if len(g) >= 50 else int(hist_counts[s])
-        rows.append((s, adt, hist_val, "EQ", float(g["close"].iloc[-1])))
+        adt = (
+            float(g["turnover"].tail(50).median())
+            if len(g) >= 50
+            else float(g["turnover"].median())
+        )
+        hist_val = (
+            max(int(hist_counts[s]), 200) if len(g) >= 50 else int(hist_counts[s])
+        )
+        sym_series = series_map.get(str(s), "EQ")
+        rows.append((s, adt, hist_val, sym_series, float(g["close"].iloc[-1])))
 
-    out = pd.DataFrame(rows, columns=["symbol", "adt", "hist", "series", "last_close"])
+    out = pd.DataFrame(
+        rows, columns=["symbol", "adt", "hist", "series", "last_close"]
+    )
     out.attrs["panel_last"] = None  # None allows live server runs without hitting the static cutoff skip
     return out
 

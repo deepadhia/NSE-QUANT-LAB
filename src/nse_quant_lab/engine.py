@@ -625,7 +625,9 @@ class BacktestEngine:
                     to50 = float(row_c["turnover_50d"]) if "turnover_50d" in row_c else float("inf")
                     max_exec_val = to50 * max_vol_pct if to50 > 0 else float("inf")
 
-                    alloc = min(target_alloc_per_stock, cash, max_exec_val)
+                    open_slots_remain = max(1, self.config.portfolio_size - len(open_positions))
+                    slot_cash_share = cash / float(open_slots_remain) if approach in ("APPROACH_1B", "APPROACH_3") else cash
+                    alloc = min(target_alloc_per_stock, slot_cash_share, cash, max_exec_val)
                     if alloc < 0.25 * target_alloc_per_stock:
                         had_rebal_skips = True
                         continue
