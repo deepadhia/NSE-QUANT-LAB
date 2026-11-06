@@ -196,6 +196,13 @@ def main():
     logger.info(">> Daily post-market pipeline completed successfully.")
     logger.info("=" * 70)
 
+    # Persist daily portfolio & slippage audit snapshot in MongoDB (Zero-Telegram)
+    try:
+        from scripts.audit_daily_portfolio import run_portfolio_audit
+        run_portfolio_audit(decision_dt.strftime("%Y-%m-%d"))
+    except Exception as exc:
+        logger.warning(f"Could not persist daily portfolio audit snapshot: {exc}")
+
 
 if __name__ == "__main__":
     main()

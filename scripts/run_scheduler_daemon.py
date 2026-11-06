@@ -98,6 +98,13 @@ class QuantLabScheduler:
                 "args": ["--strategy", "all"]
             },
             {
+                "id": "daily_portfolio_audit",
+                "time": "18:05",
+                "description": "Daily Portfolio & Slippage Audit Snapshot (MongoDB)",
+                "script": os.path.join(PROJECT_ROOT, "scripts", "audit_daily_portfolio.py"),
+                "args": []
+            },
+            {
                 "id": "weekly_report",
                 "time": "18:15",
                 "description": "Weekly Portfolio Performance Digest (Fridays Only)",
