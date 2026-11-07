@@ -1,0 +1,6 @@
+month-ends compared: 129; with any qualifier: 129; with >=15 qualifiers in both pools: 122
+median qualifiers  full=61  tier=58
+mean top-15 overlap (months with >=15 qualifiers in both): 14.8 of 15 (98%)
+mean top-5 overlap: 5.0 of 5
+months where the lists share <= 10 of 15: 1 of 122
+months where the tier pool yields fewer qualifiers than full: 94 of 129

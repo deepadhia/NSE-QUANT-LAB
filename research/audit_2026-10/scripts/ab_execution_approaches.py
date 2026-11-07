@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """
+*** NOT AUTHORITATIVE (2026-11-07) -- DO NOT CITE ITS NUMBERS ***
+This script defines `NextDayCatchupEngine`, a re-implementation of the whole BacktestEngine.run() loop (forbidden by
+docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md). It diverges from src/nse_quant_lab/engine.py (no delisting force-liquidation, different
+circuit-lock retry/exit path, catch-up triggered whenever a slot is empty, budget gate fed from a side-channel `_current_equity`). Its Approach 3
+result (22.18%) did not reproduce in the real engine (20.50%; see docs/RESULTS_REGISTER.md R11-R19). Arm 0 matches the real engine exactly
+(it uses the real BacktestEngine). For execution-approach questions use research/audit_2026-10/scripts/approach_ablation_real_engine.py.
+
 ab_execution_approaches.py -- Empirical Backtest of Real-World Execution Approaches
 ===================================================================================
 Investigates the impact on 20-year CAGR, Drawdown, and Churn of realistic order placement:

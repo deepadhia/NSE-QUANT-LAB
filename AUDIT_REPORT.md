@@ -52,7 +52,8 @@ A rigorous backtest-to-paper parity verification was executed across 83 historic
 The original table here (22.0% UB / 21.6% UA, from a research harness before the production tier switched to UH and before the audit fixes) is **withdrawn**. See `docs/RESULTS_REGISTER.md`. Summary:
 
 * Production tier: `UH` (50-session median turnover >= Rs 10 Cr), EQ, >= 226 sessions of history, close >= Rs 10; entry close >= 1.03 x EMA(100) and Supertrend(10,3) bullish; momentum rank; 15 slots; exit close < EMA(100); Nifty 500 200-day regime filter on new entries; Arm 2 catch-up; HoldFix hold rule.
-* 20-year post-tax backtest, production code: **21.3% CAGR, max drawdown -41.3%** vs Nifty 500 price 10.0%; **~19% if the single largest open position (CUPID, 9.4x, 39% of final NAV) is marked at cost**, 17.9-18.8% with all open positions at cost; 17.1% under the older hold rule. Planning range **17-19%**.
+* (Updated 2026-11-07 - deployed setup, APPROACH_3, register R11-R13: **trend_momentum_pit 20.5%, alpha_semivol_pit 19.7%, minervini 18.0%**; ex-CUPID 18.2 / 17.1 / 15.1%; all open positions at cost 16.8 / 15.4 / 14.0%; planning range **15-18%**. The figures below are the earlier baseline-mode run R1.)
+* 20-year post-tax backtest, production code, BASELINE execution mode (not the deployed APPROACH_3): **21.3% CAGR, max drawdown -41.3%** vs Nifty 500 price 10.0%; **~19% if the single largest open position (CUPID, 9.4x, 39% of final NAV) is marked at cost**, 17.9-18.8% with all open positions at cost; 17.1% under the older hold rule. Planning range **17-19%**.
 * Honest limits: nothing out-of-sample (~177 configurations tried), costs are assumed tiers (no real fills, `fill_audit` empty), benchmark is price-only, 2016-20 close to the index, survivorship only partly addressed, terminal wealth concentrated in a few positions, average hold ~110 days so almost all gains are short-term taxed.
 
 ---
@@ -76,7 +77,7 @@ Paper trading is **strictly MongoDB-driven**. No state is maintained in CSV file
 
 ## 6. Verification & Test Suite Execution (re-run 2026-11-04)
 
-* `pytest -q` on `main` = `4c879b8`: **227 passed, 1 skipped, 0 failed** (195 s). The skip is in `tests/test_trend_momentum_pit.py`.
+* `pytest -q` on `main` = `4c879b8`: 227 passed, 1 skipped (195 s); on `e265ba2` + the 2026-11-07 fixes: **269 passed, 1 skipped, 0 failed** (137 s). The skip is in `tests/test_trend_momentum_pit.py`.
 * The earlier "137 tests / 136 passed / 16.28 s" figure was from 2026-11-01 and is stale.
 * The compile/contract gate (`tests/test_compilation_and_contracts.py`) is part of that run.
 * Warnings fixed earlier: Yahoo `auto_adjust` default, `datetime.utcnow()` deprecation; held-stock missing-bar fallback bounded to <= 5 calendar days.

@@ -317,14 +317,14 @@ def _load_pit_universe_from_mongo(
     }
 
     # 1. Fetch from upstox_daily_ohlcv
-    docs_hist = []
+    # A failed history query must not silently shrink the universe to the few weeks held in the fulltier collection.
     try:
         docs_hist = list(db["upstox_daily_ohlcv"].find(
             query_filter,
             {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
         ))
-    except Exception:
-        pass
+    except Exception as exc:
+        raise ValueError(f"MongoDB history query on {db_n}.upstox_daily_ohlcv failed ({type(exc).__name__}); refusing to build a partial universe.") from exc
 
     # 2. Fetch from upstox_fulltier_daily directly (without list_collection_names() so mock dicts & restricted roles work)
     docs_full = []
@@ -333,8 +333,9 @@ def _load_pit_universe_from_mongo(
             {"date": {"$gte": start_str, "$lte": end_str}, "open": {"$gt": 0}, "close": {"$gt": 0}},
             {"_id": 0, "symbol": 1, "date": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}
         ))
-    except Exception:
-        pass
+    except Exception as exc:
+        # Not fatal here: the live-session coverage gate below fails loudly if recent bars are therefore missing.
+        logger.error("MongoDB query on upstox_fulltier_daily failed (%s): %s", type(exc).__name__, exc)
 
     all_docs = docs_hist + docs_full
     if not all_docs:
@@ -349,8 +350,9 @@ def _load_pit_universe_from_mongo(
             ser_val = str(sdoc.get("series") or "EQ")
             if clean_s:
                 series_map[clean_s] = ser_val
-    except Exception:
-        pass
+    except Exception as exc:
+        # Defaulting every name to EQ would let BE/SME/T2T series pass the strategies' EQ filter.
+        raise ValueError(f"MongoDB symbols lookup failed ({type(exc).__name__}); refusing to treat every symbol as series EQ.") from exc
 
     raw_df = pd.DataFrame(all_docs)
     raw_df["symbol"] = raw_df["symbol"].astype(str).str.replace(".NS", "", regex=False).str.replace(".BO", "", regex=False)
@@ -396,14 +398,26 @@ def _load_pit_universe_from_mongo(
     if include_live and live_coverage_gate > 0 and liquid:
         from .holidays import is_trading_day
 
-        target_end = end_dt.date() if end_date is not None else (_dt.datetime.now().date() - _dt.timedelta(days=1))
-        check_days = [last_dt]
-        if 0 < (target_end - last_dt).days <= 14:
-            cur_d = last_dt + _dt.timedelta(days=1)
-            while cur_d <= target_end:
-                if is_trading_day(cur_d):
-                    check_days.append(cur_d)
-                cur_d += _dt.timedelta(days=1)
+        # IST "yesterday" (the newest session that must exist when no end date is given); naive local time was wrong on a UTC server.
+        _ist_today = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=5, minutes=30))).date()
+        target_end = end_dt.date() if end_date is not None else (_ist_today - _dt.timedelta(days=1))
+        # Check EVERY trading day after the newest stored bar up to target_end. (Previously a gap of more than 14 days was not checked at
+        # all, so stale data passed because the stale last day had 100% coverage by construction.)
+        # Interior holes too: ingestion resumes from the newest stored bar and never backfills, so a skipped session inside the last
+        # two weeks would otherwise silently distort EMA/SMA/momentum inputs.
+        check_days = []
+        back_d = last_dt - _dt.timedelta(days=14)
+        while back_d <= last_dt:
+            if is_trading_day(back_d):
+                check_days.append(back_d)
+            back_d += _dt.timedelta(days=1)
+        if last_dt not in check_days:
+            check_days.append(last_dt)
+        cur_d = last_dt + _dt.timedelta(days=1)
+        while cur_d <= target_end:
+            if is_trading_day(cur_d):
+                check_days.append(cur_d)
+            cur_d += _dt.timedelta(days=1)
 
         liq_df = raw_df[raw_df["symbol"].isin(liquid)]
         have = liq_df.groupby(liq_df["date"].dt.date)["symbol"].nunique() if len(liq_df) else pd.Series(dtype=int)

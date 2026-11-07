@@ -130,7 +130,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
                 benchmark_db = getattr(self.config, "benchmark_db", None) or "stock_scanner"
                 b = pd.DataFrame()
                 try:
-                    col = MongoClient(uri, serverSelectionTimeoutMS=1000)[benchmark_db]["benchmark_ohlcv"]
+                    col = MongoClient(uri, serverSelectionTimeoutMS=5000)[benchmark_db]["benchmark_ohlcv"]
                     b = pd.DataFrame(list(col.find({"symbol": "^CRSLDX"}, {"_id": 0, "date": 1, "close": 1})))
                 except Exception:
                     pass
@@ -138,7 +138,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
                 # Fallback to local MongoDB stock_scanner if primary failed or was empty
                 if b.empty:
                     try:
-                        col = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=1000)["stock_scanner"]["benchmark_ohlcv"]
+                        col = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=5000)["stock_scanner"]["benchmark_ohlcv"]
                         b = pd.DataFrame(list(col.find({"symbol": "^CRSLDX"}, {"_id": 0, "date": 1, "close": 1})))
                     except Exception:
                         pass
@@ -146,7 +146,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
                 # Fallback to local nse_clean_archive
                 if b.empty:
                     try:
-                        col = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=1000)["nse_clean_archive"]["benchmark_daily_ohlcv"]
+                        col = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=5000)["nse_clean_archive"]["benchmark_daily_ohlcv"]
                         b = pd.DataFrame(list(col.find({"symbol": "^CRSLDX"}, {"_id": 0, "date": 1, "close": 1})))
                     except Exception:
                         pass
@@ -156,11 +156,12 @@ class AlphaSemivolPITStrategy(BaseStrategy):
                     b = b.drop_duplicates(subset=["date"], keep="last").sort_values("date")
                     self._benchmark = b.set_index("date")["close"]
                 else:
-                    logger.warning("[REGIME_GATE] Could not load ^CRSLDX benchmark from MongoDB or localhost.")
-                    self._benchmark = pd.Series(dtype=float)
+                    # Do NOT cache the failure: the next call (a scheduler retry in the same process, or a later decision date) must retry.
+                    logger.error("[REGIME_GATE] Could not load ^CRSLDX benchmark from MongoDB or localhost.")
+                    return pd.Series(dtype=float)
             except Exception as e:
-                logger.warning(f"[REGIME_GATE] Could not load benchmark from MongoDB: {e}")
-                self._benchmark = pd.Series(dtype=float)
+                logger.error(f"[REGIME_GATE] Could not load benchmark from MongoDB: {e}")
+                return pd.Series(dtype=float)
         return self._benchmark
 
     def regime_below(self, decision_date: pd.Timestamp) -> bool:

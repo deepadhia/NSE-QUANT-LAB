@@ -77,8 +77,14 @@ def audit_strategy_for_date(db, strategy_id: str, date_str: str, mode: str = "pa
     cash = float(nav_doc.get("cash", 0.0))
     holdings_val = float(nav_doc.get("holdings_val", 0.0))
 
-    # 2. Fetch open positions
-    pos_cursor = db.positions.find({"strategy_id": strategy_id, "mode": mode})
+    # 2. Fetch open positions. `positions` holds the CURRENT book only. For any date before the strategy's newest NAV row the holdings of
+    # that date are not reconstructible from it: record NAV-level fields only, flag the snapshot, and never overwrite an existing audit.
+    latest_nav = db.daily_nav.find_one({"strategy_id": strategy_id, "mode": mode}, sort=[("date", -1)])
+    is_historical = bool(latest_nav and str(latest_nav.get("date")) > date_str)
+    if is_historical and db.daily_portfolio_audit.find_one({"strategy_id": strategy_id, "mode": mode, "date": date_str}):
+        logger.info(f"Audit for {strategy_id} {date_str} already exists and positions for a past date are not reconstructible; keeping it.")
+        return None
+    pos_cursor = [] if is_historical else db.positions.find({"strategy_id": strategy_id, "mode": mode})
     positions_list = []
     total_unrealized_pnl = 0.0
 
@@ -151,12 +157,13 @@ def audit_strategy_for_date(db, strategy_id: str, date_str: str, mode: str = "pa
         nav=round(nav, 2),
         cash=round(cash, 2),
         holdings_val=round(holdings_val, 2),
-        open_positions_count=len(positions_list),
+        open_positions_count=(int(nav_doc.get("open_positions") or 0) if is_historical else len(positions_list)),
         unrealized_pnl=round(total_unrealized_pnl, 2),
         unrealized_pnl_pct=unrealized_pnl_pct,
         positions=positions_list,
         daily_fills=daily_fills,
         slippage_summary=slippage_summary,
+        positions_snapshot="UNAVAILABLE_HISTORICAL" if is_historical else "CURRENT",
     )
 
     # Upsert into daily_portfolio_audit

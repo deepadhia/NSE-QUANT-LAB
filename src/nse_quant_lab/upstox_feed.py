@@ -79,13 +79,26 @@ def symbol_isin_map(parquet_dir: Path, years: Iterable[int]) -> Dict[str, str]:
     return d.groupby("symbol")["isin"].last().to_dict()
 
 
-def select_targets(stats: pd.DataFrame, isins: Dict[str, str], min_adt: float = 3.0e7, min_history: int = 200) -> pd.DataFrame:
+def select_targets(stats: pd.DataFrame, isins: Dict[str, str], min_adt: float = 3.0e7, min_history: int = 200,
+                   include_symbols: Optional[Iterable[str]] = None) -> pd.DataFrame:
     """stats: columns symbol, adt (50-session median turnover, Rs), hist (sessions), series (last series).
-    Keeps main-board names with enough history and turnover above a buffer under the strategy's Rs 10 Cr floor, that have an ISIN."""
-    s = stats[(stats["series"] == "EQ") & (stats["adt"] >= min_adt) & (stats["hist"] >= min_history)].copy()
+    Keeps main-board names with enough history and turnover above a buffer under the strategy's Rs 10 Cr floor, that have an ISIN.
+    `include_symbols` (open paper positions) bypass the turnover/history/series screens: a held name that drifts below the tier must keep
+    receiving bars, otherwise its EMA/SMA stop is never evaluated (evaluate_daily_exits skips symbols without a bar)."""
+    keep = (stats["series"] == "EQ") & (stats["adt"] >= min_adt) & (stats["hist"] >= min_history)
+    held = set(include_symbols or [])
+    if held:
+        keep = keep | stats["symbol"].isin(held)
+        absent = sorted(held - set(stats["symbol"]))
+        if absent:
+            logger.error("[HELD_NOT_IN_STATS] open positions with no price history in the stats source, cannot be fetched: %s", absent)
+    s = stats[keep].copy()
     s["isin"] = s["symbol"].map(isins)
     missing = s[s["isin"].isna()]["symbol"].tolist()
     if missing:
+        held_missing = sorted(set(missing) & held)
+        if held_missing:
+            logger.error("[HELD_NO_ISIN] open positions with no ISIN, no bars will be fetched (stop-loss blind): %s", held_missing)
         logger.warning("no ISIN for %d target symbols (skipped): %s", len(missing), missing[:15])
     s = s.dropna(subset=["isin"])
     s["key"] = s["isin"].map(instrument_key)

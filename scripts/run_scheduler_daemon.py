@@ -347,7 +347,10 @@ class QuantLabScheduler:
                         self._save_state(today_str)
                         continue
 
-                    if job_id == "daily_pipeline" and "fulltier_ingestion" in self.next_retry_time:
+                    if job_id == "daily_pipeline" and ("fulltier_ingestion" in self.next_retry_time or "benchmark_ingestion" in self.next_retry_time):
+                        continue
+                    # The audit snapshots the portfolio the pipeline just produced: wait for a SUCCESSFUL pipeline (not merely a completed one).
+                    if job_id == "daily_portfolio_audit" and "daily_pipeline" not in self.succeeded_today:
                         continue
                     retry_at = self.next_retry_time.get(job_id)
                     if retry_at:

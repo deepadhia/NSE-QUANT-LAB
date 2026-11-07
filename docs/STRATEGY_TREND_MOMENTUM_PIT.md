@@ -22,8 +22,7 @@ Evidence and caveats: `research/audit_2026-10/HANDOFF_2026-10-31.md`. Nothing he
 8. **Tax** (backtests): dated Indian STCG/LTCG rules in `tax_india.py`; nearly all trades are short-term (~70-110 day average hold depending on the hold rule).
 
 ## Results
-All performance numbers are in [`RESULTS_REGISTER.md`](RESULTS_REGISTER.md); none are repeated here so they cannot drift. Summary of the register: production code 21.3% post-tax
-20-year backtest CAGR (max DD -41.3%) vs Nifty 500 price 10.0%, ~19% if one 9.4x position (CUPID) is marked at cost, 17.1% under the older hold rule; planning range 17-19%;
+All performance numbers are in [`RESULTS_REGISTER.md`](RESULTS_REGISTER.md); none are repeated here so they cannot drift. Summary of the register: deployed setup (APPROACH_3) 20.5% post-tax 20-year backtest CAGR (R11; baseline execution mode R1: 21.3%) (max DD -41.4%) vs Nifty 500 price 10.0%, ~19% if one 9.4x position (CUPID) is marked at cost, 17.1% under the older hold rule; planning range 15-18% (updated 2026-11-07);
 not out-of-sample, costs unmeasured.
 
 ## Why the liquid tier (decision 2026-10-31)

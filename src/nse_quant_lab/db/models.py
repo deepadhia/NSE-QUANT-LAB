@@ -162,6 +162,7 @@ class DailyPortfolioAuditModel:
     positions: List[Dict[str, Any]]
     daily_fills: List[Dict[str, Any]]
     slippage_summary: Dict[str, Any]
+    positions_snapshot: str = "CURRENT"   # "UNAVAILABLE_HISTORICAL": positions of a past date cannot be reconstructed from the live collection
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> Dict[str, Any]:

@@ -162,25 +162,25 @@ def main():
 
     logger.info(f">> Evaluating post-market signals for decision date: {decision_dt.strftime('%Y-%m-%d')}")
 
-    # Benchmark Recency Gate / Alert (Nifty 500 ^CRSLDX)
+    # Benchmark gate (Nifty 500 ^CRSLDX). The regime filter fails SAFE (blocks new entries) when the benchmark lacks the decision date, which is
+    # silent capital drag AND loses an Arm-2 Bear->Bull crossing. Strategies still run (stop exits do not need the benchmark), but the run is
+    # recorded as a problem so it exits non-zero and the scheduler retries after `ingest_benchmarks.py` (same-date reruns are idempotent).
+    bench_problem = None
     try:
-        bench_doc = db.db["benchmark_ohlcv"].find_one({"symbol": "^CRSLDX"}, sort=[("date", -1)])
+        decision_str = decision_dt.strftime("%Y-%m-%d")
+        bench_doc = db.db["benchmark_ohlcv"].find_one({"symbol": "^CRSLDX", "date": decision_str})
         if bench_doc:
-            max_bench_dt = pd.to_datetime(bench_doc["date"])
-            logger.info(f">> Latest Nifty 500 benchmark (^CRSLDX) in DB: {max_bench_dt.strftime('%Y-%m-%d')}")
-            if max_bench_dt < decision_dt:
-                logger.warning(
-                    f"[CRITICAL BENCHMARK ALERT] Benchmark (^CRSLDX) is STALE! "
-                    f"Latest benchmark date in DB: {max_bench_dt.strftime('%Y-%m-%d')} < Decision date: {decision_dt.strftime('%Y-%m-%d')}. "
-                    f"Regime filter in 'trend_momentum_pit' will fail safe and BLOCK ALL NEW ENTRIES until refreshed! "
-                    f"Run `python scripts/ingest_benchmarks.py` to refresh benchmark candles."
-                )
+            logger.info(f">> Nifty 500 benchmark (^CRSLDX) has the decision date {decision_str}.")
         else:
-            logger.warning("[CRITICAL BENCHMARK ALERT] No records for ^CRSLDX found in 'benchmark_ohlcv' collection!")
+            latest = db.db["benchmark_ohlcv"].find_one({"symbol": "^CRSLDX"}, sort=[("date", -1)])
+            bench_problem = (f"BENCHMARK ^CRSLDX has no bar for decision date {decision_str} (latest: {latest['date'] if latest else 'none'}); "
+                             f"regime filter is blocking new entries. Run `python scripts/ingest_benchmarks.py`.")
+            logger.error("[CRITICAL BENCHMARK ALERT] %s", bench_problem)
     except Exception as e:
-        logger.warning(f"Failed to check benchmark recency: {e}")
+        bench_problem = f"BENCHMARK check failed: {e}"
+        logger.error("[CRITICAL BENCHMARK ALERT] %s", bench_problem, exc_info=True)
 
-    problems = []
+    problems = [bench_problem] if bench_problem else []
     for s_doc in strat_docs:
         try:
             problems.extend(run_strategy_pipeline(s_doc, universe, decision_dt, db))
@@ -198,10 +198,16 @@ def main():
 
     # Persist daily portfolio & slippage audit snapshot in MongoDB (Zero-Telegram)
     try:
+        # `python scripts/run_daily_pipeline.py` puts scripts/ (not the repo root) first on sys.path, so
+        # `from scripts.audit_daily_portfolio import ...` raised ModuleNotFoundError and the audit never ran.
+        _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if _repo_root not in sys.path:
+            sys.path.insert(0, _repo_root)
         from scripts.audit_daily_portfolio import run_portfolio_audit
         run_portfolio_audit(decision_dt.strftime("%Y-%m-%d"))
-    except Exception as exc:
-        logger.warning(f"Could not persist daily portfolio audit snapshot: {exc}")
+    except Exception:
+        # The snapshot is observability, not trading state: do not fail the run, but log the full trace at ERROR.
+        logger.exception("Could not persist daily portfolio audit snapshot")
 
 
 if __name__ == "__main__":

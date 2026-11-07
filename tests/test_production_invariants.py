@@ -224,3 +224,55 @@ def test_h5_morning_script_exits_nonzero_on_unpriced_or_failed_orders():
     assert "sys.exit(2)" in src and "no_quote" in src
     pipe = _read(SCRIPTS / "run_daily_pipeline.py")
     assert "sys.exit(4)" in pipe
+
+
+# ---- script import path: `python scripts/x.py` puts scripts/ (not the repo root) first on sys.path ------------------
+def test_scripts_importing_the_scripts_package_put_the_repo_root_on_sys_path_first():
+    """`from scripts.<mod> import ...` raises ModuleNotFoundError when a script is launched as `python scripts/x.py` unless the repo root
+    was added to sys.path first. run_daily_pipeline.py swallowed that error, so the daily audit silently never ran."""
+    for p in SCRIPTS.glob("*.py"):
+        lines = _read(p).splitlines()
+        for i, line in enumerate(lines):
+            if re.match(r"\s*(from scripts\.|import scripts\b)", line):
+                before = "\n".join(lines[:i])
+                assert "sys.path.insert" in before and ("_repo_root" in before or "PROJECT_ROOT" in before), \
+                    f"{p.name}:{i + 1}: imports the scripts package without adding the repo root to sys.path first"
+
+
+
+# ---- research must not fork the engine loop (the 22.18% Approach-3 claim came from such a fork and did not reproduce) --------
+def test_research_scripts_that_subclass_the_engine_are_labelled_not_authoritative():
+    """A research class deriving from BacktestEngine (typically overriding run()) is a second implementation of the simulation. Its numbers
+    cannot be quoted; the file must say so in its header (docs/STRATEGY_ONBOARDING_AND_PARITY_PLAYBOOK.md: use the production engine)."""
+    for p in (ROOT / "research").rglob("*.py"):
+        text = _read(p)
+        if re.search(r"^class\s+\w+\(\s*BacktestEngine\s*\)", text, re.M):
+            head = "\n".join(text.splitlines()[:30])
+            assert "NOT AUTHORITATIVE" in head, f"{p.relative_to(ROOT)} subclasses BacktestEngine but is not labelled NOT AUTHORITATIVE"
+
+
+# ---- live-path hardening (2026-11-07 review) -------------------------------------------------------------------------
+def test_pipeline_records_a_missing_benchmark_as_a_problem_so_the_run_exits_nonzero():
+    src = _read(SCRIPTS / "run_daily_pipeline.py")
+    assert '"date": decision_str' in src, "benchmark gate must check the EXACT decision date, not just 'latest >= decision'"
+    assert "problems = [bench_problem] if bench_problem else []" in src
+    assert "sys.exit(4)" in src
+
+
+def test_daemon_gates_pipeline_on_benchmark_retry_and_audit_on_pipeline_success():
+    src = _read(SCRIPTS / "run_scheduler_daemon.py")
+    assert '"benchmark_ingestion" in self.next_retry_time' in src
+    assert 'job_id == "daily_portfolio_audit" and "daily_pipeline" not in self.succeeded_today' in src
+
+
+def test_strategies_do_not_cache_a_failed_benchmark_load():
+    for name in ("trend_momentum_pit", "alpha_semivol_pit", "minervini"):
+        src = _read(SRC / "strategies" / f"{name}.py")
+        assert "self._benchmark = pd.Series(dtype=float)" not in src, f"{name}: a failed ^CRSLDX load must not be cached for the process"
+        assert "serverSelectionTimeoutMS=1000" not in src, f"{name}: 1 s benchmark timeout is too short"
+
+
+def test_mongo_fallback_loader_has_no_bare_swallowed_history_or_series_errors():
+    src = _read(SRC / "data_loader.py")
+    block = src[src.index("def _load_pit_universe_from_mongo"):src.index("def load_pit_universe(")]
+    assert "except Exception:\n        pass" not in block

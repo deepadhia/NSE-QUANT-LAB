@@ -161,16 +161,40 @@ def panel_stats(panel: Path = PANEL) -> pd.DataFrame:
     return out
 
 
-def adjust_for_split(positions_col, orders_col, symbol: str, factor: float, now: str) -> Dict[str, int]:
+def recorded_action_matches(ca_col, symbol: str, after_date: str, upto_date: str, factor: float, tol: float = 0.05) -> bool:
+    """True when `corporate_actions` already holds a recorded split/bonus for `symbol` with ex_date in (after_date, upto_date] whose
+    ratio is within `tol` of the price-discontinuity `factor`. PaperTradingManager._apply_corporate_actions applies such a document to
+    open positions exactly once (tracked in `applied_actions`), so ingestion must NOT also multiply the share count."""
+    if ca_col is None:
+        return False
+    for act in ca_col.find({"symbol": symbol}):
+        ex = str(act.get("ex_date", ""))[:10]
+        try:
+            ratio = float(act.get("ratio") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if ex and after_date < ex <= upto_date and ratio > 0 and abs(ratio / factor - 1.0) <= tol:
+            return True
+    return False
+
+
+def adjust_for_split(positions_col, orders_col, symbol: str, factor: float, now: str,
+                     skip_positions: bool = False, action_date: Optional[str] = None) -> Dict[str, int]:
     """A split/bonus multiplies the share count by `factor` (old price / new price) and divides prices by it; market value and cash
     cost are unchanged. Rescales open paper positions and pending orders so NAV, stops and sells stay correct. Demergers (no share-count
-    change) are not touched: Upstox does not adjust them, so their factor stays near 1 and never reaches this function."""
+    change) are not touched: Upstox does not adjust them, so their factor stays near 1 and never reaches this function.
+    `skip_positions=True`: a recorded corporate action owns the position share change (manager applies it once); only pending order
+    prices are rescaled. Otherwise (unrecorded discontinuity) the position is rescaled here AND stamped with an `applied_actions`
+    marker `SYMBOL:<action_date>:ingest` so a corporate-action document recorded later for the same ex-date is not applied a 2nd time."""
     n_pos = n_ord = 0
-    for p in list(positions_col.find({"symbol": symbol, "mode": "paper"})):
-        positions_col.update_one({"_id": p["_id"]}, {"$set": {
+    for p in ([] if skip_positions else list(positions_col.find({"symbol": symbol, "mode": "paper"}))):
+        upd = {
             "shares": int(round(p["shares"] * factor)), "entry_price": p["entry_price"] / factor,
             "entry_fill_price": p.get("entry_fill_price", p["entry_price"]) / factor, "last_close": p.get("last_close", 0.0) / factor,
-            "split_adjusted_factor": factor, "updated_at": now}})
+            "split_adjusted_factor": factor, "updated_at": now}
+        if action_date:
+            upd["applied_actions"] = list(p.get("applied_actions") or []) + [f"{symbol}:{action_date}:ingest"]
+        positions_col.update_one({"_id": p["_id"]}, {"$set": upd})
         n_pos += 1
     for o in list(orders_col.find({"symbol": symbol, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}})):
         upd = {"price": o.get("price", 0.0) / factor}
@@ -181,8 +205,16 @@ def adjust_for_split(positions_col, orders_col, symbol: str, factor: float, now:
     return {"positions": n_pos, "orders": n_ord}
 
 
+def held_symbols(mongo_uri: str, db_name: str) -> List[str]:
+    """Symbols with an open paper position in ANY strategy. They must keep receiving bars even if they fall below the liquidity tier."""
+    from pymongo import MongoClient
+
+    docs = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)[db_name]["positions"].find({"mode": "paper"}, {"_id": 0, "symbol": 1})
+    return sorted({d["symbol"] for d in docs if d.get("symbol")})
+
+
 def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional[dt.date], col, flags_col, fetch: Callable,
-                  now: Callable[[], str] = lambda: dt.datetime.now(dt.timezone.utc).isoformat(), positions_col=None, orders_col=None,
+                  now: Callable[[], str] = lambda: dt.datetime.now(dt.timezone.utc).isoformat(), positions_col=None, orders_col=None, corporate_actions_col=None,
                   quote_fetcher: Optional[Callable[[List[str]], Dict[str, Dict[str, Any]]]] = None) -> Dict[str, object]:
     """Fetch and store bars for every target. `fetch(key, from_date, to_date)` returns candle rows; `col`/`flags_col` expose
     find_one / update_one / insert_one. Returns a summary dict (saved, failed symbols, flagged gaps)."""
@@ -231,8 +263,16 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
                 if ref_prev and positions_col is not None and orders_col is not None:
                     factor = prev_close / ref_prev
                     if abs(factor - 1.0) > 0.05:
-                        done = adjust_for_split(positions_col, orders_col, r.symbol, factor, now())
-                        log.warning("%s: split factor %.4f applied to %d open positions and %d pending orders", r.symbol, factor, done["positions"], done["orders"])
+                        recorded = recorded_action_matches(corporate_actions_col, r.symbol, prev_date, run_date.isoformat(), factor)
+                        done = adjust_for_split(positions_col, orders_col, r.symbol, factor, now(), skip_positions=recorded,
+                                                action_date=new_rows[0]["date"])
+                        if recorded:
+                            log.warning("%s: split factor %.4f matches a RECORDED corporate action; position shares are left to "
+                                        "PaperTradingManager (applied once). %d pending order prices rescaled", r.symbol, factor, done["orders"])
+                        else:
+                            log.error("%s: UNRECORDED price discontinuity, factor %.4f: rescaled %d open positions and %d pending orders from "
+                                      "the price gap. Record it in `corporate_actions` (scripts/sync_corporate_actions.py --add) and verify.",
+                                      r.symbol, factor, done["positions"], done["orders"])
             except Exception as exc:
                 log.error("adjusted refresh failed for %s: %s", r.symbol, exc)
         for x in rows:
@@ -323,7 +363,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     year_range = [panel_last.year - 1, panel_last.year] if panel_last else [d.year - 1, d.year]
     isins = uf.symbol_isin_map(ARCH / "parquet", year_range)
-    targets = uf.select_targets(stats, isins, min_adt=a.min_adt)
+    held = [] if a.dry_run else held_symbols(a.mongo_uri, a.db)
+    targets = uf.select_targets(stats, isins, min_adt=a.min_adt, include_symbols=held)
     if a.symbols:
         want = {s.strip() for s in a.symbols.split(",") if s.strip()}
         targets = targets[targets["symbol"].isin(want)]
@@ -347,7 +388,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     col.create_index([("symbol", 1), ("date", 1)], unique=True)
     try:
         summary = run_ingestion(targets, d, panel_last, col, flags, lambda k, f, t: uf.fetch_daily_candles(k, f, t, token),
-                                positions_col=db["positions"], orders_col=db["orders"],
+                                positions_col=db["positions"], orders_col=db["orders"], corporate_actions_col=db["corporate_actions"],
                                 quote_fetcher=lambda keys: uf.fetch_quotes(keys, token))
     except uf.UpstoxAuthError as exc:
         log.error("%s", exc)

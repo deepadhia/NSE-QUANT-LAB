@@ -169,9 +169,9 @@ def main():
                 quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": {"$in": list(PIT_STRATEGY_IDS)}, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
                 logger.info(">> Upstox quote provider attached for the 09:16 fills")
             else:
-                logger.warning(">> No Upstox token: morning fills will use the yfinance fallback (unreliable).")
+                logger.error(">> No Upstox token: orders cannot be priced (yfinance fallback is disabled unless ALLOW_YFINANCE_FALLBACK=true); the run will exit non-zero and retry.")
         except Exception as exc:
-            logger.error(">> Could not attach the Upstox quote provider (%s); using the yfinance fallback.", exc)
+            logger.error(">> Could not attach the Upstox quote provider (%s); orders stay unpriced (yfinance fallback is disabled unless ALLOW_YFINANCE_FALLBACK=true).", exc)
             quote_provider = None
 
     problems = []

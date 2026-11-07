@@ -4,6 +4,15 @@ Newest first. Entries describe what changed in the code, not investment performa
 (Corrected 2026-11-04: everything below is committed and pushed up to `4c879b8`; the earlier "nothing committed" note and the performance claims in
 1.1.0 were wrong or unsupported and have been fixed in place.)
 
+## [Unreleased] - 2026-11-07 (live-path fixes + results reconciliation)
+- Fixed: open-position shares could be multiplied twice on a split (Upstox ingestion rescale + recorded `corporate_actions` document). Ingestion now defers to a matching recorded action; an unrecorded gap is rescaled once and stamped in `applied_actions` (`SYMBOL:<date>:ingest`), which the manager honours. Tests: `tests/test_split_single_application.py`.
+- Fixed: `run_daily_pipeline.py` could never import `scripts.audit_daily_portfolio` when run as a script (repo root missing from `sys.path`); the failure was swallowed. Static gate added.
+- Corrected: the "Approach 3 gives 22.18% (+0.86 pp)" claim came from `ab_execution_approaches.py`, a re-implemented copy of the engine loop. Through the real engine: baseline 21.32%, Approach 3 (deployed) 20.50%, other variants 21.28-21.43% (register R11-R19). No return benefit; Approach 3 is retained for execution realism. Guard added: research subclasses of `BacktestEngine` must be labelled NOT AUTHORITATIVE.
+- Deployed-setup 20-year results (register R11-R13): trend_momentum_pit 20.5%, alpha_semivol_pit 19.7% (first production-class run), minervini 18.0%; CUPID is the top open holding in all three. Planning range 15-18%.
+- Live-path hardening (audit rows S3-S7): Mongo fallback loader checks every session since 14 days before the newest bar and fails loudly on Mongo errors; regime benchmark failures are no longer cached and a benchmark missing the decision date makes the pipeline exit 4; broker quotes from another session are refused; open positions keep receiving ingestion bars; past-date audits no longer show today's positions and the daemon audit waits for pipeline success. 269 tests pass, 1 skipped.
+- yfinance is no longer a fill source by default (`ALLOW_YFINANCE_FALLBACK=true` to opt in): its quote has no timestamp and its `open` can be yesterday's. Outage-expired BUYs now flag the catch-up scan. Added `scripts/probe_upstox_quotes.py` (read-only 09:16 payload probe) and `research/audit_2026-10/scripts/minervini_rs_pool_check.py` (RS-pool measurement). Audit rows S8-S10.
+- No engine/strategy rule changed in this entry.
+
 ## [Unreleased] - 2026-11-04 (documentation reconciliation; no engine/strategy logic changed)
 - Added `docs/RESULTS_REGISTER.md` (single source for every backtest number) and the research scripts `research/audit_2026-10/scripts/minervini_20y.py`, `open_positions_check.py`.
 - Corrected claims in this file, `README.md`, `AUDIT_REPORT.md`, `docs/STRATEGY_TREND_MOMENTUM_PIT.md`, the `trend_momentum_pit.py` docstring and the parity playbook (see below and the register).

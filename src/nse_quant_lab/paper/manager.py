@@ -187,7 +187,11 @@ class PaperTradingManager:
             if pos is None or ratio <= 0 or not ex_date or ex_date > as_of_date:
                 continue
             key = f"{sym}:{ex_date}:{ratio}"
-            if ex_date <= str(pos.get("entry_date", ""))[:10] or key in (pos.get("applied_actions") or []):
+            applied = pos.get("applied_actions") or []
+            # `SYMBOL:<ex_date>:ingest` is stamped by scripts/ingest_upstox_fulltier.py when it rescaled the position from an
+            # unrecorded price discontinuity; a document recorded later for the same ex-date must not multiply the shares again.
+            if (ex_date <= str(pos.get("entry_date", ""))[:10] or key in applied
+                    or any(str(k).startswith(f"{sym}:{ex_date}:") for k in applied)):
                 continue
             new_shares = int(math.floor(pos["shares"] * ratio + 1e-9))
             logger.warning("[CORPORATE_ACTION] %s ex %s ratio %.4f: shares %d -> %d", sym, ex_date, ratio, pos["shares"], new_shares)
@@ -804,6 +808,37 @@ class PaperTradingManager:
         except Exception as exc:
             logger.error("fill_audit insert failed: %s", exc)
 
+    @staticmethod
+    def _quote_session_date(ts: Any) -> Optional[Any]:
+        """IST calendar date of a broker quote timestamp (epoch seconds/ms or ISO string; naive strings are taken as IST), else None."""
+        if ts is None or ts == "":
+            return None
+        try:
+            if isinstance(ts, (int, float)) or (isinstance(ts, str) and ts.strip().replace(".", "", 1).isdigit()):
+                v = float(ts)
+                t = pd.to_datetime(v, unit="ms" if v > 1e11 else "s", utc=True)
+            else:
+                t = pd.to_datetime(ts)
+                if t.tzinfo is None:
+                    return t.date()
+                t = t.tz_convert("UTC")
+            return t.tz_convert("Asia/Kolkata").date()
+        except Exception:
+            return None
+
+    def _quote_is_stale(self, q: Dict[str, Any], sym: str, execution_date: pd.Timestamp) -> bool:
+        """True when the quote carries a PARSEABLE timestamp from a different session than `execution_date`. A missing/unparseable timestamp
+        is not treated as stale (Upstox payload semantics were never verified live) but is logged so it can be audited."""
+        d = self._quote_session_date(q.get("ts"))
+        if d is None:
+            logger.warning("[QUOTE_FRESHNESS_UNVERIFIED] %s: broker quote has no parseable timestamp (ts=%r)", sym, q.get("ts"))
+            return False
+        if d != pd.Timestamp(execution_date).date():
+            logger.error("[STALE_QUOTE] %s: broker quote is from %s, execution date is %s; refusing to fill on it",
+                         sym, d, pd.Timestamp(execution_date).date())
+            return True
+        return False
+
     def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, Any]]:
         """
         Retrieves opening price bar for execution date.
@@ -854,6 +889,11 @@ class PaperTradingManager:
             except Exception as exc:
                 logger.error("quote_provider failed for %s: %s", sym, exc)
                 q = None
+            if q and float(q.get("open") or 0.0) > 0 and self._quote_is_stale(q, sym, execution_date):
+                # A previous-session quote must never price today's fill (calendar mistake, stock not yet traded, lagging feed).
+                # Return None (no yfinance fallback: its freshness cannot be checked either): the order is retained as NO_QUOTE,
+                # the morning run exits non-zero and the scheduler retries until the 15:25 window closes.
+                return None
             if q and float(q.get("open") or 0.0) > 0:
                 o = float(q["open"])
                 ltp = float(q.get("ltp") or o)
@@ -873,6 +913,12 @@ class PaperTradingManager:
                 }
             logger.error("no usable broker quote for %s at execution time; falling back to the yfinance quote", sym)
 
+        # yfinance exposes no quote timestamp, and fast_info.open is the last row of a 1y DAILY history, i.e. YESTERDAY's open whenever today's
+        # row is not there yet: staleness is undetectable. Not used for fills unless explicitly enabled (ALLOW_YFINANCE_FALLBACK=true).
+        if not getattr(self.config, "allow_yfinance_fallback", False):
+            logger.error("no verifiable broker quote for %s; yfinance fallback is disabled (its open cannot be checked for freshness): order retained, run will exit non-zero and retry", sym)
+            return None
+        logger.warning("[YFINANCE_FALLBACK_ENABLED] %s: filling from an unverifiable yfinance open (ALLOW_YFINANCE_FALLBACK=true)", sym)
         # Live quote fallback at 09:16 IST (never fallback to prev_close as open_px)
         try:
             import yfinance as yf
@@ -1347,7 +1393,18 @@ class PaperTradingManager:
                     "SKIPPED_LOW_LIQUIDITY",
                 ]},
             }))
-            had_skips_today = had_rebal_skips or (len(db_skips_today) > 0)
+            # BUYs expired by the stale-signal guard (e.g. the daemon was down for a session) are lost entries just like skipped ones:
+            # without this the slots stay empty until the next month-end. Flag the catch-up scan so the next post-market run refills them.
+            db_stale_today = list(self.db.orders.find({
+                "strategy_id": self.config.strategy_id,
+                "mode": self._mode,
+                "action": "BUY",
+                "execution_date": date_str,
+                "signal_date": {"$lt": date_str},
+                "status": "SKIPPED_EXPIRED",
+                "cancel_reason": "STALE_SIGNAL",
+            }))
+            had_skips_today = had_rebal_skips or (len(db_skips_today) > 0) or (len(db_stale_today) > 0)
             strat_doc = self.db.strategies.find_one({
                 "strategy_id": self.config.strategy_id,
                 "mode": self._mode,

@@ -18,7 +18,7 @@
 6. **Built-in Agent Rules & Skills**: Full `.agents/skills/audit-backtest/` and `AGENTS.md` guidelines preventing AI hallucination and enforcing research integrity.
 7. **Point-in-Time Realism & 100% Paper Parity (`trend_momentum_pit`)**: Full unconstrained historical Bhavcopy panel (including delisted stocks), 226-day dynamic point-in-time history gating, dated Indian STCG/LTCG tax models (`tax_india.py`), liquidity-tiered execution friction (`cost_model.py`), and engine-vs-paper parity checks (synthetic-market tests plus one real-data 83-session replay; see `docs/RESULTS_REGISTER.md` §4 for what that does and does not prove).
 8. **Arm 2 Event-Driven Macro Catch-Up**: Asynchronous cash deployment on mid-month Nifty 500 200-SMA recoveries. 20-year A/B: +1.71 pp post-tax CAGR vs monthly-only (mostly from 2021-26, chosen after viewing four arms); see the register.
-9. **Honest numbers**: all backtest results are defined in [`docs/RESULTS_REGISTER.md`](docs/RESULTS_REGISTER.md) (production code: 21.3% post-tax 20-year CAGR in backtest, planning range 17–19% after removing one outlier position; Nifty 500 price 10.0%; not out-of-sample, costs uncalibrated).
+9. **Honest numbers**: all backtest results are defined in [`docs/RESULTS_REGISTER.md`](docs/RESULTS_REGISTER.md) (deployed setup: 20.5% / 19.7% / 18.0% post-tax 20-year backtest CAGR for trend_momentum_pit / alpha_semivol_pit / minervini, planning range 15–18% after removing one outlier position that is the top holding in all three; Nifty 500 price 10.0%; not out-of-sample, costs uncalibrated).
 
 ---
 
