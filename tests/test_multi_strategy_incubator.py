@@ -166,6 +166,10 @@ def test_independent_exit_execution_on_same_holding():
         "mode": "paper",
     })
 
+    # Authoritative cash lives on the strategy document (the cash compare-and-swap requires it).
+    for sid in ("trend_momentum_pit", "minervini_trend_template"):
+        mock_db.strategies.insert_one({"strategy_id": sid, "mode": "paper", "cash": 90000.0, "applied_execs": []})
+
     # Initialize portfolios with 90,000 cash and 10,000 holdings = 100,000 NAV
     mock_db.daily_nav.insert_one({
         "strategy_id": "trend_momentum_pit",

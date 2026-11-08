@@ -123,6 +123,12 @@ class MockMongoDbWrapper:
         self.daily_nav = InMemoryCollection()
         self.strategies = InMemoryCollection()
 
+    def get_collection(self, name):
+        # Mirrors MongoDatabase.get_collection (used for corporate_actions lookups).
+        if not hasattr(self, name):
+            setattr(self, name, InMemoryCollection())
+        return getattr(self, name)
+
     def ping(self) -> bool:
         return True
 
@@ -248,12 +254,16 @@ def test_paper_manager_v6_enhancements():
 
     exec_res = mgr.execute_morning_fills(universe, execution_date)
 
-    expired_order = mock_db.orders.find_one({'order_id': 'ORDER_EXTRA_BACKUP'})
-    assert expired_order is not None
-    assert expired_order['status'] == 'SKIPPED_EXPIRED'
+    # A BUY for a symbol with no history in the universe is retained and reported, never silently expired
+    # (the stale-signal guard expires it once its signal is older than the last completed session).
+    retained_order = mock_db.orders.find_one({'order_id': 'ORDER_EXTRA_BACKUP'})
+    assert retained_order is not None
+    assert retained_order['status'] == 'PENDING_OPEN'
+    assert any(n['symbol'] == 'EXTRA.NS' and 'missing symbol history' in n['reason'] for n in exec_res['no_quote'])
 
     remaining_pending = list(mock_db.orders.find({'mode': 'paper', 'status': 'PENDING_OPEN'}))
-    assert len(remaining_pending) == 0, 'No orders should remain PENDING_OPEN after morning execution'
+    assert [o['order_id'] for o in remaining_pending] == ['ORDER_EXTRA_BACKUP'], \
+        'Only the unpriceable order may remain PENDING_OPEN after morning execution'
 
     pos_docs = list(mock_db.positions.find({'mode': 'paper'}))
     assert len(pos_docs) > 0

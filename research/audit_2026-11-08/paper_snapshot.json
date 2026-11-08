@@ -1,0 +1,50 @@
+[
+  {
+    "strategy": "trend_momentum_pit",
+    "last_signal_date": "2026-11-06",
+    "last_execution_date": "2026-11-05",
+    "execution_count": 15,
+    "position_count": 15,
+    "fill_audit_count": 15,
+    "fill_audit_with_bidask_count": 15,
+    "stored_cash_minus_execution_ledger": -0.0,
+    "duplicate_exec_ids": 0,
+    "nonpositive_share_positions": 0,
+    "mean_directional_quote_vs_open_bps": -46.646,
+    "mean_model_slip_bps": 8.565333333333333,
+    "mean_half_spread_bps": 4.545333333333333,
+    "quotes_worse_than_model_fill": 2
+  },
+  {
+    "strategy": "minervini_trend_template",
+    "last_signal_date": "2026-11-06",
+    "last_execution_date": "2026-11-05",
+    "execution_count": 15,
+    "position_count": 15,
+    "fill_audit_count": 15,
+    "fill_audit_with_bidask_count": 15,
+    "stored_cash_minus_execution_ledger": -0.0,
+    "duplicate_exec_ids": 0,
+    "nonpositive_share_positions": 0,
+    "mean_directional_quote_vs_open_bps": -30.226,
+    "mean_model_slip_bps": 8.517999999999999,
+    "mean_half_spread_bps": 4.432,
+    "quotes_worse_than_model_fill": 6
+  },
+  {
+    "strategy": "alpha_semivol_pit",
+    "last_signal_date": "2026-11-06",
+    "last_execution_date": "2026-11-05",
+    "execution_count": 15,
+    "position_count": 15,
+    "fill_audit_count": 15,
+    "fill_audit_with_bidask_count": 15,
+    "stored_cash_minus_execution_ledger": 0.0,
+    "duplicate_exec_ids": 0,
+    "nonpositive_share_positions": 0,
+    "mean_directional_quote_vs_open_bps": -48.516666666666666,
+    "mean_model_slip_bps": 8.534666666666668,
+    "mean_half_spread_bps": 4.560666666666666,
+    "quotes_worse_than_model_fill": 2
+  }
+]

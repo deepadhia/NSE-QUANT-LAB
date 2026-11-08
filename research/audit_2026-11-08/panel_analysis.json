@@ -1,0 +1,30 @@
+{
+  "rows": 8367109,
+  "symbols": 3989,
+  "first_date": "2006-01-02",
+  "last_date": "2026-10-30",
+  "duplicate_symbol_dates": 0,
+  "nan_prices_or_volume": 0,
+  "nonpositive_prices": 0,
+  "invalid_ohlc_envelopes": 0,
+  "negative_volumes": 0,
+  "zero_volumes": 0,
+  "2024_liquid_EQ_stockdays_raw_above_10_adjusted_below_10": 337,
+  "2024_floor_mismatch_symbols": [
+    "BHAGYANGR",
+    "DAVANGERE",
+    "ESSENTIA",
+    "EXXARO",
+    "FILATFASH",
+    "KESORAMIND",
+    "NDL",
+    "PCJEWELLER",
+    "SAKUMA",
+    "SIKKO"
+  ],
+  "adjustment_event_sources": {
+    "official": 1395,
+    "B_extreme_clean": 52
+  },
+  "inferred_actions_overlapping_baseline_closed_trades": []
+}

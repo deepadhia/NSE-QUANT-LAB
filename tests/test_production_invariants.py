@@ -276,3 +276,90 @@ def test_mongo_fallback_loader_has_no_bare_swallowed_history_or_series_errors():
     src = _read(SRC / "data_loader.py")
     block = src[src.index("def _load_pit_universe_from_mongo"):src.index("def load_pit_universe(")]
     assert "except Exception:\n        pass" not in block
+
+
+# ---- 2026-11-08 audit remediation guards (docs/AUDIT_2026-11_FINDINGS_AND_REGRESSION_GUARDS.md, rows R1-R8) ----------
+def test_r1_missing_data_is_never_turned_into_a_sale():
+    """F2/H2: no invented liquidation, haircut or forced-sale rule in the engine or the paper manager."""
+    for name, src in (("engine.py", _read(SRC / "engine.py")), ("manager.py", _read(SRC / "paper" / "manager.py"))):
+        assert "forced_delist_exits" not in src and "haircut" not in src.lower() and "SELL_DELIST" not in src, \
+            f"{name}: a missing bar/quote must retain state and fail loudly, never create proceeds"
+    assert "MISSING_HELD_BAR" in _read(SRC / "engine.py") and "MISSING_HELD_BAR" in _read(SRC / "paper" / "manager.py")
+
+
+def test_r2_live_fills_use_executable_side_of_the_quote():
+    """Live 09:16 fills price off ask (BUY) / bid (SELL), not an unavailable opening print."""
+    src = _read(SRC / "paper" / "manager.py")
+    assert 'self._executable_price(bar, "BUY")' in src and 'self._executable_price(bar, "SELL")' in src
+    assert 'open_price = float(row["open"])' not in src
+
+
+def test_r3_cash_writes_are_compare_and_swap_and_workers_are_serialised():
+    """F6: absolute cash writes can lose another worker's delta; the account lock + CAS prevent it."""
+    src = _read(SRC / "paper" / "manager.py")
+    helper = src[src.index("def _persist_cash"):src.index("def _cash_already_applied")]
+    assert '"cash": {"$gte"' in helper and "CASH_CONFLICT" in helper
+    for fn in ("def generate_post_market_signals", "def execute_morning_fills"):
+        before = src[:src.index(fn)].rstrip().splitlines()[-1].strip()
+        assert before == "@serialized_portfolio", f"{fn} must run under the portfolio lock"
+    assert not re.search(r'"\$set": \{[^}]*"cash": round\(cash, 2\),\s*"holdings_val"', src), \
+        "summary writes must not overwrite cash with a possibly stale balance"
+
+
+def test_r4_quote_freshness_fails_closed():
+    src = _read(SRC / "paper" / "manager.py")
+    body = src[src.index("def _quote_is_stale"):src.index("def _executable_price")]
+    assert "if d is None:" in body and "return True" in body.split("if d is None:")[1].split("if d !=")[0]
+
+
+def test_r5_historical_engine_rejects_adjusted_only_prices_and_uses_nominal_basis():
+    eng = _read(SRC / "engine.py")
+    assert "adjusted_without_raw" in eng and "nominal_price" in eng and "execution_bar" in eng
+    assert "nominal_price" in _read(SRC / "strategies" / "trend_momentum_pit.py")
+
+
+def test_r6_special_sessions_checked_before_weekend_rejection_and_cron_is_session_aware():
+    hol = _read(SRC / "holidays.py")
+    body = hol[hol.index("def get_trading_session"):hol.index("def execution_window_open")]
+    assert body.index("SPECIAL_NSE_SESSIONS") < body.index("weekday()")
+    cron = _read(ROOT / "deploy" / "crontab.txt")
+    assert all("--special-session-only" in l for l in cron.splitlines() if l.startswith("21 14 "))
+    assert "execution_window_open" in _read(SCRIPTS / "execute_paper_orders.py")
+
+
+def test_r7_no_mojibake_in_source_files():
+    """A rewrite with the wrong codec turned the rupee sign into 'Ã¢â€šÂ¹' in 2026-11."""
+    bad = ("\u00c3\u00a2\u00e2\u20ac", "\u00e2\u201a\u00b9")
+    offenders = [str(p.relative_to(ROOT)) for base in (SRC, SCRIPTS) for p in base.rglob("*.py")
+                 if any(b in _read(p) for b in bad)]
+    assert not offenders, f"encoding corruption in: {offenders}"
+
+
+def test_r8_tax_fy2024_25_uses_blend_not_post_budget_rate_for_whole_year():
+    src = _read(SRC / "tax_india.py")
+    assert 'if fy_end > pd.Timestamp("2025-03-31"):' in src
+
+
+def test_r9_unrecorded_price_gap_rescale_is_escalated_not_silent():
+    """Share counts changed from an inferred price gap must raise a CRITICAL alert and a non-zero exit (AGENTS invariant 6)."""
+    src = _read(SCRIPTS / "ingest_upstox_fulltier.py")
+    assert "unrecorded_rescaled" in src and "log.critical" in src and "return 5" in src
+
+
+def test_r10_engine_values_held_positions_on_todays_share_basis():
+    """A same-morning split already multiplied the share count; the decision close must be re-based (previous_close helper)."""
+    src = _read(SRC / "engine.py")
+    body = src[src.index("def _decision_value_per_share"):src.index("pretrade_equity = cash + holdings_est_val")]
+    assert "previous_close(" in body
+
+
+def test_r11_cross_host_lease_wraps_portfolio_operations_and_fences_state_changes():
+    """Two hosts sharing one database must not run the same strategy's fills at once (lease + fencing token)."""
+    lock = _read(SRC / "paper" / "locking.py")
+    assert "_open_lease" in lock and "lease.acquire()" in lock and "lease.release()" in lock
+    mgr = _read(SRC / "paper" / "manager.py")
+    for fn in ("def _persist_cash", "def _record_execution"):
+        body = mgr[mgr.index(fn):mgr.index(fn) + 400]
+        assert "self._assert_lease()" in body, f"{fn} must verify the lease (fencing) before writing"
+    lease = _read(SRC / "paper" / "lease.py")
+    assert '"hello"' in lease and "$inc" in lease and "DuplicateKeyError" in lease and "LEASE_LOST" in lease

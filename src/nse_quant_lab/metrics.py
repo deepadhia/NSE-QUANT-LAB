@@ -37,8 +37,10 @@ def calculate_financial_metrics(
         years_calendar = 0.0
         cagr_calendar_pct = 0.0
 
+    cagr_sessions_pct = cagr_pct
+    cagr_pct = cagr_calendar_pct
     if not nav_df.empty:
-        peak = nav_df["nav"].cummax()
+        peak = nav_df["nav"].cummax().clip(lower=initial_capital)
         dd = (nav_df["nav"] - peak) / peak
         max_dd_pct = float(dd.min()) * 100.0
     else:
@@ -55,8 +57,8 @@ def calculate_financial_metrics(
 
     if not nav_df.empty and len(nav_df) > 1:
         daily_rets = nav_df["nav"].pct_change().dropna()
-        ann_vol = float(daily_rets.std() * np.sqrt(250))
-        sharpe = (cagr_pct / 100.0 - rf_rate) / ann_vol if ann_vol > 0 else 0.0
+        ann_vol = float(daily_rets.std() * np.sqrt(252))
+        sharpe = (float(daily_rets.mean()) * 252 - rf_rate) / ann_vol if ann_vol > 0 else 0.0
     else:
         ann_vol = 0.0
         sharpe = 0.0
@@ -67,6 +69,9 @@ def calculate_financial_metrics(
         "net_pnl": net_pnl,
         "total_return_pct": total_ret_pct,
         "cagr_pct": cagr_pct,
+        "cagr_sessions_250_pct": cagr_sessions_pct,
+        "sharpe_risk_free_rate": rf_rate,
+        "annualization_sessions": 252,
         "cagr_calendar_pct": cagr_calendar_pct,
         "max_drawdown_pct": max_dd_pct,
         "annualized_vol_pct": ann_vol * 100.0,

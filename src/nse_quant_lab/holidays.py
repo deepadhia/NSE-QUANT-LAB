@@ -13,6 +13,7 @@ import json
 import logging
 from typing import Set, Optional
 from datetime import datetime, date, timezone, timedelta
+from dataclasses import dataclass
 
 IST = timezone(timedelta(hours=5, minutes=30))
 import urllib.request
@@ -45,6 +46,52 @@ STATIC_NSE_HOLIDAYS: Set[str] = {
 }
 
 _MEM_CACHE: dict = {}
+
+
+@dataclass(frozen=True)
+class TradingSession:
+    open_time: str = "09:15"
+    close_time: str = "15:30"
+    execution_cutoff: str = "15:25"
+    source: str = "regular NSE equity session"
+
+
+# Verified session overrides precede weekend/holiday rejection. The cutoff is before CAS.
+SPECIAL_NSE_SESSIONS = {
+    "2026-11-08": TradingSession("14:20", "15:35", "15:10",
+        "https://nsearchives.nseindia.com/content/circulars/CMTR76941.pdf"),
+}
+
+
+def _session_date(dt=None) -> date:
+    if dt is None:
+        return datetime.now(IST).date()
+    if isinstance(dt, str):
+        return date.fromisoformat(dt[:10])
+    if isinstance(dt, datetime):
+        return dt.astimezone(IST).date() if dt.tzinfo else dt.date()
+    return dt
+
+
+def get_trading_session(dt=None) -> Optional[TradingSession]:
+    """Verified equity session hours, or None when closed."""
+    d = _session_date(dt)
+    special = SPECIAL_NSE_SESSIONS.get(d.isoformat())
+    if special is not None:
+        return special
+    if d.weekday() >= 5 or d.isoformat() in get_nse_holidays(d.year):
+        return None
+    return TradingSession()
+
+
+def execution_window_open(now: datetime) -> bool:
+    now = now.astimezone(IST) if now.tzinfo else now.replace(tzinfo=IST)
+    session = get_trading_session(now)
+    if session is None:
+        return False
+    opening = datetime.combine(now.date(), datetime.strptime(session.open_time, "%H:%M").time(), IST)
+    cutoff = datetime.combine(now.date(), datetime.strptime(session.execution_cutoff, "%H:%M").time(), IST)
+    return opening + timedelta(minutes=1) <= now < cutoff
 
 
 def get_nse_holidays(year: Optional[int] = None, mongo_uri: Optional[str] = None) -> Set[str]:
@@ -124,10 +171,4 @@ def is_trading_day(dt: Optional[datetime | date | str] = None) -> bool:
     else:
         target_dt = dt
 
-    # Check weekend (Monday is 0, Sunday is 6)
-    if target_dt.weekday() in (5, 6):
-        return False
-
-    date_str = target_dt.strftime("%Y-%m-%d")
-    holidays = get_nse_holidays(target_dt.year)
-    return date_str not in holidays
+    return get_trading_session(target_dt) is not None

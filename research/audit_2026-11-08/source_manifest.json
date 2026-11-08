@@ -1,0 +1,40 @@
+{
+  "git_head": "0c7dfe31cdbd2f3bc535874902d89ad3bce422cf",
+  "source_sha256": {
+    "src\\nse_quant_lab\\base_strategy.py": "6a1f7eaf598b8caaae7c3ce60cb0c73524078ccd0a5ee81ca1bb867a4bc4e740",
+    "src\\nse_quant_lab\\config.py": "202fbcfe215739df0b73b37ac3a059d58fa6c304e71896325c23ae9c5c83a646",
+    "src\\nse_quant_lab\\corporate_actions.py": "5643e3d775ebd71a9c6becfcef47ef8e44ab771df256d4dd7d4e2db69b06cf05",
+    "src\\nse_quant_lab\\cost_model.py": "cfc9e6906604e8038ae375af6f1a61346ef24361278d999687359ee6f1edbca4",
+    "src\\nse_quant_lab\\data_loader.py": "5f7b1359138fac7c136a220841b81acd2fd4680315d990065578a99475e41ac6",
+    "src\\nse_quant_lab\\engine.py": "e33555502baffde7df1c96594ddbba23ce587a85ead4152a1a3c050baee9bb30",
+    "src\\nse_quant_lab\\execution.py": "f1624f43c52650bd1f5237d8129ad99f3bc0fc091d6d0630f323b62e7cede537",
+    "src\\nse_quant_lab\\external_prices.py": "8b4ff2036b9a54cf92215802653da9c6a08b4989791ad090874bd279168a336e",
+    "src\\nse_quant_lab\\fees.py": "dff0735e471d0af02aedb27190ea9d256d0cc8c0df52eead8be4fc03daf005c7",
+    "src\\nse_quant_lab\\holidays.py": "387cf8596730f94b60f41aa27e99fcdde460b079db61914e642ec7c2d2992454",
+    "src\\nse_quant_lab\\indicators.py": "45e6e3adda35f52f88c5f6d94c0f950d4de97cc4a197c6403ca53fce82e0bd69",
+    "src\\nse_quant_lab\\metrics.py": "457c594501a2b783376014cfb1551b12a70f638bfdf3ca8827a5ba073e95949c",
+    "src\\nse_quant_lab\\pit_universe.py": "6c2b11d440c20ec5c8f6abfa82809f185923d8a132e6e40238f98bcf8cbdc224",
+    "src\\nse_quant_lab\\price_validation.py": "7af9cd55ea8698584dd2d3824a7c4edac80c90a8bec7f84f53a649780864f43d",
+    "src\\nse_quant_lab\\registry.py": "50574b58680780f62b6d0977c677018204ed54bbd75c743c0dcd6be233cb7eb3",
+    "src\\nse_quant_lab\\tax_india.py": "2d2a7bff4b92e92af1c8c1503b8a976b1f4996c15ccb259a63a81e55225aecd8",
+    "src\\nse_quant_lab\\upstox_feed.py": "86dab9b063cec9d593e08bbedb413e06e9802a14104bc2bebf67fea24866aa3b",
+    "src\\nse_quant_lab\\__init__.py": "0d03476626ee72af3d3e6a09a6000b402def020c1b63fce8174bd893e69a584c",
+    "src\\nse_quant_lab\\db\\models.py": "4f1b70aa44c9298dc7a4e970ac2ff8e0691e205bc97689f7a433dd1f59badd16",
+    "src\\nse_quant_lab\\db\\mongo_client.py": "d83f6d299e52c6bec9307e0eac623f8d7381c496c13b83e7885e0b2e3cf987ec",
+    "src\\nse_quant_lab\\notifications\\telegram.py": "4edfe2475f9166cd555c93cb4e98df64e0bc745ad642e3b48cfda7b1aabda25e",
+    "src\\nse_quant_lab\\paper\\manager.py": "e6f8cabe3f30da67cf8a3c483cc7d890883f752eed6b37f26c17d82d0a4df8a7",
+    "src\\nse_quant_lab\\strategies\\alpha_semivol_pit.py": "4bbf19bf755f03dcb47804ac0d9f62827d231363554d3842d9b8fd97905581f8",
+    "src\\nse_quant_lab\\strategies\\donchian.py": "a1da5bb58816f829e4905d10708889be460d0b24c5439f2257da59fd6bdf8125",
+    "src\\nse_quant_lab\\strategies\\minervini.py": "ed3af9cb05e1695b966922737a29111b520b98369ae26d5b566dfac092fae70c",
+    "src\\nse_quant_lab\\strategies\\trend_momentum.py": "f55a7bbe76d5dc323d20a94a308bc234fda1564fa1448fe3baab458138f6c64a",
+    "src\\nse_quant_lab\\strategies\\trend_momentum_pit.py": "2a88b9ec5205242d2ba8c8713da7dff51182604ad74ea2418543ebfbf222b327",
+    "src\\nse_quant_lab\\strategies\\__init__.py": "86474a29c9dfa2377436784f000d9e86246bbbd663892c636ec95581f47b0096"
+  },
+  "prior_work_preserved": [
+    "docs/RESULTS_REGISTER.md",
+    "research/audit_2026-10/HANDOFF_2026-11-08.md",
+    "research/audit_2026-10/scripts/ab_rs55_filter.py",
+    "research/audit_2026-10/results/ab_rs55_filter/"
+  ],
+  "production_source_modified_by_audit": false
+}

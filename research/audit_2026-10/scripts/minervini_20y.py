@@ -56,7 +56,7 @@ def run(cls, name, uni, bench):
         initial_capital=100_000.0, portfolio_size=15, max_open_positions=15, rebalance_hold_rank_buffer=1500,
         rebalance_frequency="MONTHLY", min_turnover_50d=0.0, min_price=0.0, slippage_pct=0.002, unaffordable_policy="TRY_NEXT",
         enforce_pit_universe=False, pit_top_n_liquidity=0, brokerage_per_order=0.0, dp_charge_sell=14.75,
-        max_volume_participation_pct=0.10, deduct_annual_tax=True, tax_model="india_fy",
+        max_volume_participation_pct=0.10, deduct_annual_tax=True, tax_model="india_fy", execution_approach="BASELINE",
     )
     t0 = time.time()
     strat = cls(config=cfg, benchmark=bench)

@@ -108,3 +108,17 @@ def test_old_behaviour_would_have_quadrupled_shares(monkeypatch):
     db.corporate_actions.insert_one({"symbol": "BBB", "ex_date": "2026-11-02", "ratio": 2.0, "source": "NSE_OFFICIAL"})
     mgr._apply_corporate_actions({"BBB": db.positions.find_one({"symbol": "BBB"})}, as_of_date="2026-11-02")
     assert db.positions.find_one({"symbol": "BBB"})["shares"] == 40
+
+
+def _summary(pos, ca_docs):
+    orders = FakeMany([{"_id": 9, "symbol": "BBB", "mode": "paper", "action": "BUY", "shares": 0, "price": 200.0, "status": "PENDING_OPEN"}])
+    return ing.run_ingestion(TARGETS, RUN, PANEL_LAST, FakeCol(), FakeCol(), _fetch, now=lambda: "t",
+                             positions_col=pos, orders_col=orders, corporate_actions_col=_CA(ca_docs))
+
+
+def test_unrecorded_rescale_of_a_held_position_is_reported_so_the_run_fails_and_alerts():
+    """Share counts changed from an inferred price gap (not a recorded action) must surface in the summary (-> exit 5 + alert)."""
+    pos = FakeMany([_position()])
+    assert _summary(pos, [])["unrecorded_rescaled"] == ["BBB"]
+    pos = FakeMany([_position()])
+    assert _summary(pos, [{"_id": 5, "symbol": "BBB", "ex_date": "2026-11-02", "ratio": 2.0}])["unrecorded_rescaled"] == []

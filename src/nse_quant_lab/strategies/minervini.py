@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from ..base_strategy import BaseStrategy
+from ..price_basis import nominal_price, BASIS_COLUMNS
 from ..cost_model import slippage_fraction
 from ..registry import register_strategy
 
@@ -266,6 +267,7 @@ class MinerviniStrategy(BaseStrategy):
                 "symbol": sym,
                 "series": r["series"],
                 "close": float(r["close"]),
+                "trade_close": nominal_price(r),
                 "sma50": float(r["sma50"]),
                 "sma150": float(r["sma150"]),
                 "sma200": float(r["sma200"]),
@@ -298,7 +300,7 @@ class MinerviniStrategy(BaseStrategy):
             new_mask = (
                 (snap["series"] == "EQ")
                 & (snap["adt"] >= MIN_ADT)
-                & (snap["close"] >= MIN_PRICE)
+                & (snap["trade_close"] >= MIN_PRICE)
                 & (snap["hist"] >= MIN_HISTORY)
                 & (snap["close"] > snap["sma50"])
                 & (snap["close"] > snap["sma150"])
@@ -334,7 +336,7 @@ class MinerviniStrategy(BaseStrategy):
 
         out = pd.DataFrame({
             "symbol": sel.index,
-            "close": sel["close"].values,
+            "close": sel["trade_close"].values,
             "turnover_50d": sel["adt"].values,
             "rank": np.arange(1, len(sel) + 1),
         }, index=sel.index)

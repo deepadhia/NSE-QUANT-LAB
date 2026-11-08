@@ -127,7 +127,7 @@ def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morn
             # 09:16 reality: the execution day's bar does NOT exist; the only same-day information is the broker's opening
             # quote (open only - no same-day high/low/close). Exercises the live-quote code path (AGENTS.md temporal rule).
             opens = {s: float(df.loc[df["date"] == d, "open"].iloc[0]) for s, df in stocks.items()}
-            mgr.quote_provider = lambda sym, _o=opens: {"open": _o[sym], "high": _o[sym], "low": _o[sym], "ltp": _o[sym]}
+            mgr.quote_provider = lambda sym, _o=opens: {"open": _o[sym], "high": _o[sym], "low": _o[sym], "ltp": _o[sym], "bid": _o[sym], "ask": _o[sym], "ts": d.strftime("%Y-%m-%dT09:16:00+05:30")}
             mgr.execute_morning_fills({s: df[df["date"] < d].copy() for s, df in stocks.items()}, d)
         else:
             mgr.execute_morning_fills(d_uni, d)

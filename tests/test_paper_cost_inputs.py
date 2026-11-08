@@ -54,7 +54,7 @@ def test_morning_bar_uses_the_broker_quote_when_the_day_has_no_bar_yet():
     mgr = PaperTradingManager(strategy=strat, config=cfg, db=MagicMock())
     d = bars(n=80)
     d["series"] = "EQ"
-    mgr.quote_provider = lambda sym: {"open": 123.4, "high": 125.0, "low": 122.0, "ltp": 124.0, "bid": 124.0, "ask": 124.1}
+    mgr.quote_provider = lambda sym: {"open": 123.4, "high": 125.0, "low": 122.0, "ltp": 124.0, "bid": 124.0, "ask": 124.1, "ts": (d["date"].iloc[-1] + pd.Timedelta(days=1)).strftime("%Y-%m-%dT09:16:00+05:30")}
     exec_day = d["date"].iloc[-1] + pd.Timedelta(days=1)
     bar = mgr._get_execution_bar("X", exec_day, {"X": d})
     assert bar["open"] == 123.4 and bar["is_live_quote"] is True and bar["close"] == 124.0

@@ -165,12 +165,12 @@ def test_same_session_quote_is_used():
     assert bar is not None and bar["is_live_quote"] and bar["open"] == 101.0
 
 
-def test_quote_without_timestamp_is_accepted_but_logged(caplog):
+def test_quote_without_timestamp_is_refused_and_logged(caplog):
     mgr, uni = _mgr_and_universe()
     mgr.quote_provider = lambda s: _quote(None)
     with caplog.at_level("WARNING"):
         bar = mgr._get_execution_bar("AAA", EXEC, uni)
-    assert bar is not None and bar["is_live_quote"]
+    assert bar is None
     assert any("QUOTE_FRESHNESS_UNVERIFIED" in r.message for r in caplog.records)
 
 

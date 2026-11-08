@@ -1,0 +1,28 @@
+{
+  "total_buys": 719,
+  "matched_raw_EQ_buys": 653,
+  "unmatched_buys": 66,
+  "matched_buys_with_fractional_contemporary_share_equivalent": 205,
+  "matched_buys_with_less_than_one_contemporary_share": 1,
+  "under_one_examples": [
+    {
+      "symbol": "DIVISLAB",
+      "date": "2007-07-02",
+      "shares": 19,
+      "raw_price": 293.5,
+      "open": 5870.0,
+      "contemporary_share_equivalent": 0.9500000000000001
+    }
+  ],
+  "cupid_buys": [
+    {
+      "symbol": "CUPID",
+      "date": "2025-09-01",
+      "shares": 4597,
+      "raw_price": 34.578,
+      "open": 172.89,
+      "contemporary_share_equivalent": 919.4000000000002
+    }
+  ],
+  "caveat": "Raw matches only same ticker/date EQ; ticker renames and series changes are unmatched. Does not resimulate cash or rankings."
+}

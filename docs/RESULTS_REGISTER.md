@@ -10,7 +10,20 @@ Rule: **no document may quote a return, drawdown or test count that is not in th
 > **One stock (CUPID, 9.4x) is 39% of the final NAV.** Marking it at cost gives **~19.0–19.6%**; marking all seven open positions at cost gives **~17.9–18.8%**.
 > The previous exit rule (research spec behind the 2026-10-31 handoff) gave 17.1%.
 > **2026-11-07 update:** the 21.3% (R1) is the BASELINE/TRY_NEXT execution mode. The deployed paper setup runs `APPROACH_3` and, re-run through the real engine at `e265ba2`, gives **20.5%** (R11); alpha_semivol_pit 19.7% (R12), Minervini 18.0% (R13). CUPID is the top open holding in all three (ex-CUPID gain: 18.2 / 17.1 / 15.1%; all open positions at cost: 16.8 / 15.4 / 14.0%).
-> **Planning range: 15–18% post-tax for the deployed setup (earlier note: 17–19% for R1). Do not plan on 21%.** Not out-of-sample (~177 configurations tried), costs uncalibrated (no live fills), benchmark is price-only.
+> **Planning range: 15–18% post-tax for the deployed setup (earlier note: 17–19% for R1). Do not plan on 21%.** Not out-of-sample (~180 configurations tried; +3 RS55 filter arms 2026-11-08, R21-R23), costs uncalibrated (no live fills), benchmark is price-only.
+
+> **Metric definitions changed 2026-11-08 (uncommitted, `metrics.py`):** `cagr_pct` is now calendar-based from the actual initial capital (R11 reproduces as **20.75%** vs the **20.50%** first-EOD-NAV / 250-session figure quoted in this register; old value kept as `cagr_sessions_250_pct`); Sharpe uses arithmetic annual excess return / vol with 252 sessions; max drawdown includes initial capital. Registered numbers below were produced under the OLD definitions; do not mix the two. Source: `research/audit_2026-11-08/AUDIT_REPORT.md`.
+>
+> **Recomputed under the new definitions from SAVED NAV curves (no re-simulation; `research/audit_2026-11-08/recompute_register_metrics.py nav` -> `register_recompute/nav_recomputed.csv`):**
+>
+> | Run | Final NAV | CAGR new (old) | Sharpe rf 6% / rf 0 | Max DD |
+> |---|---:|---:|---:|---:|
+> | R11 = R20 (A0) | 4,198,266 | **20.75** (20.50) | 0.75 / 1.05 | −41.4 |
+> | R21 (A1 RS55>0) | 3,872,121 | 20.25 (20.01) | 0.72 / 1.02 | −42.9 |
+> | R22 (A4 RS55>=20) | 4,376,003 | 21.00 (20.73) | 0.72 / 1.00 | −41.0 |
+> | R23 (A5 RS55>=40) | 2,226,975 | 16.94 (16.72) | 0.57 / 0.85 | −37.9 |
+>
+> The CAGR shift is purely the denominator (actual Rs 100,000 start vs first end-of-day NAV, about +0.2-0.25 pp); it is not new performance. **Not recomputable:** R12/R13 and all other rows have no saved NAV curve, and a re-simulation with the current engine stops at `MISSING_HELD_BAR: MANGCHEFER 2025-10-31` (the terminal data disappearance the old engine turned into a last-close sale; the real corporate treatment is unresolved) and, on the nominal-price panel, at `FRACTIONAL_ENTITLEMENT_UNRESOLVED: AEGISLOG 2010-08-18`. Those rows stay on the old definitions and are labelled as such. Resolve both events from primary evidence, then re-run.
 
 Why a range and not one number: the code changed after the first research run (§3). The conservative end is the realistic expectation; the headline is what the current code produced on this history.
 
@@ -40,6 +53,10 @@ Why a range and not one number: the code changed after the first research run (�
 | R17 | 21.28 | 25.15 | −41.0 | 678 | same file (`v_a3_noslot`) | APPROACH_3 with the equal-slot cash rule removed (patched engine text) | ablation |
 | R18 | 21.38 | 25.18 | −41.0 | 679 | same file (`v_a3_noslot_anycatch`) | R17 + catch-up whenever a slot is empty (closest to the A/B copy's logic) | ablation |
 | R19 | 22.06 / 22.06 / 22.18 | 25.51 / 25.51 / 25.95 | −40.6 / −40.6 / −41.2 | 676 / 676 / 683 | `results/ab_execution_approaches/execution_approaches_summary.csv` Arms 1-3 | `ab_execution_approaches.py`: **a re-implemented copy of the engine loop** | **NOT AUTHORITATIVE: did not reproduce** (real engine: R15 / R16 / R11) |
+| R20 | 20.50 | | −41.4 | 709 | `research/audit_2026-10/results/ab_rs55_filter/summary_A0_baseline.csv` (win 41.3%, PF 1.87) | `ab_rs55_filter.py` arm A0, production class, no filter; reproduces R11 to the trade (709) | ablation baseline (2026-11-08) |
+| R21 | 20.01 | | −42.9 | 710 | same dir, `summary_A1_rs55_gt0.csv` (win 41.8%, PF 1.83) | A0 + RS55 > 0 pp entry filter (new entries only) | **NOT ADOPTED**: win rate +0.5 pp = noise; CAGR, PF, DD slightly worse |
+| R22 | 20.73 | | −41.0 | 662 | same dir, `summary_A4_rs55_ge20.csv` (win 45.2%, PF 1.83) | A0 + RS55 >= 20 pp entry filter | **NOT ADOPTED (narrow fail of pre-set rule)**: win rate +3.9 pp, higher in all 4 windows; full-period PF 1.83 vs 1.87; 2021-26 CAGR 26.6 vs 29.4, DD −34.3 vs −29.4 |
+| R23 | 16.72 | | −37.9 | 530 | same dir, `summary_A5_rs55_ge40.csv` (win 41.1%, PF 1.73) | A0 + RS55 >= 40 pp entry filter; **added post-hoc** after the bucket table | **NOT ADOPTED**: CAGR −3.8 pp, 25% fewer trades, no win-rate gain |
 | Index | 9.98 (2007-01→2026-10) | 11.18 | −64.3 | | `minervini_20y/summary.csv` benchmark columns; `^CRSLDX` in Mongo `benchmark_ohlcv` | Nifty 500 **price** index (no dividends; ~1.3 pp/yr below TRI) | benchmark; handoffs quote 9.86–9.9 for slightly different windows |
 
 ## 3. Why the production numbers differ from the first research run (reconciliation)
@@ -63,7 +80,7 @@ The pairing of trade counts across harnesses is strong evidence (VERIFIED from t
 - Not verified live: the 09:16 quote path, split rescaling on a real split, the server flow, any real fill (`fill_audit` has no data).
 
 ## 5. Known limits that apply to every number above
-Nothing out-of-sample; ~177 configurations tried; t ≈ 1.3 for the liquid tier (old rule); 2021-26 edge over a no-skill basket ≈ 0–3 pp; 2016-20 close to the index; costs are assumed tiers, not measured; benchmark price-only and not size-matched (no Smallcap250/Midcap150 history); survivorship only partly addressed (hand-decided adjustments for 90 ingested delisted names, ≈333 once-liquid names absent from the Upstox DB); dividends excluded; panel provenance unaudited; terminal wealth concentrated in few positions.
+Nothing out-of-sample; ~180 configurations tried; t ≈ 1.3 for the liquid tier (old rule); 2021-26 edge over a no-skill basket ≈ 0–3 pp; 2016-20 close to the index; costs are assumed tiers, not measured; benchmark price-only and not size-matched (no Smallcap250/Midcap150 history); survivorship only partly addressed (hand-decided adjustments for 90 ingested delisted names, ≈333 once-liquid names absent from the Upstox DB); dividends excluded; panel provenance unaudited; terminal wealth concentrated in few positions.
 
 ## 6. Reproduce
 ```bash

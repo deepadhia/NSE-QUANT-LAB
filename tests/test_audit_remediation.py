@@ -270,8 +270,8 @@ def test_finding_6_duplicate_sell_order_prevention(mock_db):
     assert staged_sell_ids == [], f"Duplicate sell order was staged for LOCKED_SYM: {staged_sell_ids}"
 
 
-def test_finding_7_delisting_forced_liquidation_end_to_end(mock_db):
-    """Finding 7: Delisting forced liquidation executes cleanly without crash, applies 5% haircut, and handles missing panel symbols."""
+def test_finding_7_missing_data_is_retained_without_fictional_liquidation(mock_db):
+    """Finding 7: Missing history fails visibly; missing quotes never create proceeds or close positions."""
     config = PaperTradingConfig(strategy_id="test_strat", initial_capital=100000.0, telegram_enabled=False)
     manager = PaperTradingManager(config=config, strategy=DummyStrategy(), db=mock_db)
 
@@ -282,10 +282,9 @@ def test_finding_7_delisting_forced_liquidation_end_to_end(mock_db):
     with patch.object(manager, "get_current_state", return_value={"cash": 100000.0, "positions": positions}):
         with patch.object(manager.strategy, "is_rebalance_decision_date", return_value=False):
             mock_db.orders.find_one.return_value = None
-            manager.generate_post_market_signals(universe=empty_universe, decision_date=pd.to_datetime("2026-10-25"))
-            assert mock_db.orders.replace_one.called
-            staged_order = mock_db.orders.replace_one.call_args[0][1]
-            assert staged_order["reason"] == "DATA_ENDED_FORCED_EXIT"
+            with pytest.raises(ValueError, match="MISSING_HELD_BAR"):
+                manager.generate_post_market_signals(universe=empty_universe, decision_date=pd.to_datetime("2026-10-25"))
+            assert not mock_db.orders.replace_one.called
 
     # 2. Morning execution of the forced delisting exit (bar is None!)
     sell_order = {
@@ -301,18 +300,11 @@ def test_finding_7_delisting_forced_liquidation_end_to_end(mock_db):
 
     with patch.object(manager, "get_current_state", return_value={"cash": 100000.0, "positions": positions}):
         with patch.object(manager, "_get_execution_bar", return_value=None):
-            manager.execute_morning_fills(universe=empty_universe, execution_date=pd.to_datetime("2026-10-26"))
-
-            # Verify trade recorded with 5% haircut: 20.0 * 0.95 = 19.0
-            assert mock_db.trades.insert_one.called
-            trade_doc = mock_db.trades.insert_one.call_args[0][0]
-            assert trade_doc["exit_price"] == pytest.approx(19.0, abs=0.01)
-            assert trade_doc["exit_reason"] == "DATA_ENDED_FORCED_EXIT"
-
-            # Verify position was closed in DB
-            assert mock_db.positions.delete_one.called
-            # Verify order was marked FILLED
-            assert mock_db.orders.update_one.called
+            result = manager.execute_morning_fills(universe=empty_universe, execution_date=pd.to_datetime("2026-10-26"))
+            assert result['no_quote']
+            assert not mock_db.trades.insert_one.called
+            assert not mock_db.positions.delete_one.called
+            assert not mock_db.executions.insert_one.called
 
 
 def test_ingest_upstox_fulltier_cli_dry_run():
@@ -340,6 +332,7 @@ def test_finding_v3_a_deferred_lower_circuit_does_not_inflate_open_slots():
     }
 
     universe = {
+        "LOCKED_SYM": pd.DataFrame({"date": [pd.to_datetime("2026-10-26")], "close": [40.0]}),
         "TATAMOTORS": pd.DataFrame({"date": [pd.to_datetime("2026-10-26")], "close": [100.0]}),
         "RELIANCE": pd.DataFrame({"date": [pd.to_datetime("2026-10-26")], "close": [200.0]}),
     }
@@ -349,8 +342,8 @@ def test_finding_v3_a_deferred_lower_circuit_does_not_inflate_open_slots():
         assert len(res["exits"]) == 0
 
 
-def test_finding_v3_b_lower_circuit_writedown_reachable_when_bar_exists():
-    """V3-B: Orders with deferral_days >= 10 must undergo forced write-down even when a quote/bar is present."""
+def test_finding_v3_b_long_circuit_deferral_never_creates_fictional_proceeds():
+    """V3-B: A ten-day lock still requires a real executable buyer; it is never a sale at a guessed haircut."""
     mock_db = MagicMock()
     strat = DummyStrategy()
     config = PaperTradingConfig(strategy_id="test_strat", initial_capital=100000.0)
@@ -375,9 +368,11 @@ def test_finding_v3_b_lower_circuit_writedown_reachable_when_bar_exists():
     with patch.object(manager, "get_current_state", return_value={"cash": 10000.0, "positions": positions}):
         with patch.object(manager, "_get_execution_bar", return_value=bar_existing):
             manager.execute_morning_fills(universe=dummy_universe, execution_date=pd.to_datetime("2026-10-26"))
-            assert mock_db.trades.insert_one.called
-            trade_doc = mock_db.trades.insert_one.call_args[0][0]
-            assert trade_doc["exit_price"] == pytest.approx(45.0 * 0.95, abs=0.01)
+            assert not mock_db.trades.insert_one.called
+            assert not mock_db.positions.delete_one.called
+            assert mock_db.orders.update_one.called
+            updates = [c.args[1].get('$set', {}) for c in mock_db.orders.update_one.call_args_list]
+            assert any(u.get('status') == 'DEFERRED_LOWER_CIRCUIT' for u in updates)
 
 
 def test_finding_v4_a_regime_fails_safe_on_short_history():

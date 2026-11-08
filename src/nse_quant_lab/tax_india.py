@@ -59,7 +59,7 @@ def cess(sale: pd.Timestamp) -> float:
 
 def taxable_pnl(trade: Dict) -> float:
     """Engine net_pnl plus the non-deductible STT on both legs."""
-    stt = 0.001 * trade["shares"] * (trade["entry_fill_price"] + trade["exit_fill_price"])
+    stt = trade.get("stt_paid", 0.001 * trade["shares"] * (trade["entry_fill_price"] + trade["exit_fill_price"]))
     return float(trade["net_pnl"]) + stt
 
 
@@ -74,6 +74,7 @@ def compute_fy_tax(
     carry_st / carry_lt: lists of (fy_end_year_of_loss, remaining_loss) with positive amounts.
     Returns (tax, new_carry_st, new_carry_lt, detail).
     """
+    trades = [lot for trade in trades for lot in trade.get("tax_lots", [trade])]  # dated bonus/acquisition lots
     st_by_rate: Dict[float, float] = {}
     lt_gross = 0.0
     lt_pre = lt_post = 0.0  # LTCG realised before / after the 2024 budget (only used to blend rates in FY2024-25)
@@ -153,7 +154,7 @@ def compute_fy_tax(
         w_post = (max(lt_post, 0.0) / denom) if denom > 0 else 1.0
         rate_pre, ex_pre = ltcg_rate_and_exemption(pd.Timestamp("2020-01-01"))
         rate_post, ex_post = ltcg_rate_and_exemption(pd.Timestamp("2025-01-01"))
-        if fy_end >= pd.Timestamp("2025-03-31"):
+        if fy_end > pd.Timestamp("2025-03-31"):
             rate, exemption = rate_post, ex_post
         elif fy_end < D_BUDGET_2024:
             rate, exemption = rate_pre, ex_pre

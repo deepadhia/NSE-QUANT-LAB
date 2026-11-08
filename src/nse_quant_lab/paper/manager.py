@@ -17,6 +17,8 @@ from ..db.models import OrderModel, ExecutionModel, PositionModel, TradeModel, D
 from ..execution import is_locked_down, is_locked_up
 from ..fees import calc_buy_fees_exact, calc_sell_fees_exact
 from ..notifications.telegram import TelegramNotifier
+from .locking import serialized_portfolio
+from .lease import PortfolioLease, supports_leases, COLLECTION as LEASE_COLLECTION
 
 try:
     from pymongo.errors import DuplicateKeyError
@@ -40,6 +42,29 @@ class PaperTradingManager:
         self.db = db or MongoDatabase.get_instance(config.mongo_uri, config.db_name)
         self.notifier = TelegramNotifier(config.telegram_bot_token, config.telegram_chat_id, config.telegram_enabled)
         self._mode = getattr(config, "mode", "paper")
+        self._execution_cash = {}
+        self._lease = None
+        self._lease_depth = 0
+        self._lease_warned = False
+
+    def _open_lease(self):
+        """Cross-host lease for this strategy+mode. Real MongoDB always arbitrates; a bare in-memory test double cannot, so it is
+        skipped LOUDLY (once per manager) and only the same-host file lock applies."""
+        try:
+            coll = self.db.get_collection(LEASE_COLLECTION)
+        except Exception:
+            coll = None
+        if not supports_leases(coll):
+            if not self._lease_warned:
+                logger.warning("[LEASE_UNAVAILABLE] database object cannot arbitrate a cross-host lease; same-host lock only")
+                self._lease_warned = True
+            return None
+        return PortfolioLease(coll, f"{self.config.strategy_id}|{self._mode}")
+
+    def _assert_lease(self) -> None:
+        """Fencing: refuse any state-changing write once this worker's lease was lost to another host (also extends the lease)."""
+        if self._lease is not None:
+            self._lease.assert_held()
 
     def _order_id(self, kind: str, date_str: str, sym: str) -> str:
         """Order IDs are namespaced by strategy: all strategies share one `orders` collection, so an ID without
@@ -178,7 +203,7 @@ class PaperTradingManager:
             actions = list(self.db.get_collection("corporate_actions").find({"symbol": {"$in": list(positions.keys())}}))
         except Exception as exc:
             logger.error("corporate_actions lookup failed: %s", exc)
-            return
+            raise RuntimeError("CORPORATE_ACTIONS_UNAVAILABLE: retry before changing portfolio") from exc
         for act in actions:
             if not isinstance(act, dict):
                 continue
@@ -218,18 +243,40 @@ class PaperTradingManager:
         return prior if isinstance(prior, dict) else None
 
     def _record_execution(self, exec_model: ExecutionModel) -> None:
+        self._assert_lease()
         try:
             self.db.executions.insert_one(exec_model.to_dict())
         except DuplicateKeyError:
-            logger.warning("execution %s already recorded; continuing idempotently", exec_model.exec_id)
+            raise RuntimeError(f"EXECUTION_CONFLICT: retry recovery for {exec_model.exec_id}")
+        self._execution_cash[exec_model.exec_id] = float(exec_model.net_cash)
 
     def _persist_cash(self, cash: float, date_str: str, exec_id: str) -> None:
         """Persist cash exactly once per execution: the applied-marker and the new balance are one atomic document update."""
-        self.db.strategies.update_one(
-            {"strategy_id": self.config.strategy_id, "mode": self._mode, "applied_execs": {"$ne": exec_id}},
+        self._assert_lease()
+        execution = self.db.executions.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "exec_id": exec_id})
+        delta = float(execution["net_cash"]) if isinstance(execution, dict) else self._execution_cash.get(exec_id)
+        if delta is None:
+            raise RuntimeError("CASH_CONFLICT: no authoritative execution cash flow")
+        if cash < -0.005:
+            raise RuntimeError("CASH_CONFLICT: recovery would create negative cash")
+        expected_cash = round(cash - delta, 2)
+        strat_key = {"strategy_id": self.config.strategy_id, "mode": self._mode}
+        # Legacy strategy documents carry no `cash` (state then came from daily_nav). Seed it once from the balance this
+        # run sized against, so the compare-and-swap below has a baseline; the portfolio lock serialises this seeding.
+        strat_doc = self.db.strategies.find_one(strat_key)
+        if isinstance(strat_doc, dict) and "cash" not in strat_doc:
+            self.db.strategies.update_one(strat_key, {"$set": {"cash": expected_cash}})
+        # Stored balances are rounded to cents; match within half a cent rather than on exact float equality.
+        result = self.db.strategies.update_one(
+            {**strat_key, "cash": {"$gte": expected_cash - 0.005, "$lte": expected_cash + 0.005},
+             "applied_execs": {"$ne": exec_id}},
             {"$set": {"cash": round(cash, 2)},
-             "$push": {"applied_execs": {"$each": [exec_id], "$slice": -500}}},
+             "$push": {"applied_execs": {"$each": [exec_id]}}},
         )
+        if result.matched_count != 1:
+            if not self._cash_already_applied(exec_id):
+                raise RuntimeError("CASH_CONFLICT: portfolio changed since sizing; retry execution recovery")
+            return
         self.db.daily_nav.update_one(
             {"strategy_id": self.config.strategy_id, "mode": self._mode, "date": date_str},
             {"$set": {"cash": round(cash, 2), "updated_at": datetime.now(timezone.utc).isoformat()}},
@@ -281,6 +328,11 @@ class PaperTradingManager:
         """An execution exists for this order but the order is not FILLED: a previous run crashed mid-fill.
         Finish the remaining bookkeeping steps idempotently (cash once, trade/position once, order FILLED). Never re-fill."""
         sym, exec_id = order["symbol"], prior["exec_id"]
+        # Recovery bookkeeping belongs to the original fill session, never the restart date.
+        original_date = str(prior.get("session_date") or order.get("execution_date") or "")[:10]
+        if not original_date:
+            original_date = pd.Timestamp(prior["executed_at"]).tz_convert("Asia/Kolkata").strftime("%Y-%m-%d")
+        execution_date = pd.Timestamp(original_date)
         logger.critical("[FILL_RECOVERY] order %s already executed as %s; completing bookkeeping without re-filling.", order["order_id"], exec_id)
         if not self._cash_already_applied(exec_id):
             cash += float(prior["net_cash"])
@@ -291,7 +343,7 @@ class PaperTradingManager:
             have_trade = isinstance(self.db.trades.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "exec_id": exec_id}), dict)
             if pos and not have_trade:
                 self._record_trade(pos, order, shares, float(prior["raw_price"]), fill_price, float(prior["net_cash"]),
-                                   float(prior["fees"]), execution_date, date_str, exec_id)
+                                   float(prior["fees"]), execution_date, original_date, exec_id)
             self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym})
             positions.pop(sym, None)
         else:
@@ -299,7 +351,7 @@ class PaperTradingManager:
                 outlay = -float(prior["net_cash"])
                 pos_model = PositionModel(
                     strategy_id=self.config.strategy_id, mode=self._mode, symbol=sym, shares=shares,
-                    entry_price=float(prior["raw_price"]), entry_fill_price=fill_price, entry_date=date_str,
+                    entry_price=float(prior["raw_price"]), entry_fill_price=fill_price, entry_date=original_date,
                     entry_outlay=outlay, entry_fees=float(prior["fees"]), last_close=float(prior["raw_price"]),
                     market_value=float(prior["gross_val"]), unrealized_pnl=0.0,
                 )
@@ -307,7 +359,7 @@ class PaperTradingManager:
                                               pos_model.to_dict(), upsert=True)
                 positions[sym] = pos_model.to_dict()
         self.db.orders.update_one({"order_id": order["order_id"]},
-                                  {"$set": {"status": "FILLED", "shares": shares, "execution_date": date_str}})
+                                  {"$set": {"status": "FILLED", "shares": shares, "execution_date": original_date}})
         fills_log.append({"action": order["action"], "symbol": sym, "shares": shares, "fill_price": fill_price, "recovered": True})
         return cash
 
@@ -346,6 +398,7 @@ class PaperTradingManager:
                 enriched[sym] = df
         return enriched
 
+    @serialized_portfolio
     def generate_post_market_signals(self, universe: Dict[str, pd.DataFrame], decision_date: pd.Timestamp) -> Dict[str, Any]:
         # Check strategy status
         strat_entry = self.db.strategies.find_one({
@@ -390,22 +443,19 @@ class PaperTradingManager:
         cash = state["cash"]
         positions = state["positions"]
         self._apply_corporate_actions(positions, date_str)
+        missing = [sym for sym in positions if sym not in universe or
+                   universe[sym].loc[universe[sym]["date"] == decision_date].empty]
+        if missing:
+            raise ValueError(f"MISSING_HELD_BAR: {date_str}: {missing}; retain positions and retry ingestion")
 
         # Mark open positions to today's EOD close from universe
         current_holdings_val = 0.0
-        forced_delist_exits = {}
         for sym, pos in list(positions.items()):
             df_sym = universe.get(sym)
             if df_sym is not None and not df_sym.empty:
                 c_rows = df_sym.loc[df_sym["date"] <= decision_date]
                 if not c_rows.empty:
                     last_row = c_rows.iloc[-1]
-                    stale_days = (decision_date - last_row["date"]).days
-                    if stale_days >= 14:
-                        logger.critical(f"[FORCED_DELISTING_TRIGGER] Position '{sym}' stale for {stale_days} days. Queuing DATA_ENDED_FORCED_EXIT.")
-                        forced_delist_exits[sym] = "DATA_ENDED_FORCED_EXIT"
-                    elif stale_days > 5:
-                        logger.critical(f"[SUSPENSION_OR_DELISTING_ALERT] Position '{sym}' last bar was on {last_row['date'].strftime('%Y-%m-%d')} (>5 days stale). Potential halt or delisting.")
                     last_pr = float(last_row["close"])
                     prev_mark = float(pos.get("last_close") or 0.0)
                     if prev_mark > 0 and not (0.6 <= last_pr / prev_mark <= 1.0 / 0.6):
@@ -468,7 +518,7 @@ class PaperTradingManager:
                     )
             else:
                 logger.critical(f"[FORCED_DELISTING_TRIGGER] Position '{sym}' missing from universe panel. Queuing DATA_ENDED_FORCED_EXIT.")
-                forced_delist_exits[sym] = "DATA_ENDED_FORCED_EXIT"
+                raise ValueError(f"MISSING_HELD_BAR: {sym}; no delisting inferred")
             current_holdings_val += pos.get("market_value", pos["shares"] * pos.get("last_close", pos.get("entry_price", 0.0)))
 
         current_nav = cash + current_holdings_val
@@ -489,7 +539,6 @@ class PaperTradingManager:
 
         # 1. Evaluate Daily Exits
         requested_exits = self.strategy.evaluate_daily_exits(universe, decision_date, positions, self.config)
-        requested_exits.update(forced_delist_exits)
         exits_to_log = []
         for sym, reason in requested_exits.items():
             pos = positions.get(sym)
@@ -717,7 +766,6 @@ class PaperTradingManager:
             {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
             {"$set": {
                 "current_nav": round(current_nav, 2),
-                "cash": round(cash, 2),
                 "holdings_val": round(current_holdings_val, 2),
                 "unrealized_pnl": round(unrealized_pnl, 2),
                 "total_return_pct": round(tot_ret_pct, 4),
@@ -827,17 +875,25 @@ class PaperTradingManager:
             return None
 
     def _quote_is_stale(self, q: Dict[str, Any], sym: str, execution_date: pd.Timestamp) -> bool:
-        """True when the quote carries a PARSEABLE timestamp from a different session than `execution_date`. A missing/unparseable timestamp
-        is not treated as stale (Upstox payload semantics were never verified live) but is logged so it can be audited."""
+        """True (refuse the quote) when it has no parseable timestamp or carries one from a different session than `execution_date`.
+        Fail-closed: freshness cannot be established without a timestamp. If every live fill is refused with
+        QUOTE_FRESHNESS_UNVERIFIED, the broker payload lacks the field the feed maps to `ts` (upstox_feed `timestamp`).
+        Verified live 2026-11-08: `timestamp` is the quote snapshot time (not `last_trade_time`), so it vouches for the bid/ask depth, not for LTP recency."""
         d = self._quote_session_date(q.get("ts"))
         if d is None:
-            logger.warning("[QUOTE_FRESHNESS_UNVERIFIED] %s: broker quote has no parseable timestamp (ts=%r)", sym, q.get("ts"))
-            return False
+            logger.warning("[QUOTE_FRESHNESS_UNVERIFIED] %s: broker quote has no parseable timestamp (ts=%r); refusing fill", sym, q.get("ts"))
+            return True
         if d != pd.Timestamp(execution_date).date():
             logger.error("[STALE_QUOTE] %s: broker quote is from %s, execution date is %s; refusing to fill on it",
                          sym, d, pd.Timestamp(execution_date).date())
             return True
         return False
+
+    @staticmethod
+    def _executable_price(bar: Dict[str, Any], side: str) -> Optional[float]:
+        key = ("ask" if side == "BUY" else "bid") if bar.get("is_live_quote") else "open"
+        price = float(bar.get(key) or 0.0)
+        return price if np.isfinite(price) and price > 0 else None
 
     def _get_execution_bar(self, sym: str, execution_date: pd.Timestamp, universe: Dict[str, pd.DataFrame]) -> Optional[Dict[str, Any]]:
         """
@@ -948,6 +1004,7 @@ class PaperTradingManager:
 
         return None
 
+    @serialized_portfolio
     def execute_morning_fills(self, universe: Dict[str, pd.DataFrame], execution_date: pd.Timestamp) -> Dict[str, Any]:
         # Check strategy status
         strat_entry = self.db.strategies.find_one({
@@ -981,7 +1038,6 @@ class PaperTradingManager:
         positions = state["positions"]
         self.ensure_indexes()
         self._reconcile_cash(cash)
-        self._apply_corporate_actions(positions, date_str)
         no_quote: List[Dict[str, Any]] = []        # orders that could not be priced this run (retained; run exits non-zero)
         retained_ids: set = set()
 
@@ -1006,6 +1062,19 @@ class PaperTradingManager:
 
         buy_orders.sort(key=_order_rank)
 
+        fills_log: List[Dict[str, Any]] = []
+        deferred_log: List[Dict[str, Any]] = []
+        # Finish already-recorded executions BEFORE stale expiry, quote lookup or new fills.
+        recovered_ids = set()
+        for order in sell_orders + buy_orders:
+            prior = self._prior_execution(order)
+            if prior is not None:
+                cash = self._recover_fill(order, prior, positions, cash, date_str, execution_date, fills_log)
+                recovered_ids.add(order['order_id'])
+        sell_orders = [o for o in sell_orders if o['order_id'] not in recovered_ids]
+        buy_orders = [o for o in buy_orders if o['order_id'] not in recovered_ids]
+        self._apply_corporate_actions(positions, date_str)
+
         # Stale-signal guard: a BUY retained after an outage must not fill on a signal older than the last completed session.
         last_session = None
         for o in buy_orders:
@@ -1027,9 +1096,6 @@ class PaperTradingManager:
                     fresh.append(o)
             buy_orders = fresh
 
-        fills_log: List[Dict[str, Any]] = []
-        deferred_log: List[Dict[str, Any]] = []
-
         # 1. Execute Sells First
         for order in sell_orders:
             sym = order["symbol"]
@@ -1050,52 +1116,26 @@ class PaperTradingManager:
             pos = positions[sym]
             df = universe.get(sym)
             bar = self._get_execution_bar(sym, execution_date, universe) if df is not None else None
-            # V3-B: Reachable forced write-down for both missing bar and >= 10 day lower circuit deferrals
-            is_forced_delisting = (
-                order.get("reason") == "DATA_ENDED_FORCED_EXIT"
-                or int(order.get("deferral_days", 0)) >= 10
-            )
-            if order.get("reason") == "DATA_ENDED_FORCED_EXIT" and bar is not None and int(order.get("deferral_days", 0)) < 10:
-                # The symbol trades normally this morning: the staged 'data ended' exit was a data gap, not a delisting.
-                logger.critical("[DATA_RECOVERED] %s has a live bar; cancelling forced delisting exit %s (no haircut sale of a healthy stock).", sym, order["order_id"])
-                self._alert(f"Forced-exit order for {sym} cancelled: symbol is trading normally (data gap, not delisting).")
-                self.db.orders.update_one({"order_id": order["order_id"]},
-                                          {"$set": {"status": "CANCELLED", "cancel_reason": "DATA_RECOVERED", "execution_date": date_str}})
+            # Legacy data-ended requests are not evidence of a sale or delisting.
+            if order.get("reason") == "DATA_ENDED_FORCED_EXIT" and bar is not None:
+                self.db.orders.update_one({"order_id": order["order_id"], "strategy_id": self.config.strategy_id, "mode": self._mode},
+                    {"$set": {"status": "CANCELLED", "cancel_reason": "DATA_RECOVERED", "execution_date": date_str}})
                 continue
-            if bar is None or is_forced_delisting:
-                if is_forced_delisting:
-                    logger.warning(f"Executing forced liquidation for {sym} (reason={order.get('reason')}, deferral_days={order.get('deferral_days', 0)}).")
-                    ref_price = float((bar["open"] if bar else None) or pos.get("last_close") or pos.get("entry_price") or 1.0)
-                    haircut_open = round(ref_price * 0.95, 2)
-                    bar = {
-                        "open": haircut_open,
-                        "high": haircut_open,
-                        "low": haircut_open,
-                        "close": haircut_open,
-                        "prev_close": ref_price,
-                        "turnover_50d": 1e6,
-                        "is_live_quote": False,
-                    }
-                else:
-                    logger.error("[NO_QUOTE] cannot price SELL %s for %s; order retained for the next attempt", order["order_id"], sym)
-                    no_quote.append({"symbol": sym, "reason": "NO_QUOTE: sell retained"})
-                    continue
+            if bar is None:
+                retained_ids.add(order["order_id"])
+                no_quote.append({"symbol": sym, "reason": "NO_QUOTE: sell retained; no delisting inferred"})
+                continue
             prev_close = bar["prev_close"]
-            open_px = bar["open"]
-            high_px = bar["high"]
-            low_px = bar["low"]
-            close_px = bar["close"]
+            open_px, high_px, low_px, close_px = (bar[k] for k in ("open", "high", "low", "close"))
             row = bar
 
-            # Circuit breaker check: use exchange limits and real buyer liquidity (bypassed for forced delisting write-down)
+            # Circuit breaker check: use exchange limits and real buyer liquidity (execution-time quote)
             is_live = bar.get("is_live_quote", False)
             lc = float(bar.get("lower_circuit") or 0.0) if bar.get("lower_circuit") else None
-            if is_forced_delisting:
-                is_down = False
-            elif lc is not None and lc > 0:
+            if lc is not None and lc > 0:
                 # Stock is at/below LC band AND zero buyer bids exist (if live bids available)
                 no_buyers = (bar.get("bid") is None) or (float(bar.get("bid") or 0.0) <= 0.0)
-                is_down = (open_px <= lc * 1.001) and (no_buyers if is_live else True)
+                is_down = (close_px <= lc * 1.001) and (no_buyers if is_live else True)
             elif not is_live:
                 is_down = is_locked_down(open_px, high_px, low_px, close_px, prev_close)
             else:
@@ -1121,12 +1161,13 @@ class PaperTradingManager:
                 deferred_log.append({"symbol": sym, "days": def_days})
                 continue
 
-            open_price = float(row["open"])
+            open_price = self._executable_price(bar, "SELL")
+            if open_price is None:
+                retained_ids.add(order["order_id"])
+                no_quote.append({"symbol": sym, "reason": "NO_LIQUIDITY: no executable bid; sell retained"})
+                continue
             shares = int(pos["shares"])  # always the CURRENT holding (a corporate action may have changed it since staging)
-            if is_forced_delisting:
-                fill_price = open_price  # Preserves 5% haircut from the forced-liquidation bar without double slippage
-            else:
-                fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, shares, "SELL"))
+            fill_price = open_price * (1.0 - self._slip(sym, bar, open_price, shares, "SELL"))
             gross_val = shares * fill_price
             fees_dict = calc_sell_fees_exact(gross_val, execution_date, self.config)
             net_proceeds = gross_val - fees_dict["total"]
@@ -1149,6 +1190,7 @@ class PaperTradingManager:
                 net_cash=net_proceeds,
                 fees=fees_dict["total"],
                 slippage=round((open_price - fill_price) * shares, 2),
+                session_date=date_str,
             )
             self._record_execution(exec_model)
             self._persist_cash(cash, date_str, exec_id)
@@ -1199,6 +1241,8 @@ class PaperTradingManager:
 
             df = universe.get(sym)
             if df is None:
+                retained_ids.add(order["order_id"])
+                no_quote.append({"symbol": sym, "reason": "NO_QUOTE: missing symbol history; buy retained"})
                 continue
             bar = self._get_execution_bar(sym, execution_date, universe)
             if bar is None:
@@ -1223,7 +1267,7 @@ class PaperTradingManager:
             if uc is not None and uc > 0:
                 # Stock is at/above UC band AND zero seller asks exist (if live asks available)
                 no_sellers = (bar.get("ask") is None) or (float(bar.get("ask") or 0.0) <= 0.0)
-                is_up = (open_px >= uc * 0.999) and (no_sellers if is_live else True)
+                is_up = (close_px >= uc * 0.999) and (no_sellers if is_live else True)
             elif not is_live:
                 is_up = is_locked_up(open_px, high_px, low_px, close_px, prev_close)
             else:
@@ -1244,7 +1288,11 @@ class PaperTradingManager:
                 continue
 
             # Gap limit cap check (anchored to signal close when valid, fallback to prev_close)
-            open_price = float(row["open"])
+            open_price = self._executable_price(bar, "BUY")
+            if open_price is None:
+                retained_ids.add(order["order_id"])
+                no_quote.append({"symbol": sym, "reason": "NO_LIQUIDITY: no executable ask; buy retained"})
+                continue
             signal_close = float(order.get("price") or 0.0)
             ref_close = signal_close if signal_close > 0 else (prev_close if (prev_close and prev_close > 0) else 0.0)
             if ref_close > 0:
@@ -1324,6 +1372,7 @@ class PaperTradingManager:
                 net_cash=-total_outlay,
                 fees=buy_fees["total"],
                 slippage=buy_slip_total,
+                session_date=date_str,
             )
             self._record_execution(exec_model)
             self._persist_cash(cash, date_str, exec_id)
@@ -1488,7 +1537,6 @@ class PaperTradingManager:
             {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper")},
             {"$set": {
                 "current_nav": round(current_nav, 2),
-                "cash": round(cash, 2),
                 "holdings_val": round(current_holdings_val, 2),
                 "unrealized_pnl": round(unrealized_pnl, 2),
                 "realized_pnl": round(realized_pnl, 2),

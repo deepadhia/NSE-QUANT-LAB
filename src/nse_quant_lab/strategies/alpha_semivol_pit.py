@@ -35,6 +35,7 @@ import numpy as np
 import pandas as pd
 
 from ..base_strategy import BaseStrategy
+from ..price_basis import nominal_price, BASIS_COLUMNS
 from ..cost_model import slippage_fraction
 from ..registry import register_strategy
 
@@ -291,7 +292,8 @@ class AlphaSemivolPITStrategy(BaseStrategy):
                 float(r.get("alpha_mom12_1", np.nan)),
                 float(r.get("alpha_semi_vol126", np.nan)),
                 float(r["adt50m"]),
-                int(r["hist_n"])
+                int(r["hist_n"]),
+                nominal_price(r)
             ))
 
         empty = pd.DataFrame(columns=["symbol", "close", "turnover_50d", "rank"])
@@ -300,7 +302,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
 
         snap = pd.DataFrame(
             rows,
-            columns=["symbol", "series", "close", "sma150", "ma200", "raw_mom_6m", "mom12_1", "semi_vol126", "adt", "hist"]
+            columns=["symbol", "series", "close", "sma150", "ma200", "raw_mom_6m", "mom12_1", "semi_vol126", "adt", "hist", "trade_close"]
         ).set_index("symbol")
 
         # 1. New entry criteria: Stage-2 stack, Sortino momentum, Bull regime
@@ -311,7 +313,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
             new_mask = (
                 (snap["series"] == "EQ")
                 & (snap["adt"] >= MIN_ADT)
-                & (snap["close"] >= MIN_PRICE)
+                & (snap["trade_close"] >= MIN_PRICE)
                 & (snap["hist"] >= MIN_HISTORY)
                 & (snap["close"] >= ENTRY_SMA_BUFFER * snap["sma150"])
                 & (snap["sma150"] > snap["ma200"])
@@ -347,7 +349,7 @@ class AlphaSemivolPITStrategy(BaseStrategy):
 
         out = pd.DataFrame({
             "symbol": sel.index,
-            "close": sel["close"].values,
+            "close": sel["trade_close"].values,
             "turnover_50d": sel["adt"].values,
             "rank": np.arange(1, len(sel) + 1),
         }, index=sel.index)

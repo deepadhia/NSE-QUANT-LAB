@@ -1,0 +1,17 @@
+{
+  "existing_suite": {
+    "command": "python -m pytest -m \"not live_upstox\" -q",
+    "passed": 269,
+    "skipped": 1,
+    "seconds": 190.62
+  },
+  "adversarial_probes": {
+    "command": "python -m pytest research/audit_2026-11-08/probes.py -q --tb=short",
+    "failed": 9,
+    "expected": "Unfixed invariant violations; see probes_final.txt"
+  },
+  "production_health_check_exit_code": 0,
+  "production_source_hash_changes": [],
+  "baseline_output_hash_mismatches": [],
+  "audit_scripts_compiled": 6
+}

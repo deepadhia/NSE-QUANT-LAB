@@ -200,22 +200,22 @@ def test_retained_buy_is_not_filled_on_a_stale_signal(monkeypatch):
     assert db.executions.docs == []
 
 
-def test_quote_provider_open_is_used_without_todays_bar():
+def test_executable_ask_is_used_without_todays_bar():
     """09:16 reality: the universe has NO bar for the execution day; the injected quote supplies the open."""
     mgr, db, _ = _make()
     oid = f"ORD_BUY_{SID}_2026-03-02_BBB"
     _order(db, oid, "BBB", "BUY", "2026-03-02", reason="RANK_1", shares=0)
-    mgr.quote_provider = lambda sym: {"open": 100.5, "high": 100.8, "low": 100.2, "ltp": 100.6}
+    mgr.quote_provider = lambda sym: {"open": 100.5, "high": 100.8, "low": 100.2, "ltp": 100.6, "ask": 100.7, "bid": 100.5, "ts": "2026-03-03T09:16:00+05:30"}
     mgr.execute_morning_fills({"BBB": _frame("2026-03-02")}, pd.Timestamp("2026-03-03"))
     ex = db.executions.docs[0]
-    assert ex["raw_price"] == 100.5, "fill must use the live open, never prev close or a future bar"
+    assert ex["raw_price"] == 100.7, "fill must use the executable ask, never an unavailable open"
 
 
 def test_gap_above_cap_skips_entry_and_never_fills():
     mgr, db, _ = _make()
     oid = f"ORD_BUY_{SID}_2026-03-02_BBB"
     _order(db, oid, "BBB", "BUY", "2026-03-02", reason="RANK_1", shares=0, price=100.0)
-    mgr.quote_provider = lambda sym: {"open": 103.0, "high": 103.5, "low": 102.5, "ltp": 103.0}   # +3% > +2% cap
+    mgr.quote_provider = lambda sym: {"open": 103.0, "high": 103.5, "low": 102.5, "ltp": 103.0, "ask": 103.0, "bid": 102.9, "ts": "2026-03-03T09:16:00+05:30"}   # +3% > +2% cap
     mgr.execute_morning_fills({"BBB": _frame("2026-03-02")}, pd.Timestamp("2026-03-03"))
     assert db.orders.find_one({"order_id": oid})["status"] == "SKIPPED_GAP_LIMIT_EXCEEDED"
     assert db.executions.docs == [] and _cash(db) == 100000.0
@@ -225,7 +225,7 @@ def test_cash_never_negative_when_allocation_exceeds_cash():
     mgr, db, _ = _make(capital=1500.0)               # cannot afford a 5-slot allocation of an expensive stock
     oid = f"ORD_BUY_{SID}_2026-03-02_BBB"
     _order(db, oid, "BBB", "BUY", "2026-03-02", reason="RANK_1", shares=0, price=1000.0)
-    mgr.quote_provider = lambda sym: {"open": 1000.0, "high": 1001.0, "low": 999.0, "ltp": 1000.0}
+    mgr.quote_provider = lambda sym: {"open": 1000.0, "high": 1001.0, "low": 999.0, "ltp": 1000.0, "ask": 1000.0, "bid": 999.9, "ts": "2026-03-03T09:16:00+05:30"}
     mgr.execute_morning_fills({"BBB": _frame("2026-03-02", price=1000.0)}, pd.Timestamp("2026-03-03"))
     assert _cash(db) >= 0
 
@@ -249,7 +249,7 @@ def test_split_rebases_stored_mark_so_sizing_and_alerts_stay_correct(caplog):
     _position(db, shares=100, price=200.0, entry_date="2026-01-02")
     db.get_collection("corporate_actions").insert_one({"symbol": "AAA", "ex_date": "2026-03-03", "ratio": 2.0, "action_type": "split"})
     _order(db, f"ORD_BUY_{SID}_2026-03-02_BBB", "BBB", "BUY", "2026-03-02", reason="RANK_1", shares=0)
-    mgr.quote_provider = lambda s: {"open": 100.0, "high": 100.0, "low": 100.0, "ltp": 100.0}
+    mgr.quote_provider = lambda s: {"open": 100.0, "high": 100.0, "low": 100.0, "ltp": 100.0, "ask": 100.0, "bid": 100.0, "ts": "2026-03-03T09:16:00+05:30"}
     uni = {"AAA": _frame("2026-03-02", price=200.0), "BBB": _frame("2026-03-02", price=100.0)}
     mgr.execute_morning_fills(uni, pd.Timestamp("2026-03-03"))
     pos = db.positions.find_one({"strategy_id": SID, "symbol": "AAA"})
@@ -259,5 +259,5 @@ def test_split_rebases_stored_mark_so_sizing_and_alerts_stay_correct(caplog):
     assert buy["shares"] <= 240
 
     with caplog.at_level(logging.CRITICAL, logger="nse_quant_lab.paper.manager"):
-        mgr.generate_post_market_signals({"AAA": _frame("2026-03-03", price=100.0)}, pd.Timestamp("2026-03-03"))
+        mgr.generate_post_market_signals({"AAA": _frame("2026-03-03", price=100.0), "BBB": _frame("2026-03-03", price=100.0)}, pd.Timestamp("2026-03-03"))
     assert not any("POSSIBLE_CORPORATE_ACTION" in r.message for r in caplog.records), "false alert after a recorded split"

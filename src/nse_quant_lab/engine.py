@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from .base_strategy import BaseStrategy
+from .price_basis import execution_bar, previous_close, nominal_price, adjustment_factor, apply_share_action, sale_tax_lots
 from .config import BacktestConfig
 from .execution import is_locked_down, is_locked_up
 from .fees import calc_buy_fees_exact, calc_sell_fees_exact
@@ -56,6 +57,9 @@ class BacktestEngine:
         save_results: bool = False,
         output_dir: Optional[str] = None,
     ) -> Tuple[Dict[str, Any], pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        for sym, df in universe.items():
+            if df.attrs.get("price_basis") == "adjusted_without_raw":
+                raise ValueError("PRICE_BASIS_REQUIRED: build_execution_panel.py before historical simulation")
         # 1. Precompute indicators across all universe stocks
         universe_ind: Dict[str, pd.DataFrame] = {}
         for sym, df in universe.items():
@@ -120,6 +124,7 @@ class BacktestEngine:
         fy_tax_ledger: List[Dict[str, Any]] = []
         fy_tax_payable_accrued = 0.0
         last_tax_processed_trade_idx = 0
+        share_events = []
 
         for idx, current_date in enumerate(eval_timeline):
             date_str = current_date.strftime("%Y-%m-%d")
@@ -131,87 +136,15 @@ class BacktestEngine:
 
 
             # ------------------------------------------------------------------
-            # STEP 0: FORCE-LIQUIDATE DELISTED / CEASED SERIES HOLDINGS
-            # ------------------------------------------------------------------
-            for sym in sorted(list(open_positions.keys())):
-                df_sym = universe_ind.get(sym)
-                if df_sym is not None and not df_sym.empty and current_date > df_sym["date"].max():
-                    pos = open_positions[sym]
-                    last_row = df_sym.iloc[-1]
-                    raw_exit_price = float(last_row["close"])
-                    fill_price = raw_exit_price * (1.0 - self._slip(sym, last_row, raw_exit_price, pos["shares"], "SELL_DELIST"))
-                    shares = pos["shares"]
-                    gross_proceeds = shares * raw_exit_price
-                    net_proceeds_slip = shares * fill_price
-                    slip_loss = gross_proceeds - net_proceeds_slip
-
-                    sell_fees = calc_sell_fees_exact(net_proceeds_slip, current_date, self.config)
-                    cash_received = net_proceeds_slip - sell_fees["total"]
-                    cash += cash_received
-
-                    total_brokerage += sell_fees["brokerage"]
-                    total_stt += sell_fees["stt"]
-                    total_exchange_txn += sell_fees["exchange_txn"]
-                    total_sebi += sell_fees["sebi"]
-                    total_gst += sell_fees["gst"]
-                    total_dp_charges += sell_fees["dp_charges"]
-                    total_slippage += slip_loss
-                    total_turnover += gross_proceeds
-
-                    order_id_counter += 1
-                    order_ledger.append({
-                        "order_id": order_id_counter,
-                        "date": date_str,
-                        "symbol": sym,
-                        "action": "SELL",
-                        "shares": shares,
-                        "order_type": "EXIT_AT_OPEN",
-                        "status": "FILLED",
-                        "reason": "DATA_ENDED_FORCED_EXIT",
-                        "deferral_days": 0,
-                    })
-
-                    exec_id_counter += 1
-                    execution_ledger.append({
-                        "exec_id": exec_id_counter,
-                        "order_id": order_id_counter,
-                        "date": date_str,
-                        "symbol": sym,
-                        "action": "SELL",
-                        "shares": shares,
-                        "raw_price": raw_exit_price,
-                        "fill_price": fill_price,
-                        "gross_val": gross_proceeds,
-                        "net_cash": cash_received,
-                        "fees": sell_fees["total"],
-                        "slippage": slip_loss,
-                    })
-
-                    gross_pnl = (raw_exit_price - pos["entry_raw_price"]) * shares
-                    net_pnl = cash_received - pos["total_entry_outlay"]
-                    closed_trades.append({
-                        "symbol": sym,
-                        "entry_date": pos["entry_date"].strftime("%Y-%m-%d"),
-                        "entry_price": pos["entry_raw_price"],
-                        "entry_fill_price": pos["entry_fill_price"],
-                        "exit_date": date_str,
-                        "exit_price": raw_exit_price,
-                        "exit_fill_price": fill_price,
-                        "shares": shares,
-                        "hold_days": (current_date - pos["entry_date"]).days,
-                        "gross_pnl": gross_pnl,
-                        "net_pnl": net_pnl,
-                        "total_fees": pos["buy_fees"]["total"] + sell_fees["total"],
-                        "total_slippage": pos["entry_slip_loss"] + slip_loss,
-                        "exit_reason": "DATA_ENDED_FORCED_EXIT",
-                        "deferral_days": 0,
-                    })
-
-                    del open_positions[sym]
-                    if sym in pending_circuit_exits:
-                        del pending_circuit_exits[sym]
-                    if sym in queued_structural_exits:
-                        queued_structural_exits.pop(sym, None)
+            # STEP 0: Never infer a trade or delisting from a missing held bar.
+            # A real suspension/merger requires an explicit event treatment before research can continue.
+            for sym in sorted(open_positions):
+                frame = universe_ind.get(sym)
+                if frame is None or frame.loc[frame["date"] == current_date].empty:
+                    raise ValueError(f"MISSING_HELD_BAR: {sym} on {date_str}; no executable liquidation inferred")
+                event = apply_share_action(open_positions[sym], frame.loc[frame["date"] == current_date].iloc[0], current_date)
+                if event is not None:
+                    share_events.append(event)
 
             # ------------------------------------------------------------------
             # STEP 1: RETRY LOWER-CIRCUIT DEFERRED EXITS AT TODAY'S OPEN
@@ -227,9 +160,9 @@ class BacktestEngine:
                 day_rows = df_sym.loc[df_sym["date"] == current_date]
                 if day_rows.empty:
                     continue
-                bar = day_rows.iloc[0]
+                bar = execution_bar(day_rows.iloc[0])
                 prev_rows = df_sym.loc[df_sym["date"] < current_date]
-                prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else float(bar["close"])
+                prev_close = previous_close(prev_rows.iloc[-1], day_rows.iloc[0]) if not prev_rows.empty else float(bar["close"])
 
                 orig_exit_reason = pending_circuit_exits[sym].get("original_reason", "CIRCUIT_EXIT")
                 if self.config.enforce_lower_circuit_deferral and is_locked_down(
@@ -312,6 +245,7 @@ class BacktestEngine:
                     "exit_fill_price": fill_price,
                     "shares": shares,
                     "hold_days": (current_date - pos["entry_date"]).days,
+                    "tax_lots": sale_tax_lots(pos, shares, cash_received, current_date, fill_price, sell_fees),
                     "gross_pnl": gross_pnl,
                     "net_pnl": net_pnl,
                     "total_fees": pos["buy_fees"]["total"] + sell_fees["total"],
@@ -339,9 +273,9 @@ class BacktestEngine:
                 if day_rows.empty:
                     # Missing morning bar; retain exit request for next session
                     continue
-                bar = day_rows.iloc[0]
+                bar = execution_bar(day_rows.iloc[0])
                 prev_rows = df_sym.loc[df_sym["date"] < current_date]
-                prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else float(bar["close"])
+                prev_close = previous_close(prev_rows.iloc[-1], day_rows.iloc[0]) if not prev_rows.empty else float(bar["close"])
 
                 exit_reason = queued_structural_exits[sym]
                 if self.config.enforce_lower_circuit_deferral and is_locked_down(
@@ -425,6 +359,7 @@ class BacktestEngine:
                     "exit_fill_price": fill_price,
                     "shares": shares,
                     "hold_days": (current_date - pos["entry_date"]).days,
+                    "tax_lots": sale_tax_lots(pos, shares, cash_received, current_date, fill_price, sell_fees),
                     "gross_pnl": gross_pnl,
                     "net_pnl": net_pnl,
                     "total_fees": pos["buy_fees"]["total"] + sell_fees["total"],
@@ -472,9 +407,9 @@ class BacktestEngine:
                     day_rows = df_sym.loc[df_sym["date"] == current_date]
                     if day_rows.empty:
                         continue
-                    bar = day_rows.iloc[0]
+                    bar = execution_bar(day_rows.iloc[0])
                     prev_rows = df_sym.loc[df_sym["date"] < current_date]
-                    prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else float(bar["close"])
+                    prev_close = previous_close(prev_rows.iloc[-1], day_rows.iloc[0]) if not prev_rows.empty else float(bar["close"])
 
                     if self.config.enforce_lower_circuit_deferral and is_locked_down(
                         bar["open"], bar["high"], bar["low"], bar["close"], prev_close
@@ -556,6 +491,7 @@ class BacktestEngine:
                         "exit_fill_price": fill_price,
                         "shares": shares,
                         "hold_days": (current_date - pos["entry_date"]).days,
+                        "tax_lots": sale_tax_lots(pos, shares, cash_received, current_date, fill_price, sell_fees),
                         "gross_pnl": gross_pnl,
                         "net_pnl": net_pnl,
                         "total_fees": pos["buy_fees"]["total"] + sell_fees["total"],
@@ -567,14 +503,21 @@ class BacktestEngine:
                     del open_positions[sym]
 
                 # Rebalance Entries:
-                holdings_est_val = sum(
-                    p["shares"] * (
-                        float(universe[sym].loc[universe[sym]["date"] == d_dec].iloc[0]["close"])
-                        if (sym in universe and not universe[sym].loc[universe[sym]["date"] == d_dec].empty)
-                        else p["entry_raw_price"]
-                    )
-                    for sym, p in open_positions.items()
-                )
+                def _decision_value_per_share(sym, p):
+                    """Decision-date close on TODAY's share basis. A split/bonus effective this morning has already multiplied
+                    p["shares"] (STEP 0), so the pre-action close must be divided by the same ratio or equity is overstated."""
+                    frame = universe.get(sym)
+                    if frame is None:
+                        return p["entry_raw_price"]
+                    dec_rows = frame.loc[frame["date"] == d_dec]
+                    if dec_rows.empty:
+                        return p["entry_raw_price"]
+                    today_rows = frame.loc[frame["date"] == current_date]
+                    if today_rows.empty:
+                        return nominal_price(dec_rows.iloc[0])
+                    return previous_close(dec_rows.iloc[0], today_rows.iloc[0])
+
+                holdings_est_val = sum(p["shares"] * _decision_value_per_share(sym, p) for sym, p in open_positions.items())
                 pretrade_equity = cash + holdings_est_val
                 target_alloc_per_stock = pretrade_equity / float(self.config.portfolio_size)
 
@@ -638,11 +581,13 @@ class BacktestEngine:
                     day_rows = df_sym.loc[df_sym["date"] == current_date]
                     if day_rows.empty:
                         continue
-                    bar = day_rows.iloc[0]
+                    bar = execution_bar(day_rows.iloc[0])
                     actual_open = float(bar["open"])
 
                     # Buy limit price cap (+2%)
-                    limit_cap_price = p_decision_close * (1.0 + self.config.limit_cap_pct)
+                    signal_bar = df_sym.loc[df_sym["date"] == d_dec].iloc[-1]
+                    signal_ratio = adjustment_factor(day_rows.iloc[0]) / adjustment_factor(signal_bar)
+                    limit_cap_price = p_decision_close / signal_ratio * (1.0 + self.config.limit_cap_pct)
                     if actual_open > limit_cap_price:
                         had_rebal_skips = True
                         skipped_orders_count += 1
@@ -661,7 +606,7 @@ class BacktestEngine:
                         continue
 
                     prev_rows = df_sym.loc[df_sym["date"] < current_date]
-                    prev_close = float(prev_rows.iloc[-1]["close"]) if not prev_rows.empty else actual_open
+                    prev_close = previous_close(prev_rows.iloc[-1], day_rows.iloc[0]) if not prev_rows.empty else actual_open
                     if self.config.enforce_upper_circuit_rejection and is_locked_up(
                         actual_open, float(bar["high"]), float(bar["low"]), float(bar["close"]), prev_close
                     ):
@@ -769,6 +714,9 @@ class BacktestEngine:
                         "symbol": sym,
                         "shares": shares_submitted,
                         "entry_date": current_date,
+                        "price_adjustment_factor": adjustment_factor(day_rows.iloc[0]),
+                        "tax_lots": [{"shares": shares_submitted, "entry_date": current_date,
+                                      "outlay": total_outlay, "buy_stt": buy_fees["stt"]}],
                         "entry_raw_price": actual_open,
                         "entry_fill_price": fill_price,
                         "entry_slip_loss": buy_slip_loss,
@@ -813,7 +761,7 @@ class BacktestEngine:
                 if df_sym is not None:
                     day_rows = df_sym.loc[df_sym["date"] <= current_date]
                     if not day_rows.empty:
-                        c_price = float(day_rows.iloc[-1]["close"])
+                        c_price = nominal_price(day_rows.iloc[-1])
                         holdings_market_val += pos["shares"] * c_price
                     else:
                         holdings_market_val += pos["shares"] * pos["entry_raw_price"]
@@ -827,8 +775,10 @@ class BacktestEngine:
                 is_last_day_of_march = (current_date.month == 3) and (
                     idx == len(eval_timeline) - 1 or eval_timeline[idx + 1].month != 3
                 )
-                if is_last_day_of_march:
-                    fy_name = f"FY{current_date.year - 1}-{current_date.year}"
+                is_terminal_partial_fy = idx == len(eval_timeline) - 1 and not is_last_day_of_march
+                if is_last_day_of_march or is_terminal_partial_fy:
+                    tax_year = current_date.year + (1 if current_date.month >= 4 else 0)
+                    fy_name = f"FY{tax_year - 1}-{tax_year}"
                     fy_trades = closed_trades[last_tax_processed_trade_idx:]
                     last_tax_processed_trade_idx = len(closed_trades)
 
@@ -852,7 +802,7 @@ class BacktestEngine:
                         fy_tax = taxable_stcg * 0.20 + taxable_ltcg * 0.125
                     else:
                         fy_tax, cf_st_list, cf_lt_list, det = compute_fy_tax(
-                            current_date.year, fy_trades, cf_st_list, cf_lt_list
+                            tax_year, fy_trades, cf_st_list, cf_lt_list
                         )
                         stcg_gross, ltcg_gross = det["stcg_gross"], det["ltcg_gross"]
                         taxable_stcg, taxable_ltcg = det["taxable_stcg"], det["taxable_ltcg"]
@@ -888,6 +838,7 @@ class BacktestEngine:
                 "holdings_val": holdings_market_val,
                 "invested_val": holdings_market_val,
                 "nav": nav,
+                "tax_payable": fy_tax_payable_accrued,
                 "open_positions": len(open_positions),
                 "open_positions_count": len(open_positions),
             })
@@ -923,9 +874,12 @@ class BacktestEngine:
             slippage=float(total_slippage),
             skipped_orders=int(skipped_orders_count),
         )
+        metrics["corporate_action_ledger"] = share_events
         metrics["strategy"] = getattr(self.strategy, "name", "STRATEGY")
         metrics["fy_tax_ledger"] = fy_tax_ledger
-        metrics["total_tax_paid"] = sum(x["tax_paid"] for x in fy_tax_ledger)
+        metrics["total_tax_assessed"] = sum(x["tax_paid"] for x in fy_tax_ledger)
+        metrics["tax_payable"] = fy_tax_payable_accrued
+        metrics["total_tax_paid"] = metrics["total_tax_assessed"] - fy_tax_payable_accrued
         metrics["start_date"] = eval_start_date
         metrics["end_date"] = eval_end_date
         metrics["total_turnover"] = float(total_turnover)

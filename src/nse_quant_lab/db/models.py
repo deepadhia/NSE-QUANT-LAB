@@ -45,6 +45,7 @@ class ExecutionModel:
     fees: float
     slippage: float
     executed_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    session_date: Optional[str] = None   # actual fill session; survives a later-day restart
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

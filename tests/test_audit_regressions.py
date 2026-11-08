@@ -367,10 +367,10 @@ def test_sell_fees_calculated_on_executed_turnover_not_raw_open():
         assert fees_raw["stt"] > expected_fees_slip["stt"], "STT on gross must be strictly higher than STT on fill"
 
 
-def test_delisted_stock_forced_liquidation_prevents_zombie_slots():
+def test_missing_history_is_not_a_cash_generating_liquidation():
     """
     Audited Fix 6 (21-Year Survival Trap): When a held stock ceases trading / delists,
-    BacktestEngine forces liquidation at last known close, freeing cash and slot.
+    BacktestEngine must refuse to invent liquidity from a last known close.
     """
     from nse_quant_lab.config import BacktestConfig
     from nse_quant_lab.engine import BacktestEngine
@@ -386,16 +386,9 @@ def test_delisted_stock_forced_liquidation_prevents_zombie_slots():
     strat = TrendMomentumStrategy(cfg)
     engine = BacktestEngine(strategy=strat, config=cfg)
 
-    metrics, trades, orders, execs, nav = engine.run(universe, eval_start_date="2018-12-01", eval_end_date="2019-02-01")
-
-    # Verify DYING.NS had a forced liquidation exit
-    dead_exits = trades[trades["exit_reason"] == "DATA_ENDED_FORCED_EXIT"]
-    assert not dead_exits.empty, "Delisted stock must have a DATA_ENDED_FORCED_EXIT record"
-    assert "DYING.NS" in dead_exits["symbol"].values
-
-    # Verify at end of backtest, DYING.NS is not a zombie open position
-    final_day = nav.iloc[-1]
-    assert final_day["open_positions"] <= 1
+    # Data cessation is not proof of delisting or realizable proceeds.
+    with pytest.raises(ValueError, match="MISSING_HELD_BAR"):
+        engine.run(universe, eval_start_date="2018-12-01", eval_end_date="2019-02-01")
 
 
 def test_paper_manager_alert_ticket_and_skipped_orders():

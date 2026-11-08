@@ -219,6 +219,7 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
     """Fetch and store bars for every target. `fetch(key, from_date, to_date)` returns candle rows; `col`/`flags_col` expose
     find_one / update_one / insert_one. Returns a summary dict (saved, failed symbols, flagged gaps)."""
     saved, failed, flagged = 0, [], []
+    unrecorded_rescaled: List[str] = []   # held positions whose share count was changed from an UNRECORDED price gap
     missing_today_targets = []
     is_today = (run_date >= dt.datetime.now(IST).date())
     default_anchor = panel_last or (run_date - dt.timedelta(days=5))
@@ -270,9 +271,11 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
                             log.warning("%s: split factor %.4f matches a RECORDED corporate action; position shares are left to "
                                         "PaperTradingManager (applied once). %d pending order prices rescaled", r.symbol, factor, done["orders"])
                         else:
-                            log.error("%s: UNRECORDED price discontinuity, factor %.4f: rescaled %d open positions and %d pending orders from "
-                                      "the price gap. Record it in `corporate_actions` (scripts/sync_corporate_actions.py --add) and verify.",
-                                      r.symbol, factor, done["positions"], done["orders"])
+                            log.critical("%s: UNRECORDED price discontinuity, factor %.4f: rescaled %d open positions and %d pending orders from "
+                                         "the price gap. Record it in `corporate_actions` (scripts/sync_corporate_actions.py --add) and verify.",
+                                         r.symbol, factor, done["positions"], done["orders"])
+                            if done["positions"]:
+                                unrecorded_rescaled.append(r.symbol)
             except Exception as exc:
                 log.error("adjusted refresh failed for %s: %s", r.symbol, exc)
         for x in rows:
@@ -330,7 +333,8 @@ def run_ingestion(targets: pd.DataFrame, run_date: dt.date, panel_last: Optional
         except Exception as exc:
             log.warning("Quote fallback failed: %s", exc)
 
-    return {"targets": len(targets), "saved_rows": saved, "failed": failed, "flagged": flagged}
+    return {"targets": len(targets), "saved_rows": saved, "failed": failed, "flagged": flagged,
+            "unrecorded_rescaled": unrecorded_rescaled}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -412,6 +416,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     if covered < COVERAGE_GATE:
         log.error("COVERAGE %.1f%% is below the %.0f%% gate: signals must not be generated from this data.", covered * 100, COVERAGE_GATE * 100)
         return 3
+    if summary.get("unrecorded_rescaled"):
+        # Share counts were changed from an inferred price gap, not a recorded corporate action: a human must confirm the ratio.
+        msg = ("UNRECORDED corporate action rescaled held position(s) from a price gap: " + ", ".join(summary["unrecorded_rescaled"])
+               + ". Verify the ratio and record it in `corporate_actions`.")
+        log.critical(msg)
+        try:
+            from nse_quant_lab.notifications.telegram import TelegramNotifier
+            TelegramNotifier().send_message("🚨 " + msg)
+        except Exception as exc:
+            log.error("could not send unrecorded-action alert: %s", exc)
+        return 5
     return 0
 
 

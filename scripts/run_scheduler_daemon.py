@@ -26,7 +26,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
     sys.path.insert(0, PROJECT_ROOT)
 
-from nse_quant_lab.holidays import is_trading_day
+from nse_quant_lab.holidays import is_trading_day, get_trading_session, SPECIAL_NSE_SESSIONS
 from nse_quant_lab.notifications.telegram import TelegramNotifier
 
 # Setup logging
@@ -144,6 +144,18 @@ class QuantLabScheduler:
             }
         ]
 
+    def jobs_for_date(self, date_str: str):
+        """Session-aware execution; EOD jobs remain after settled closing data."""
+        jobs = [dict(job) for job in self.jobs]
+        session = get_trading_session(date_str)
+        if session is not None:
+            opening = datetime.strptime(session.open_time, "%H:%M") + timedelta(minutes=1)
+            for job in jobs:
+                if job["id"] == "morning_execution":
+                    job["time"] = opening.strftime("%H:%M")
+                    job["max_time"] = session.execution_cutoff
+        return jobs
+
     def _load_state(self, today_str: str):
         state_file = os.path.join(PROJECT_ROOT, "logs", "scheduler_state.json")
         if os.path.exists(state_file):
@@ -154,6 +166,9 @@ class QuantLabScheduler:
                 if data.get("date") == today_str:
                     self.completed_today = set(data.get("completed", []))
                     self.succeeded_today = set(data.get("succeeded", []))
+                    if today_str in SPECIAL_NSE_SESSIONS and data.get("calendar_version") != 2:
+                        self.completed_today.clear()
+                        self.succeeded_today.clear()
                     jobs_str = ", ".join(sorted(self.completed_today)) if self.completed_today else "none"
                     logger.info(f"Restored scheduler state from file: {len(self.completed_today)} jobs already completed today ({jobs_str})")
             except Exception as e:
@@ -165,7 +180,7 @@ class QuantLabScheduler:
             import json
             os.makedirs(os.path.dirname(state_file), exist_ok=True)
             with open(state_file, "w", encoding="utf-8") as f:
-                json.dump({"date": today_str, "completed": list(self.completed_today), "succeeded": list(self.succeeded_today)}, f, indent=2)
+                json.dump({"date": today_str, "calendar_version": 2, "completed": list(self.completed_today), "succeeded": list(self.succeeded_today)}, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not save scheduler state to {state_file}: {e}")
 
@@ -335,11 +350,17 @@ class QuantLabScheduler:
                 self._save_state(today_str)
 
             # Check jobs
-            for job in self.jobs:
+            for job in self.jobs_for_date(today_str):
                 job_id = job["id"]
                 scheduled_time = job["time"]
 
                 if job_id not in self.completed_today:
+                    # Retries must obey the close boundary as well as the first attempt.
+                    if job.get("max_time") and time_str >= job["max_time"]:
+                        self.completed_today.add(job_id)
+                        self.next_retry_time.pop(job_id, None)
+                        self._save_state(today_str)
+                        continue
                     # Defense-in-depth: Skip nightly catchup pipeline if daily_pipeline succeeded today
                     if job_id == "nightly_catchup_pipeline" and "daily_pipeline" in self.succeeded_today:
                         logger.info("Skipping nightly_catchup_pipeline: daily_pipeline already completed successfully today.")
@@ -371,11 +392,35 @@ class QuantLabScheduler:
 
         logger.info("Scheduler daemon has stopped.")
 
+def format_schedule_preview(scheduler, date_str: str) -> str:
+    """Side-effect-free description of the day's session and jobs (no state file, no DB, no notifier)."""
+    session = get_trading_session(date_str)
+    lines = [f"Schedule preview for {date_str}"]
+    if session is None:
+        lines.append("  NSE equity market: CLOSED (weekend/holiday) - market-hours jobs would skip.")
+    else:
+        kind = "SPECIAL session" if date_str in SPECIAL_NSE_SESSIONS else "regular session"
+        lines.append(f"  NSE equity market: {kind} {session.open_time}-{session.close_time} IST; fills allowed from "
+                     f"{(datetime.strptime(session.open_time, '%H:%M') + timedelta(minutes=1)).strftime('%H:%M')} until {session.execution_cutoff} ({session.source})")
+    for job in sorted(scheduler.jobs_for_date(date_str), key=lambda j: j["time"]):
+        cutoff = f"  stop retrying at {job['max_time']}" if job.get("max_time") else ""
+        lines.append(f"  {job['time']}  {job['id']}{cutoff}")
+    return chr(10).join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description="NSE Quant Lab Background Scheduler")
     parser.add_argument("--test-job", choices=["morning_execution", "fulltier_ingestion", "benchmark_ingestion", "daily_pipeline", "weekly_report", "monthly_report", "semi_annual_sync", "nightly_catchup_ingestion", "nightly_catchup_pipeline"],
                         help="Immediately test run a specific job without waiting for its scheduled time.")
+    parser.add_argument("--preview-schedule", nargs="?", const="today", metavar="YYYY-MM-DD",
+                        help="Print the job times/cutoffs for a date (default today) and exit. Read-only: runs no job, touches no database, "
+                             "sends no message. Use it to check a special session (e.g. Muhurat) instead of --test-job, which RUNS the job.")
     args = parser.parse_args()
+
+    if args.preview_schedule:
+        date_str = get_ist_now().strftime("%Y-%m-%d") if args.preview_schedule == "today" else args.preview_schedule
+        print(format_schedule_preview(QuantLabScheduler(), date_str))
+        sys.exit(0)
 
     scheduler = QuantLabScheduler()
 
@@ -384,7 +429,7 @@ def main():
     signal.signal(signal.SIGTERM, scheduler.handle_signal)
 
     if args.test_job:
-        target = next((j for j in scheduler.jobs if j["id"] == args.test_job), None)
+        target = next((j for j in scheduler.jobs_for_date(get_ist_now().strftime("%Y-%m-%d")) if j["id"] == args.test_job), None)
         if not target:
             print(f"Unknown job: {args.test_job}")
             sys.exit(1)

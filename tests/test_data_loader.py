@@ -174,7 +174,8 @@ def test_load_pit_universe_mongo_maps_series_and_filters_be(monkeypatch):
     from nse_quant_lab.data_loader import load_pit_universe
 
     orig_exists = os.path.exists
-    monkeypatch.setattr(os.path, "exists", lambda p: False if "clean_panel.parquet" in str(p) else orig_exists(p))
+    # Hide both the legacy panel and the execution-basis v2 panel so the Mongo fallback is exercised.
+    monkeypatch.setattr(os.path, "exists", lambda p: False if "clean_panel" in str(p) else orig_exists(p))
 
     dates = pd.date_range("2026-08-01", "2026-10-30", freq="B")
     docs = []

@@ -26,7 +26,7 @@ from nse_quant_lab.registry import get_strategy, list_strategies
 from nse_quant_lab.data_loader import load_clean_universe, load_pit_universe
 from nse_quant_lab.paper.manager import PaperTradingManager
 from nse_quant_lab.db.mongo_client import MongoDatabase
-from nse_quant_lab.holidays import is_trading_day
+from nse_quant_lab.holidays import is_trading_day, execution_window_open, SPECIAL_NSE_SESSIONS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("morning_execution")
@@ -86,7 +86,17 @@ def main():
     parser.add_argument("--strategy", default="all", help=f"Strategy to run ('all' for all active DB strategies). Available: {list_strategies()}")
     parser.add_argument("--date", default=None, help="Execution date (YYYY-MM-DD). Defaults to latest in universe.")
     parser.add_argument("--force", action="store_true", help="Force run even on weekends or market holidays.")
+    parser.add_argument("--special-session-only", action="store_true",
+                        help="Run only on a verified special-session date (e.g. Muhurat); a no-op on regular days. Used by the afternoon cron entry.")
     args = parser.parse_args()
+
+    if args.special_session_only and datetime.now(IST).strftime("%Y-%m-%d") not in SPECIAL_NSE_SESSIONS:
+        logger.info("Not a special-session date; the 09:16 run covers regular days.")
+        return
+
+    if not args.date and not execution_window_open(datetime.now(IST)):
+        logger.info("Outside the verified NSE continuous-trading execution window; no fills attempted.")
+        return
 
     cfg = PaperTradingConfig(strategy_id="system")
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)

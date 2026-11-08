@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from ..base_strategy import BaseStrategy
+from ..price_basis import nominal_price, BASIS_COLUMNS
 from ..cost_model import slippage_fraction
 from ..indicators import compute_indicators
 from ..registry import register_strategy
@@ -72,6 +73,9 @@ class TrendMomentumPITStrategy(BaseStrategy):
         out = out.sort_values("date").reset_index(drop=True)
         src = df.sort_values("date").reset_index(drop=True)
         n = len(out)
+        for col in BASIS_COLUMNS:
+            if col in src:
+                out[col] = src[col].values
         if len(src) != n:  # compute_indicators never drops rows once history is sufficient
             raise ValueError("indicator frame length mismatch")
         turnover = src["turnover"] if "turnover" in src.columns else src["close"] * src["volume"]
@@ -234,11 +238,11 @@ class TrendMomentumPITStrategy(BaseStrategy):
             else:
                 r = df.iloc[k]
             rows.append((sym, r["series"], float(r["close"]), float(r["ema100"]), int(r["supertrend_dir"]),
-                         float(r["mom_6m"]), float(r["adt50m"]), int(r["hist_n"])))
+                         float(r["mom_6m"]), float(r["adt50m"]), int(r["hist_n"]), nominal_price(r)))
         empty = pd.DataFrame(columns=["symbol", "close", "turnover_50d", "rank"])
         if not rows:
             return empty
-        snap = pd.DataFrame(rows, columns=["symbol", "series", "close", "ema100", "st", "mom", "adt", "hist"]).set_index("symbol")
+        snap = pd.DataFrame(rows, columns=["symbol", "series", "close", "ema100", "st", "mom", "adt", "hist", "trade_close"]).set_index("symbol")
 
         # 1. New entry criteria: requires full liquidity, price, history, 3% EMA buffer, bullish Supertrend, valid momentum, and Bull regime
         is_bear = self.use_regime and self.regime_below(decision_date)
@@ -248,7 +252,7 @@ class TrendMomentumPITStrategy(BaseStrategy):
             new_mask = (
                 (snap["series"] == "EQ")
                 & (snap["adt"] >= MIN_ADT)
-                & (snap["close"] >= MIN_PRICE)
+                & (snap["trade_close"] >= MIN_PRICE)
                 & (snap["hist"] >= MIN_HISTORY)
                 & (snap["close"] >= ENTRY_EMA_BUFFER * snap["ema100"])
                 & (snap["st"] == 1)
@@ -279,7 +283,7 @@ class TrendMomentumPITStrategy(BaseStrategy):
 
         out = pd.DataFrame({
             "symbol": sel.index,
-            "close": sel["close"].values,
+            "close": sel["trade_close"].values,
             "turnover_50d": sel["adt"].values,
             "rank": np.arange(1, len(sel) + 1),
         }, index=sel.index)

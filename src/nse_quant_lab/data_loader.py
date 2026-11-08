@@ -460,7 +460,10 @@ def load_pit_universe(
     else:
         p1 = os.path.join(base, "data", "external", "nse_archive", "clean_panel.parquet")
         p2 = os.path.join(base, "external", "nse_archive", "clean_panel.parquet")
-        path = p1 if os.path.exists(p1) else (p2 if os.path.exists(p2) else None)
+        v1 = os.path.join(os.path.dirname(p1), "clean_panel_execution_v2.parquet")
+        v2 = os.path.join(os.path.dirname(p2), "clean_panel_execution_v2.parquet")
+        candidates = [v1, v2, p1, p2] if not include_live else [p1, p2]
+        path = next((p for p in candidates if os.path.exists(p)), None)
         if path is None:
             logger.info("clean_panel.parquet not found on disk; falling back to MongoDB live store.")
             return _load_pit_universe_from_mongo(
@@ -490,6 +493,8 @@ def load_pit_universe(
         if not (med >= min_adt_ever).any():
             continue
         universe[str(sym)] = g
+        if os.path.basename(path) == "clean_panel.parquet" and "raw_open" not in g:
+            g.attrs["price_basis"] = "adjusted_without_raw"
         if g["date"].iloc[-1] == panel_last and med.iloc[-1] >= 1.0e8 and g["series"].iloc[-1] == "EQ":
             liquid.add(str(sym))
 

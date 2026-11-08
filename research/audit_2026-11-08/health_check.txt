@@ -1,0 +1,22 @@
+2026-11-08 11:06:27,328 [INFO] ======================================================================
+2026-11-08 11:06:27,329 [INFO] STARTING PRODUCTION PRE-FLIGHT HEALTH CHECK
+2026-11-08 11:06:27,329 [INFO] ======================================================================
+2026-11-08 11:06:27,329 [INFO] --> [1/5] Checking MongoDB Atlas Connection...
+2026-11-08 11:06:46,550 [INFO] \u2705 MongoDB Atlas ping successful.
+2026-11-08 11:06:46,551 [INFO] --> [2/5] Checking Active Strategies & Data Artifacts...
+2026-11-08 11:06:46,572 [INFO]    Active strategies found in DB: ['trend_momentum_pit', 'minervini_trend_template', 'alpha_semivol_pit']
+2026-11-08 11:06:46,572 [INFO]    Active PIT strategies in DB: ['trend_momentum_pit', 'minervini_trend_template', 'alpha_semivol_pit']
+2026-11-08 11:06:46,572 [INFO] \u2705 clean_panel.parquet found at: D:\Personal Projects\Learning-Lab\external\nse_archive\clean_panel.parquet (193.9 MB)
+2026-11-08 11:06:46,593 [INFO] \u2705 All pending order IDs are strategy-namespaced.
+2026-11-08 11:06:46,661 [INFO] \u2705 Benchmark ^CRSLDX latest 2026-11-06 (2d old).
+2026-11-08 11:06:46,661 [INFO] --> [3/5] Checking Broker API Configuration...
+2026-11-08 11:06:46,661 [INFO] \u2705 Upstox access token detected.
+2026-11-08 11:06:46,662 [INFO] --> [4/5] Checking Telegram Alert Configuration...
+2026-11-08 11:06:46,662 [INFO] \u2705 Telegram credentials configured.
+2026-11-08 11:06:46,662 [INFO] --> [5/5] Checking Pipeline Script Integrity...
+2026-11-08 11:06:46,662 [INFO] \u2705 Registry contains 5 registered strategies: ['alpha_semivol_pit', 'donchian_breakout', 'minervini_trend_template', 'trend_momentum', 'trend_momentum_pit']
+2026-11-08 11:06:59,319 [INFO] \u2705 Holiday calendar for 2026: 18 entries (verify against the NSE circular).
+2026-11-08 11:07:11,842 [INFO] \u2705 Holiday calendar for 2027: 10 entries (verify against the NSE circular).
+2026-11-08 11:07:11,842 [INFO] ======================================================================
+2026-11-08 11:07:11,842 [INFO] \u2705 ALL PRODUCTION PRE-FLIGHT CHECKS PASSED CLEANLY.
+2026-11-08 11:07:11,842 [INFO] ======================================================================

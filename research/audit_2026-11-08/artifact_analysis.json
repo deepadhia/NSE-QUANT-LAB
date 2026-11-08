@@ -1,0 +1,42 @@
+{
+  "sessions": 4913,
+  "start": "2007-01-02",
+  "end": "2026-10-30",
+  "first_eod_nav": 104086.35956841022,
+  "final_nav": 4198266.071447399,
+  "cagr_initial_capital_pct": 20.745450967365507,
+  "cagr_first_eod_nav_pct": 20.50176277705027,
+  "max_drawdown_pct": -41.40382540006078,
+  "sharpe_arithmetic_zero_rf_252": 1.0513483569808721,
+  "sharpe_arithmetic_rf6_252": 0.750631643395778,
+  "engine_sharpe": 0.7520625931930291,
+  "realised_final_partial_fy_tax_not_accrued": 2692.75,
+  "nav_after_partial_fy_tax_only": 4195573.321447399,
+  "cagr_after_partial_fy_tax_only": 20.741543270943108,
+  "nav_reconciled_from_executions_and_terminal_marks": 4198266.054123356,
+  "nav_reconciliation_residual": 0.017324043437838554,
+  "top_terminal_holding": {
+    "symbol": "CUPID",
+    "entry_date": "2025-09-01",
+    "shares": 4597,
+    "entry_fill_price": 34.61547324511183,
+    "outlay": 159316.09150777909,
+    "last_close": 324.55,
+    "value": 1491956.35,
+    "unrealised_pnl": 1332640.2584922211,
+    "weight_pct": 35.53744152012813
+  },
+  "cagr_mark_cupid_at_entry_outlay_no_path_resimulation": 18.441789391319862,
+  "cagr_all_terminal_positions_at_entry_outlay_no_path_resimulation": 17.46050380943094,
+  "closed_trades": 709,
+  "forced_history_end_exits": 1,
+  "worst_year_return_pct": -36.74924073098366,
+  "worst_1260_session_annualised_return_pct": 2.05614442151425,
+  "top5_closed_symbol_pnl": {
+    "TITAGARH": 292659.36167341575,
+    "APARINDS": 247941.95402302488,
+    "RVNL": 227403.4963499272,
+    "MTARTECH": 203543.8039737448,
+    "KIRLOSENG": 167289.2653297316
+  }
+}

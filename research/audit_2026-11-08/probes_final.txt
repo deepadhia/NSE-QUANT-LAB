@@ -1,0 +1,82 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.0, pytest-8.3.5, pluggy-1.6.0
+rootdir: D:\Personal Projects\Learning-Lab
+configfile: pytest.ini
+plugins: anyio-4.9.0, langsmith-0.3.42, mock-3.14.0
+collected 9 items
+
+research\audit_2026-11-08\probes.py FFFFFFFFF                            [100%]
+
+================================== FAILURES ===================================
+__________ test_future_split_must_not_change_past_entry_eligibility ___________
+research\audit_2026-11-08\probes.py:57: in test_future_split_must_not_change_past_entry_eligibility
+    assert list(a.index) == list(b.index), f'Later split removes earlier entry: raw={list(a.index)}, adjusted={list(b.index)}'
+E   AssertionError: Later split removes earlier entry: raw=['AAA'], adjusted=[]
+E   assert ['AAA'] == []
+E     
+E     Left contains one more item: 'AAA'
+E     Use -v to get more diff
+_______ test_engine_must_not_sell_at_last_close_when_history_disappears _______
+research\audit_2026-11-08\probes.py:65: in test_engine_must_not_sell_at_last_close_when_history_disappears
+    assert trades.empty, f'Untradeable missing history creates cash: {trades[["symbol","exit_reason","exit_price"]].to_dict("records")}'
+E   AssertionError: Untradeable missing history creates cash: [{'symbol': 'AAA', 'exit_reason': 'DATA_ENDED_FORCED_EXIT', 'exit_price': 100.0}]
+E   assert False
+E    +  where False =   symbol  entry_date  ...             exit_reason  deferral_days\n0    AAA  2025-06-03  ...  DATA_ENDED_FORCED_EXIT              0\n\n[1 rows x 15 columns].empty
+__________ test_final_partial_fy_must_include_realised_tax_liability __________
+research\audit_2026-11-08\probes.py:74: in test_final_partial_fy_must_include_realised_tax_liability
+    assert metrics['total_tax_paid'] == pytest.approx(liability), f'Engine tax={metrics["total_tax_paid"]}, realised liability={liability}'
+E   AssertionError: Engine tax=0, realised liability=2022.4517518400032
+E   assert 0 == 2022.4517518400032 � 2.0e-03
+E     
+E     comparison failed
+E     Obtained: 0
+E     Expected: 2022.4517518400032 � 2.0e-03
+_____________ test_fy2025_pre_budget_ltcg_must_use_sale_date_rate _____________
+research\audit_2026-11-08\probes.py:82: in test_fy2025_pre_budget_ltcg_must_use_sale_date_rate
+    assert tax == pytest.approx(175000*.10*1.04)
+E   assert 22750.0 == 18200.0 � 1.8e-02
+E     
+E     comparison failed
+E     Obtained: 22750.0
+E     Expected: 18200.0 � 1.8e-02
+________________ test_quote_outage_is_not_confirmed_delisting _________________
+research\audit_2026-11-08\probes.py:91: in test_quote_outage_is_not_confirmed_delisting
+    assert not result['fills'], f'Quote outage booked sale: {result["fills"]}'
+E   AssertionError: Quote outage booked sale: [{'action': 'SELL', 'symbol': 'AAA', 'shares': 100, 'fill_price': 95.0}]
+E   assert not [{'action': 'SELL', 'fill_price': 95.0, 'shares': 100, 'symbol': 'AAA'}]
+------------------------------ Captured log call ------------------------------
+WARNING  nse_quant_lab.paper.manager:manager.py:1067 Executing forced liquidation for AAA (reason=DATA_ENDED_FORCED_EXIT, deferral_days=0).
+___ test_next_day_restart_must_recover_executed_buy_before_expiring_signal ____
+research\audit_2026-11-08\probes.py:105: in test_next_day_restart_must_recover_executed_buy_before_expiring_signal
+    assert pos is not None, f'Executed buy lost: cash={_cash(db)}, order={db.orders.find_one({"order_id":oid})}'
+E   AssertionError: Executed buy lost: cash=80056.47, order={'order_id': 'ORD_BUY_stub_strategy_2026-03-02_AAA', 'strategy_id': 'stub_strategy', 'mode': 'paper', 'symbol': 'AAA', 'action': 'BUY', 'shares': 0, 'price': 100.0, 'order_type': 'ENTRY_AT_OPEN', 'status': 'SKIPPED_EXPIRED', 'reason': 'RANK_1', 'signal_date': '2026-03-02', 'deferral_days': 0, 'cancel_reason': 'STALE_SIGNAL', 'execution_date': '2026-03-04'}
+E   assert None is not None
+------------------------------ Captured log call ------------------------------
+WARNING  nse_quant_lab.paper.manager:manager.py:1025 BUY ORD_BUY_stub_strategy_2026-03-02_AAA expired: signal 2026-03-02 older than last session 2026-03-03
+__________ test_two_stale_cash_snapshots_must_not_lose_a_fill_delta ___________
+research\audit_2026-11-08\probes.py:113: in test_two_stale_cash_snapshots_must_not_lose_a_fill_delta
+    assert _cash(db)==97000, f'Absolute stale balance overwrote another fill: cash={_cash(db)}'
+E   AssertionError: Absolute stale balance overwrote another fill: cash=98000
+E   assert 98000 == 97000
+E    +  where 98000 = _cash(<test_backtest_paper_parity.ParityMockDb object at 0x0000021F39028E00>)
+________________ test_0916_buy_must_not_fill_below_current_ask ________________
+research\audit_2026-11-08\probes.py:122: in test_0916_buy_must_not_fill_below_current_ask
+    assert not result['fills'] or result['fills'][0]['fill_price']>=110., f'09:16 ask=110, fills={result["fills"]}'
+E   AssertionError: 09:16 ask=110, fills=[{'action': 'BUY', 'symbol': 'AAA', 'shares': 199, 'fill_price': 100.1}]
+E   assert (not [{'action': 'BUY', 'fill_price': 100.1, 'shares': 199, 'symbol': 'AAA'}] or 100.1 >= 110.0)
+_______ test_0916_lower_circuit_must_use_current_price_not_earlier_open _______
+research\audit_2026-11-08\probes.py:132: in test_0916_lower_circuit_must_use_current_price_not_earlier_open
+    assert not result['fills'], f'No buyers at lower circuit, but fills={result["fills"]}'
+E   AssertionError: No buyers at lower circuit, but fills=[{'action': 'SELL', 'symbol': 'AAA', 'shares': 100, 'fill_price': 99.9}]
+E   assert not [{'action': 'SELL', 'fill_price': 99.9, 'shares': 100, 'symbol': 'AAA'}]
+=========================== short test summary info ===========================
+FAILED research/audit_2026-11-08/probes.py::test_future_split_must_not_change_past_entry_eligibility
+FAILED research/audit_2026-11-08/probes.py::test_engine_must_not_sell_at_last_close_when_history_disappears
+FAILED research/audit_2026-11-08/probes.py::test_final_partial_fy_must_include_realised_tax_liability
+FAILED research/audit_2026-11-08/probes.py::test_fy2025_pre_budget_ltcg_must_use_sale_date_rate
+FAILED research/audit_2026-11-08/probes.py::test_quote_outage_is_not_confirmed_delisting
+FAILED research/audit_2026-11-08/probes.py::test_next_day_restart_must_recover_executed_buy_before_expiring_signal
+FAILED research/audit_2026-11-08/probes.py::test_two_stale_cash_snapshots_must_not_lose_a_fill_delta
+FAILED research/audit_2026-11-08/probes.py::test_0916_buy_must_not_fill_below_current_ask
+FAILED research/audit_2026-11-08/probes.py::test_0916_lower_circuit_must_use_current_price_not_earlier_open
+============================== 9 failed in 4.08s ==============================
