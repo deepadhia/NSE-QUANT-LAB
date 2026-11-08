@@ -127,7 +127,10 @@ class PaperTradingManager:
             })
 
         # Register strategy metadata for dashboard listing (preserving existing cumulative metrics & status)
-        s_name = getattr(self.strategy, "name", self.config.strategy_id).replace("_", " ").title()
+        s_name = getattr(self.strategy, "name", self.config.strategy_id)
+        if s_name != self.config.strategy_id:
+            s_name = self.config.strategy_id    # alias/forward-test account: show the account id so the strategies table tells accounts apart
+        s_name = s_name.replace("_", " ").title()
         existing_strat = self.db.strategies.find_one({
             "strategy_id": self.config.strategy_id,
             "mode": getattr(self.config, "mode", "paper")
@@ -850,6 +853,11 @@ class PaperTradingManager:
             "adt_prev": bar.get("adt_prev"), "sig_prev": bar.get("sig_prev"), "series": bar.get("series"),
             "quote": quote, "ts": datetime.now(timezone.utc).isoformat(),
         }
+        side_qty = (quote or {}).get("ask_qty" if side == "BUY" else "bid_qty")
+        if side_qty is not None:
+            # Paper fills assume the whole order trades at the quoted price; flag orders larger than the quantity displayed there.
+            doc["quoted_qty_at_price"] = side_qty
+            doc["depth_shortfall"] = bool(shares > side_qty)
         if quote and quote.get("ask") and quote.get("bid"):
             ref = quote["ask"] if side == "BUY" else quote["bid"]
             doc["quote_vs_open_bps"] = round((ref / open_price - 1.0) * 1e4 * (1 if side == "BUY" else -1), 2)

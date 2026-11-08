@@ -138,6 +138,7 @@ class StrategyModel:
     win_rate_pct: float
     rebalance_hold_rank_buffer: int = 1500
     unaffordable_policy: str = "TRY_NEXT"
+    execution_approach: str = "APPROACH_3"    # read by the operational scripts (they default to APPROACH_3 when absent)
     strategy_class: Optional[str] = None      # registry key of the logic when this account's strategy_id is an alias (None = strategy_id)
     max_entry_price: Optional[float] = None   # entry-only price cap (Rs, nominal close); None = off. Read by the operational scripts.
     status: str = "ACTIVE"              # "ACTIVE", "PAUSED", "ARCHIVED"

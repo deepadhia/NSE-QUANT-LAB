@@ -72,7 +72,7 @@ def init_strategy(strategy_id: str, capital: float, mode: str = "paper", max_ent
         sys.exit(2)
     is_pit = strategy_class in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
     p_size = int(portfolio_size) if portfolio_size else (15 if is_pit else 6)
-    h_buf = 1500 if is_pit else 15
+    h_buf = 100 * p_size if is_pit else 15     # researched setting: no rank-based drops (100 x slots; 1500 for 15 slots)
     cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode,
                              portfolio_size=p_size, rebalance_hold_rank_buffer=h_buf, unaffordable_policy="TRY_NEXT",
                              max_entry_price=max_entry_price)
@@ -89,6 +89,7 @@ def init_strategy(strategy_id: str, capital: float, mode: str = "paper", max_ent
             "portfolio_size": p_size,
             "rebalance_hold_rank_buffer": h_buf,
             "unaffordable_policy": "TRY_NEXT",
+            "execution_approach": "APPROACH_3",
             "max_entry_price": float(max_entry_price) if max_entry_price else None,
             "strategy_class": strategy_class,
             "updated_at": datetime.utcnow().isoformat(),

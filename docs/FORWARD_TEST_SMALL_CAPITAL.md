@@ -13,18 +13,20 @@ research result (price cap < Rs 1,000, 10 vs 15 slots) survives out of sample. P
 
 ## Create the account (once, on the host that runs the scheduler, after deploying this code)
 ```bash
-python scripts/manage_strategy.py --init --strategy tmpit_fwd50k --strategy-class trend_momentum_pit --capital 50000 --slots 15 --max-entry-price 1000
+python scripts/manage_strategy.py --init --strategy fwd_trend_momentum_pit_50k_15slots_under1000 --strategy-class trend_momentum_pit --capital 50000 --slots 15 --max-entry-price 1000
 python scripts/manage_strategy.py --list
 ```
 `--init` refuses to touch an existing account (it would overwrite capital/cash); `--reinit` overrides that deliberately. Never reuse a live account id.
-Optional second account for the 10-slot variant: `--strategy tmpit_fwd50k_s10 --strategy-class trend_momentum_pit --capital 50000 --slots 10 --max-entry-price 1000`.
-Pause/stop an account: `python scripts/manage_strategy.py --strategy tmpit_fwd50k --status PAUSED` (or ARCHIVED).
+Optional second account for the 10-slot variant: `--strategy fwd_trend_momentum_pit_50k_10slots_under1000 --strategy-class trend_momentum_pit --capital 50000 --slots 10 --max-entry-price 1000`.
+Control account (same capital and slots, no cap, to separate the cap effect from the capital effect): `--strategy fwd_trend_momentum_pit_50k_15slots_nocap --strategy-class trend_momentum_pit --capital 50000 --slots 15` (no `--max-entry-price`).
+Naming: `fwd_<strategy>_<capital>_<slots>_<cap>`, e.g. `..._15slots_under1000` / `..._15slots_nocap`. The id is permanent (it keys orders, positions, cash).
+Pause/stop an account: `python scripts/manage_strategy.py --strategy fwd_trend_momentum_pit_50k_15slots_under1000 --status PAUSED` (or ARCHIVED).
 
 ## Timeline
 Account created before 18:00 IST on a trading day -> that evening's pipeline run produces its first signals -> first fills at the next 09:16.
 Created after 18:00 -> first signals the following evening, UNLESS you stage its first orders by hand right after creating it:
 ```bash
-python scripts/run_daily_pipeline.py --strategy tmpit_fwd50k
+python scripts/run_daily_pipeline.py --strategy fwd_trend_momentum_pit_50k_15slots_under1000
 ```
 That generates signals from the latest ingested bar, and the next 09:16 run fills them (same as the other accounts' pending orders). Check the 
 decision date it logs and that the scheduler's own run does not duplicate it (orders are idempotent per signal date). The scheduler/cron needs no change (`--strategy all` picks up every ACTIVE account).

@@ -185,6 +185,7 @@ def fetch_quotes(keys: List[str], token: str, opener: Callable = urllib.request.
                 "open": float(ohlc.get("open") or 0.0), "high": float(ohlc.get("high") or 0.0), "low": float(ohlc.get("low") or 0.0),
                 "ltp": float(q.get("last_price") or 0.0), "bid": float(buys[0]["price"]) if buys else None,
                 "ask": float(sells[0]["price"]) if sells else None, "volume": float(q.get("volume") or 0.0),
+                "bid_qty": float(buys[0].get("quantity") or 0.0) if buys else None, "ask_qty": float(sells[0].get("quantity") or 0.0) if sells else None,
                 "upper_circuit": q.get("upper_circuit_limit"), "lower_circuit": q.get("lower_circuit_limit"),
                 "ts": q.get("timestamp"),
             }
