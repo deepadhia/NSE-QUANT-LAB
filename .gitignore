@@ -66,3 +66,8 @@ core_strategies_and_execution.txt
 export_package/
 export_full_repo_audit/
 FULL_REPO_AUDIT_PROMPT_FOR_ARGON.md
+
+# 2026-11-08 audit: bulky/regenerable or superseded local artifacts
+research/audit_2026-11-08/fix_suite_1.txt
+research/audit_2026-11-08/small_capital_grid/runs/
+research/audit_2026-11-08/small_capital_grid/results_prelim_no_ledgers.csv

@@ -58,14 +58,26 @@ def set_strategy_status(db: MongoDatabase, strategy_id: str, status: str, mode: 
         print(f">> Warning: Strategy '{strategy_id}' not found in MongoDB. Use --init first.")
 
 
-def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
-    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
-    p_size = 15 if is_pit else 6
+def init_strategy(strategy_id: str, capital: float, mode: str = "paper", max_entry_price: float = None, portfolio_size: int = None,
+                  strategy_class: str = None, reinit: bool = False):
+    """Create a paper ACCOUNT. `strategy_id` namespaces its orders/positions/cash; `strategy_class` (registry key, default = strategy_id) picks the logic,
+    so several accounts of one class can run side by side at different capital / slots / price caps."""
+    strategy_class = strategy_class or strategy_id
+    cfg0 = PaperTradingConfig(strategy_id=strategy_id, mode=mode)
+    existing = MongoDatabase.get_instance(cfg0.mongo_uri, cfg0.db_name).strategies.find_one({"strategy_id": strategy_id, "mode": mode})
+    if existing and not reinit:
+        # --init overwrites capital/cash/NAV on the account document: never do that to a live account by accident.
+        print(f">> REFUSED: account '{strategy_id}' ({mode}) already exists (capital INR {existing.get('initial_capital')}, status {existing.get('status')}). "
+              f"Use a NEW --strategy id with --strategy-class for a forward-test account, or pass --reinit to deliberately overwrite it.")
+        sys.exit(2)
+    is_pit = strategy_class in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
+    p_size = int(portfolio_size) if portfolio_size else (15 if is_pit else 6)
     h_buf = 1500 if is_pit else 15
     cfg = PaperTradingConfig(strategy_id=strategy_id, initial_capital=capital, mode=mode,
-                             portfolio_size=p_size, rebalance_hold_rank_buffer=h_buf, unaffordable_policy="TRY_NEXT")
+                             portfolio_size=p_size, rebalance_hold_rank_buffer=h_buf, unaffordable_policy="TRY_NEXT",
+                             max_entry_price=max_entry_price)
     db = MongoDatabase.get_instance(cfg.mongo_uri, cfg.db_name)
-    strat = get_strategy(strategy_id, cfg)
+    strat = get_strategy(strategy_class, cfg)
     mgr = PaperTradingManager(strategy=strat, config=cfg, db=db)
     mgr.initialize_portfolio()
     db.strategies.update_one(
@@ -77,6 +89,8 @@ def init_strategy(strategy_id: str, capital: float, mode: str = "paper"):
             "portfolio_size": p_size,
             "rebalance_hold_rank_buffer": h_buf,
             "unaffordable_policy": "TRY_NEXT",
+            "max_entry_price": float(max_entry_price) if max_entry_price else None,
+            "strategy_class": strategy_class,
             "updated_at": datetime.utcnow().isoformat(),
         }}
     )
@@ -130,6 +144,10 @@ def main():
     parser.add_argument("--status", choices=["ACTIVE", "PAUSED", "ARCHIVED"], default=None, help="Update strategy status")
     parser.add_argument("--init", action="store_true", help="Initialize a strategy portfolio in MongoDB")
     parser.add_argument("--capital", type=float, default=100_000.0, help="Initial capital when using --init")
+    parser.add_argument("--max-entry-price", type=float, default=None, help="With --init: entry-only price cap in Rs (new entries must be priced below it; held names exempt). Omit = off.")
+    parser.add_argument("--strategy-class", default=None, help="With --init: registry key of the strategy logic when --strategy is a NEW account id (e.g. --strategy tmpit_fwd50k --strategy-class trend_momentum_pit)")
+    parser.add_argument("--reinit", action="store_true", help="With --init: allow overwriting an EXISTING account's capital/cash/NAV (destructive)")
+    parser.add_argument("--slots", type=int, default=None, help="With --init: number of portfolio slots (default 15 for PIT strategies, 6 otherwise)")
     parser.add_argument("--mode", default="paper", choices=["paper", "real"], help="Execution mode")
     parser.add_argument("--positions", action="store_true", help="Display all active positions and dynamic trailing stop levels")
     args = parser.parse_args()
@@ -145,7 +163,7 @@ def main():
     elif args.positions:
         show_positions(db, args.strategy or "trend_momentum", args.mode)
     elif args.init and args.strategy:
-        init_strategy(args.strategy, args.capital, args.mode)
+        init_strategy(args.strategy, args.capital, args.mode, args.max_entry_price, args.slots, args.strategy_class, args.reinit)
     elif args.status and args.strategy:
         set_strategy_status(db, args.strategy, args.status, args.mode)
     else:

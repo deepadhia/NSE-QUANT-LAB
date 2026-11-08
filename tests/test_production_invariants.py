@@ -280,11 +280,20 @@ def test_mongo_fallback_loader_has_no_bare_swallowed_history_or_series_errors():
 
 # ---- 2026-11-08 audit remediation guards (docs/AUDIT_2026-11_FINDINGS_AND_REGRESSION_GUARDS.md, rows R1-R8) ----------
 def test_r1_missing_data_is_never_turned_into_a_sale():
-    """F2/H2: no invented liquidation, haircut or forced-sale rule in the engine or the paper manager."""
-    for name, src in (("engine.py", _read(SRC / "engine.py")), ("manager.py", _read(SRC / "paper" / "manager.py"))):
-        assert "forced_delist_exits" not in src and "haircut" not in src.lower() and "SELL_DELIST" not in src, \
-            f"{name}: a missing bar/quote must retain state and fail loudly, never create proceeds"
-    assert "MISSING_HELD_BAR" in _read(SRC / "engine.py") and "MISSING_HELD_BAR" in _read(SRC / "paper" / "manager.py")
+    """F2/H2: no invented liquidation, haircut or forced-sale rule in the paper manager; the engine may only model a data-ended exit as an
+    explicit RESEARCH bound, off by default and unreachable from production configs."""
+    mgr = _read(SRC / "paper" / "manager.py")
+    assert "forced_delist_exits" not in mgr and "haircut" not in mgr.lower() and "SELL_DELIST" not in mgr,         "a missing bar/quote must retain state and fail loudly in live trading, never create proceeds"
+    eng = _read(SRC / "engine.py")
+    assert "forced_delist_exits" not in eng and "haircut" not in eng.lower()
+    assert "MISSING_HELD_BAR" in eng and "MISSING_HELD_BAR" in mgr
+    # the only data-ended sale in the engine sits behind the explicit research policy, after the strict raise
+    assert eng.count("SELL_DELIST") == 1 and 'missing_policy == "strict"' in eng
+    assert eng.index('missing_policy == "strict"') < eng.index("SELL_DELIST")
+    cfg = _read(SRC / "config.py")
+    for field in ("missing_held_bar_policy", "fractional_entitlement_policy", "unverified_share_action_policy"):
+        assert f'{field}: str = "strict"' in cfg, f"{field} must default to strict"
+    assert "missing_held_bar_policy" not in mgr, "the paper manager must not read the research policy"
 
 
 def test_r2_live_fills_use_executable_side_of_the_quote():

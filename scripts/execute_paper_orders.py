@@ -22,7 +22,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from nse_quant_lab.config import PaperTradingConfig
-from nse_quant_lab.registry import get_strategy, list_strategies
+from nse_quant_lab.registry import get_strategy, list_strategies, strategy_class_of
 from nse_quant_lab.data_loader import load_clean_universe, load_pit_universe
 from nse_quant_lab.paper.manager import PaperTradingManager
 from nse_quant_lab.db.mongo_client import MongoDatabase
@@ -37,7 +37,8 @@ PIT_STRATEGY_IDS = ("trend_momentum_pit", "minervini_trend_template", "alpha_sem
 def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.Timestamp, db: MongoDatabase, quote_provider=None) -> list:
     """Returns a list of problem strings (empty == clean). Unpriced orders are problems: the run must fail so the scheduler retries."""
     strategy_id = strat_doc["strategy_id"]
-    is_pit = strategy_id in PIT_STRATEGY_IDS
+    strategy_class = strategy_class_of(strat_doc)
+    is_pit = strategy_class in PIT_STRATEGY_IDS
     portfolio_size = int(strat_doc.get("portfolio_size", 15 if is_pit else 6))
     initial_capital = float(strat_doc.get("initial_capital", 100000.0))
     hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 1500 if is_pit else 15))
@@ -45,10 +46,11 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
     exec_approach = strat_doc.get("execution_approach", "APPROACH_3")
     mode = strat_doc.get("mode", "paper")
     rebal_freq = strat_doc.get("rebalance_frequency", "MONTHLY")
+    max_entry_price = strat_doc.get("max_entry_price")          # entry-only price cap (Rs); None/absent = off
 
     logger.info("-" * 65)
     logger.info(f"EXECUTING STRATEGY MORNING FILLS: {strategy_id.upper()} (Mode: {mode.upper()})")
-    logger.info(f"   Config from DB: Capital=INR {initial_capital:,.2f} | Slots={portfolio_size} | Rebalance={rebal_freq} | Approach={exec_approach}")
+    logger.info(f"   Config from DB: Capital=INR {initial_capital:,.2f} | Slots={portfolio_size} | Rebalance={rebal_freq} | Approach={exec_approach} | PriceCap={max_entry_price or 'off'}")
     logger.info("-" * 65)
 
     cfg = PaperTradingConfig(
@@ -62,10 +64,11 @@ def execute_strategy_morning_fills(strat_doc: dict, universe: dict, exec_dt: pd.
         dp_charge_sell=14.75,
         mode=mode,
         rebalance_frequency=rebal_freq,
+        max_entry_price=float(max_entry_price) if max_entry_price else None,
     )
-    strategy = get_strategy(strategy_id, cfg)
+    strategy = get_strategy(strategy_class, cfg)
     manager = PaperTradingManager(strategy=strategy, config=cfg, db=db)
-    if quote_provider is not None and strategy_id in PIT_STRATEGY_IDS:
+    if quote_provider is not None and is_pit:
         manager.quote_provider = quote_provider  # real 09:16 opening price + bid/ask logged to fill_audit
 
     res = manager.execute_morning_fills(universe, exec_dt)
@@ -144,7 +147,7 @@ def main():
     logger.info(">> Loading recent market universe...")
     now_ist = datetime.now(IST)
     target_end = args.date or now_ist.strftime("%Y-%m-%d")
-    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] in PIT_STRATEGY_IDS]
+    pit_ids = [d["strategy_id"] for d in strat_docs if strategy_class_of(d) in PIT_STRATEGY_IDS]
     if pit_ids and len(pit_ids) != len(strat_docs):
         raise SystemExit("PIT strategies need the full-market PIT universe; run them separately from other legacy strategies.")
     if pit_ids:
@@ -176,7 +179,7 @@ def main():
                 arch = p1 if os.path.exists(p1) else p2
                 isins = uf.symbol_isin_map(arch, [exec_dt.year - 1, exec_dt.year])
                 quote_provider = uf.UpstoxQuoteProvider(token, isins)
-                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": {"$in": list(PIT_STRATEGY_IDS)}, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
+                quote_provider.prefetch([o["symbol"] for o in db.orders.find({"strategy_id": {"$in": pit_ids}, "mode": "paper", "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}}, {"symbol": 1})])
                 logger.info(">> Upstox quote provider attached for the 09:16 fills")
             else:
                 logger.error(">> No Upstox token: orders cannot be priced (yfinance fallback is disabled unless ALLOW_YFINANCE_FALLBACK=true); the run will exit non-zero and retry.")

@@ -23,7 +23,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from nse_quant_lab.config import PaperTradingConfig
-from nse_quant_lab.registry import get_strategy, list_strategies
+from nse_quant_lab.registry import get_strategy, list_strategies, strategy_class_of
 from nse_quant_lab.data_loader import load_clean_universe, load_pit_universe
 from nse_quant_lab.paper.manager import PaperTradingManager
 from nse_quant_lab.db.mongo_client import MongoDatabase
@@ -37,7 +37,8 @@ logger = logging.getLogger("daily_pipeline")
 def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Timestamp, db: MongoDatabase) -> list:
     """Returns a list of problem strings (empty == clean)."""
     strategy_id = strat_doc["strategy_id"]
-    is_pit = strategy_id in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
+    strategy_class = strategy_class_of(strat_doc)
+    is_pit = strategy_class in ("trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit")
     portfolio_size = int(strat_doc.get("portfolio_size", 15 if is_pit else 6))
     initial_capital = float(strat_doc.get("initial_capital", 100000.0))
     hold_buffer = int(strat_doc.get("rebalance_hold_rank_buffer", 1500 if is_pit else 15))
@@ -45,10 +46,11 @@ def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Times
     exec_approach = strat_doc.get("execution_approach", "APPROACH_3")
     mode = strat_doc.get("mode", "paper")
     rebal_freq = strat_doc.get("rebalance_frequency", "MONTHLY")
+    max_entry_price = strat_doc.get("max_entry_price")          # entry-only price cap (Rs); None/absent = off
 
     logger.info("-" * 65)
     logger.info(f"PROCESSING STRATEGY: {strategy_id.upper()} (Mode: {mode.upper()})")
-    logger.info(f"   Config from DB: Capital=INR {initial_capital:,.2f} | Slots={portfolio_size} | Rebalance={rebal_freq} | Approach={exec_approach}")
+    logger.info(f"   Config from DB: Capital=INR {initial_capital:,.2f} | Slots={portfolio_size} | Rebalance={rebal_freq} | Approach={exec_approach} | PriceCap={max_entry_price or 'off'}")
     logger.info("-" * 65)
 
     cfg = PaperTradingConfig(
@@ -62,8 +64,9 @@ def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Times
         dp_charge_sell=14.75,
         mode=mode,
         rebalance_frequency=rebal_freq,
+        max_entry_price=float(max_entry_price) if max_entry_price else None,
     )
-    strategy = get_strategy(strategy_id, cfg)
+    strategy = get_strategy(strategy_class, cfg)
     manager = PaperTradingManager(strategy=strategy, config=cfg, db=db)
     manager.initialize_portfolio()
 
@@ -135,7 +138,7 @@ def main():
     now_ist = datetime.now(IST)
     target_end = args.date or now_ist.strftime("%Y-%m-%d")
     pit_strategy_ids = {"trend_momentum_pit", "minervini_trend_template", "alpha_semivol_pit"}
-    pit_ids = [d["strategy_id"] for d in strat_docs if d["strategy_id"] in pit_strategy_ids]
+    pit_ids = [d["strategy_id"] for d in strat_docs if strategy_class_of(d) in pit_strategy_ids]
     if pit_ids and len(pit_ids) != len(strat_docs):
         raise SystemExit("PIT strategies need the full-market PIT universe; run them separately from other legacy strategies.")
     if pit_ids:

@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from .base_strategy import BaseStrategy
+from .entry_filters import apply_entry_price_cap
 from .price_basis import execution_bar, previous_close, nominal_price, adjustment_factor, apply_share_action, sale_tax_lots
 from .config import BacktestConfig
 from .execution import is_locked_down, is_locked_up
@@ -136,13 +137,62 @@ class BacktestEngine:
 
 
             # ------------------------------------------------------------------
-            # STEP 0: Never infer a trade or delisting from a missing held bar.
+            # STEP 0: Never infer a trade or delisting from a missing held bar (default "strict").
             # A real suspension/merger requires an explicit event treatment before research can continue.
+            # RESEARCH-ONLY bounds (config.missing_held_bar_policy): a name whose bars have ENDED may be sold at its last close
+            # ("last_close", optimistic) or written off ("write_off", pessimistic). A one-day gap while later bars exist is never a sale.
+            missing_policy = getattr(self.config, "missing_held_bar_policy", "strict")
+            frac_policy = getattr(self.config, "fractional_entitlement_policy", "strict")
+            unverified_policy = getattr(self.config, "unverified_share_action_policy", "strict")
             for sym in sorted(open_positions):
                 frame = universe_ind.get(sym)
-                if frame is None or frame.loc[frame["date"] == current_date].empty:
-                    raise ValueError(f"MISSING_HELD_BAR: {sym} on {date_str}; no executable liquidation inferred")
-                event = apply_share_action(open_positions[sym], frame.loc[frame["date"] == current_date].iloc[0], current_date)
+                today_rows = frame.loc[frame["date"] == current_date] if frame is not None else None
+                if frame is None or today_rows.empty:
+                    ended = frame is not None and not frame.empty and current_date > frame["date"].max()
+                    if missing_policy == "strict" or frame is None or frame.empty:
+                        raise ValueError(f"MISSING_HELD_BAR: {sym} on {date_str}; no executable liquidation inferred")
+                    if not ended:
+                        continue                     # suspended/gap day: hold, valued at the last known price, exits wait for a bar
+                    pos = open_positions[sym]
+                    last_row = frame.iloc[-1]
+                    shares = pos["shares"]
+                    if missing_policy == "last_close":
+                        raw_exit_price = nominal_price(last_row)
+                        fill_price = raw_exit_price * (1.0 - self._slip(sym, last_row, raw_exit_price, shares, "SELL_DELIST"))
+                        gross_proceeds, net_proceeds_slip = shares * raw_exit_price, shares * fill_price
+                        slip_loss = gross_proceeds - net_proceeds_slip
+                        sell_fees = calc_sell_fees_exact(net_proceeds_slip, current_date, self.config)
+                    else:  # write_off
+                        raw_exit_price = fill_price = 0.0
+                        gross_proceeds = net_proceeds_slip = slip_loss = 0.0
+                        sell_fees = {"total": 0.0, "brokerage": 0.0, "stt": 0.0, "exchange_txn": 0.0, "sebi": 0.0, "gst": 0.0, "dp_charges": 0.0}
+                    cash_received = net_proceeds_slip - sell_fees["total"]
+                    cash += cash_received
+                    total_brokerage += sell_fees["brokerage"]; total_stt += sell_fees["stt"]
+                    total_exchange_txn += sell_fees["exchange_txn"]; total_sebi += sell_fees["sebi"]
+                    total_gst += sell_fees["gst"]; total_dp_charges += sell_fees["dp_charges"]
+                    total_slippage += slip_loss; total_turnover += gross_proceeds
+                    reason = f"RESEARCH_{missing_policy.upper()}_DATA_ENDED"
+                    order_id_counter += 1
+                    order_ledger.append({"order_id": order_id_counter, "date": date_str, "symbol": sym, "action": "SELL", "shares": shares,
+                                         "order_type": "EXIT_AT_OPEN", "status": "FILLED", "reason": reason, "deferral_days": 0})
+                    exec_id_counter += 1
+                    execution_ledger.append({"exec_id": exec_id_counter, "order_id": order_id_counter, "date": date_str, "symbol": sym,
+                                             "action": "SELL", "shares": shares, "raw_price": raw_exit_price, "fill_price": fill_price,
+                                             "gross_val": gross_proceeds, "net_cash": cash_received, "fees": sell_fees["total"], "slippage": slip_loss})
+                    closed_trades.append({
+                        "symbol": sym, "entry_date": pos["entry_date"].strftime("%Y-%m-%d"), "entry_price": pos["entry_raw_price"],
+                        "entry_fill_price": pos["entry_fill_price"], "exit_date": date_str, "exit_price": raw_exit_price,
+                        "exit_fill_price": fill_price, "shares": shares, "hold_days": (current_date - pos["entry_date"]).days,
+                        "tax_lots": sale_tax_lots(pos, shares, cash_received, current_date, fill_price, sell_fees),
+                        "gross_pnl": (raw_exit_price - pos["entry_raw_price"]) * shares, "net_pnl": cash_received - pos["total_entry_outlay"],
+                        "total_fees": pos["buy_fees"]["total"] + sell_fees["total"], "total_slippage": pos["entry_slip_loss"] + slip_loss,
+                        "exit_reason": reason, "deferral_days": 0})
+                    del open_positions[sym]
+                    pending_circuit_exits.pop(sym, None)
+                    queued_structural_exits.pop(sym, None)
+                    continue
+                event = apply_share_action(open_positions[sym], today_rows.iloc[0], current_date, frac_policy, unverified_policy)
                 if event is not None:
                     share_events.append(event)
 
@@ -380,9 +430,9 @@ class BacktestEngine:
             if current_date in exec_dates_set:
                 is_catchup_session = current_date in scheduled_catchup_sessions
                 d_dec = exec_to_decision_map[current_date]
-                ranked_df = self.strategy.select_entry_candidates(
-                    universe_ind, d_dec, open_positions, self.config
-                )
+                ranked_df = apply_entry_price_cap(
+                    self.strategy.select_entry_candidates(universe_ind, d_dec, open_positions, self.config),
+                    open_positions, self.config)
 
                 # Rank Hysteresis / Hold Buffer:
                 # Retain held positions as long as their rank is within hold buffer (e.g. Top 16)

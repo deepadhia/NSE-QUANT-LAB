@@ -82,7 +82,7 @@ def synthetic_market():
     return dates, bench, stocks
 
 
-def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morning=False):
+def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morning=False, max_entry_price=None):
     eval_start = dates[226].strftime("%Y-%m-%d")
     eval_end = dates[-1].strftime("%Y-%m-%d")
 
@@ -95,6 +95,7 @@ def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morn
         min_turnover_50d=0.0,
         min_price=0.0,
         enforce_pit_universe=False,
+        max_entry_price=max_entry_price,
     )
     b_strat = strat_cls(config=b_cfg, benchmark=bench)
     engine = BacktestEngine(strategy=b_strat, config=b_cfg)
@@ -114,6 +115,7 @@ def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morn
         min_price=0.0,
         enforce_pit_universe=False,
         telegram_enabled=False,
+        max_entry_price=max_entry_price,
     )
     p_strat = strat_cls(config=p_cfg, benchmark=bench)
     mgr = PaperTradingManager(strategy=p_strat, config=p_cfg, db=mock_db)
@@ -152,6 +154,7 @@ def _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, live_morn
     # Invariant 3: Final NAV relative delta must be < 0.01%
     rel_delta = abs(final_paper_nav - final_bt_nav) / final_bt_nav
     assert rel_delta < 0.0001, f"NAV divergence for {strat_id}: BT={final_bt_nav:.2f}, Paper={final_paper_nav:.2f}, Delta={rel_delta:.6%}"
+    return bt_execs
 
 
 def test_trend_momentum_pit_parity(synthetic_market):
@@ -198,3 +201,24 @@ def test_approach_3_gap_skip_catchup_parity(synthetic_market):
     gapped_stocks["SYM_A"].loc[gapped_stocks["SYM_A"]["date"] == rebal_d, "high"] *= 1.06
 
     _verify_strategy_parity(TrendMomentumPITStrategy, "trend_momentum_pit", dates, bench, gapped_stocks)
+
+
+@pytest.mark.parametrize("strat_cls,strat_id", [
+    (TrendMomentumPITStrategy, "trend_momentum_pit"),
+    (MinerviniStrategy, "minervini_trend_template"),
+    (AlphaSemivolPITStrategy, "alpha_semivol_pit"),
+])
+def test_entry_price_cap_parity_between_backtest_and_paper(synthetic_market, strat_cls, strat_id):
+    """The shared entry-price cap must give identical executions in the backtest engine and the paper manager, for every strategy."""
+    dates, bench, stocks = synthetic_market
+    _verify_strategy_parity(strat_cls, strat_id, dates, bench, stocks, max_entry_price=450.0)
+
+
+def test_entry_price_cap_actually_changes_who_is_bought(synthetic_market):
+    """Guard against a vacuous parity test: with the cap on, no new entry is signalled above it (fills may gap up <= +2%)."""
+    dates, bench, stocks = synthetic_market
+    free = _verify_strategy_parity(TrendMomentumPITStrategy, "trend_momentum_pit", dates, bench, stocks)
+    capped = _verify_strategy_parity(TrendMomentumPITStrategy, "trend_momentum_pit", dates, bench, stocks, max_entry_price=450.0)
+    assert list(free.symbol) != list(capped.symbol), "cap of Rs 450 should exclude at least one name the uncapped run bought"
+    buys = capped[capped.action == "BUY"]
+    assert (buys.raw_price < 450.0 * 1.021).all()

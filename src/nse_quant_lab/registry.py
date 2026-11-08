@@ -25,6 +25,13 @@ def get_strategy(name: str, *args, **kwargs) -> BaseStrategy:
     return _STRATEGY_REGISTRY[key](*args, **kwargs)
 
 
+def strategy_class_of(strat_doc: dict) -> str:
+    """Registry key of the strategy CLASS behind a paper account. An account (the `strategy_id` that namespaces orders, positions, cash and the
+    portfolio lease) normally IS its class; a forward-test account of the same class at another capital/slot count/price cap sets
+    `strategy_class` in its strategy document (e.g. strategy_id 'tmpit_fwd50k', strategy_class 'trend_momentum_pit')."""
+    return str(strat_doc.get("strategy_class") or strat_doc["strategy_id"])
+
+
 def list_strategies() -> List[str]:
     """Returns list of all registered strategy identifiers."""
     return sorted(list(_STRATEGY_REGISTRY.keys()))

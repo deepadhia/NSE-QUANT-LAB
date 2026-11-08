@@ -1,0 +1,57 @@
+run,flags,tax_paid_implied,max_buy_pct_of_nav,max_daily_move_pct,ended_exits,ended_pnl_pct_of_total,top1_pct_of_gains,top5_pct_of_gains,cagr_ex_top1_crude_pct,median_position_rs,fees_pct_of_start,cap_violations
+trend_momentum_pit_100000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (1) carry -7.7% of total P&L,16009,7.0,7.2,1,-7.7,6.2,23.8,22.8,15445,20.7,
+trend_momentum_pit_100000_S15_nocap_optimistic,-,16090,7.0,7.2,1,-0.8,6.1,23.7,23.2,15445,20.9,
+trend_momentum_pit_30000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (1) carry -7.9% of total P&L,4984,7.1,7.4,1,-7.9,5.9,22.1,21.5,3343,31.4,
+trend_momentum_pit_30000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (1) carry -8.3% of total P&L,9074,6.8,11.1,1,-8.3,4.9,19.8,24.1,3818,33.9,0.0
+trend_momentum_pit_30000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (1) carry -15.1% of total P&L,9765,10.6,11.0,1,-15.1,7.5,25.8,23.9,6754,27.8,0.0
+trend_momentum_pit_40000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (1) carry -8.1% of total P&L,7557,6.8,7.0,1,-8.1,6.2,22.7,22.1,5330,27.6,
+trend_momentum_pit_40000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (1) carry -8.1% of total P&L,13720,6.8,11.0,1,-8.1,4.9,19.7,24.6,5589,29.7,0.0
+trend_momentum_pit_40000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (1) carry -14.6% of total P&L,13497,10.8,10.8,1,-14.6,7.4,25.5,24.4,9210,25.0,0.0
+trend_momentum_pit_50000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (1) carry -7.9% of total P&L,10377,6.9,7.0,1,-7.9,6.1,23.2,22.4,7249,25.4,
+trend_momentum_pit_50000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (1) carry -8.3% of total P&L,16793,6.7,11.1,1,-8.3,5.0,19.5,24.6,7301,26.9,0.0
+trend_momentum_pit_50000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (1) carry -14.2% of total P&L,17421,10.9,10.5,1,-14.2,7.4,25.4,24.6,11666,23.5,0.0
+alpha_semivol_pit_30000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (3) carry -25.7% of total P&L,4381,6.7,10.5,3,-25.7,6.6,24.2,16.3,3130,22.3,
+alpha_semivol_pit_30000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (3) carry -21.2% of total P&L,2541,6.8,10.9,3,-21.2,9.1,25.7,16.3,2888,23.7,0.0
+alpha_semivol_pit_30000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (3) carry -45.9% of total P&L,3559,10.0,10.9,3,-45.9,9.9,33.5,17.8,4560,17.8,0.0
+alpha_semivol_pit_40000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (3) carry -19.5% of total P&L,7068,6.7,10.5,3,-19.5,11.4,31.0,17.4,3928,19.2,
+alpha_semivol_pit_40000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (3) carry -19.6% of total P&L,3506,6.7,10.7,3,-19.6,9.0,26.0,17.0,3972,20.1,0.0
+alpha_semivol_pit_40000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (3) carry -42.3% of total P&L,5186,10.1,10.8,3,-42.3,9.7,34.2,18.4,6614,15.7,0.0
+alpha_semivol_pit_50000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (3) carry -21.6% of total P&L,8547,6.8,10.5,3,-21.6,11.4,31.3,16.7,5166,16.8,
+alpha_semivol_pit_50000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (3) carry -19.3% of total P&L,4514,6.8,10.8,3,-19.3,8.9,25.6,17.1,4797,17.8,0.0
+alpha_semivol_pit_50000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (3) carry -42.0% of total P&L,6398,10.0,10.5,3,-42.0,9.6,34.1,18.6,8062,14.1,0.0
+minervini_30000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (2) carry -15.6% of total P&L,1939,6.7,9.9,2,-15.6,8.0,27.4,17.3,2538,21.8,
+minervini_30000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (2) carry -14.5% of total P&L,1795,6.7,11.1,2,-14.5,8.6,26.7,17.0,2672,22.0,0.0
+minervini_30000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (2) carry -22.7% of total P&L,5193,10.1,11.7,2,-22.7,10.9,34.6,19.3,4720,18.4,0.0
+minervini_40000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (2) carry -14.7% of total P&L,4229,6.7,10.0,2,-14.7,9.6,30.9,18.1,3787,19.0,
+minervini_40000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (2) carry -15.2% of total P&L,2125,6.7,11.0,2,-15.2,8.7,25.8,16.0,3510,18.1,0.0
+minervini_40000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (2) carry -22.0% of total P&L,7017,10.2,11.7,2,-22.0,9.4,32.9,19.3,6162,15.8,0.0
+minervini_50000_S15_nocap_pessimistic,ended_pnl: bound-dependent exits (2) carry -14.1% of total P&L,5615,6.7,10.3,2,-14.1,10.3,32.7,18.1,4817,16.8,
+minervini_50000_S15_cap1000_pessimistic,ended_pnl: bound-dependent exits (2) carry -13.2% of total P&L,3473,6.7,11.1,2,-13.2,8.3,26.0,17.0,4706,16.4,0.0
+minervini_50000_S10_cap1000_pessimistic,ended_pnl: bound-dependent exits (2) carry -22.0% of total P&L,9056,10.2,11.7,2,-22.0,10.3,33.6,19.4,8019,14.5,0.0
+trend_momentum_pit_30000_S15_nocap_optimistic,-,5045,7.1,7.4,1,-0.9,5.9,22.1,21.5,3429,31.8,
+trend_momentum_pit_30000_S15_cap1000_optimistic,-,9074,6.8,11.1,1,1.3,4.9,19.6,24.7,3818,34.2,0.0
+trend_momentum_pit_30000_S10_cap1000_optimistic,-,9765,10.6,9.5,1,2.3,7.4,25.5,25.0,6754,28.2,0.0
+trend_momentum_pit_40000_S15_nocap_optimistic,-,8113,6.8,7.0,1,-0.8,6.1,22.5,22.6,5330,27.8,
+trend_momentum_pit_40000_S15_cap1000_optimistic,-,13720,6.8,11.0,1,1.3,4.9,19.5,25.2,5589,30.0,0.0
+trend_momentum_pit_40000_S10_cap1000_optimistic,-,13497,10.8,9.5,1,2.2,7.3,25.2,25.3,9210,25.5,0.0
+trend_momentum_pit_50000_S15_nocap_optimistic,-,10395,6.9,7.0,1,-0.8,6.1,23.1,22.9,7249,25.5,
+trend_momentum_pit_50000_S15_cap1000_optimistic,-,16793,6.7,11.1,1,1.3,5.0,19.3,25.2,7301,27.2,0.0
+trend_momentum_pit_50000_S10_cap1000_optimistic,-,17421,10.9,9.6,1,2.2,7.3,25.2,25.6,11666,23.9,0.0
+alpha_semivol_pit_30000_S15_nocap_optimistic,-,6328,6.8,10.5,3,3.9,11.1,31.0,20.5,3265,24.2,
+alpha_semivol_pit_30000_S15_cap1000_optimistic,-,2898,6.7,10.7,3,4.2,8.8,25.1,18.0,3032,24.6,0.0
+alpha_semivol_pit_30000_S10_cap1000_optimistic,ended_pnl: bound-dependent exits (3) carry 5.2% of total P&L,4628,10.1,10.5,3,5.2,9.5,33.1,21.2,5285,19.7,0.0
+alpha_semivol_pit_40000_S15_nocap_optimistic,-,7942,6.7,10.4,3,4.3,10.5,29.1,18.9,4404,20.3,
+alpha_semivol_pit_40000_S15_cap1000_optimistic,-,4307,6.7,10.9,3,3.8,9.0,24.8,18.6,4127,21.0,0.0
+alpha_semivol_pit_40000_S10_cap1000_optimistic,ended_pnl: bound-dependent exits (3) carry 5.2% of total P&L,6665,10.1,10.6,3,5.2,9.4,32.3,21.6,7182,17.3,0.0
+alpha_semivol_pit_50000_S15_nocap_optimistic,-,10392,6.7,10.2,3,4.3,11.4,31.1,19.7,5587,18.3,
+alpha_semivol_pit_50000_S15_cap1000_optimistic,-,5799,6.8,10.9,3,3.9,8.9,24.4,18.5,5108,18.8,0.0
+alpha_semivol_pit_50000_S10_cap1000_optimistic,ended_pnl: bound-dependent exits (3) carry 5.1% of total P&L,8257,10.1,10.6,3,5.1,9.3,32.7,21.6,9464,15.8,0.0
+minervini_30000_S15_nocap_optimistic,-,2215,6.8,9.7,2,-0.7,8.8,29.2,18.5,2980,23.0,
+minervini_30000_S15_cap1000_optimistic,-,2815,6.8,11.1,2,2.2,8.7,26.6,17.5,2743,22.3,0.0
+minervini_30000_S10_cap1000_optimistic,-,5532,10.2,11.8,2,3.4,10.6,33.6,19.8,4860,19.1,0.0
+minervini_40000_S15_nocap_optimistic,-,5766,6.8,10.5,2,-0.7,9.3,31.0,19.5,4333,20.0,
+minervini_40000_S15_cap1000_optimistic,-,4079,6.8,11.1,2,2.0,7.9,25.2,17.6,3878,19.1,0.0
+minervini_40000_S10_cap1000_optimistic,-,8615,10.2,11.8,2,3.2,10.1,33.0,20.8,6888,17.1,0.0
+minervini_50000_S15_nocap_optimistic,-,6475,6.7,10.3,2,-0.8,9.4,31.5,19.6,5461,17.8,
+minervini_50000_S15_cap1000_optimistic,-,5164,6.7,11.1,2,2.1,8.3,25.6,17.4,4835,16.9,0.0
+minervini_50000_S10_cap1000_optimistic,-,10334,10.2,11.7,2,3.2,9.7,33.3,20.8,8505,15.5,0.0

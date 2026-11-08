@@ -1,0 +1,28 @@
+strategy,capital,variant,slots,price_cap,status,reason,seconds
+trend_momentum_pit,30000,S15_nocap,15,,INCOMPLETE,FRACTIONAL_ENTITLEMENT_UNRESOLVED: OIL on 2017-01-12,53
+trend_momentum_pit,30000,S15_cap1000,15,1000.0,INCOMPLETE,FRACTIONAL_ENTITLEMENT_UNRESOLVED: OIL on 2017-01-12,8
+trend_momentum_pit,30000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: MANGCHEFER on 2025-10-31; no executable liquidation inferred,72
+trend_momentum_pit,40000,S15_nocap,15,,INCOMPLETE,FRACTIONAL_ENTITLEMENT_UNRESOLVED: OIL on 2017-01-12,9
+trend_momentum_pit,40000,S15_cap1000,15,1000.0,INCOMPLETE,FRACTIONAL_ENTITLEMENT_UNRESOLVED: OIL on 2017-01-12,9
+trend_momentum_pit,40000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: MANGCHEFER on 2025-10-31; no executable liquidation inferred,73
+trend_momentum_pit,50000,S15_nocap,15,,INCOMPLETE,FRACTIONAL_ENTITLEMENT_UNRESOLVED: OIL on 2017-01-12,9
+trend_momentum_pit,50000,S15_cap1000,15,1000.0,INCOMPLETE,FRACTIONAL_ENTITLEMENT_UNRESOLVED: OIL on 2017-01-12,8
+trend_momentum_pit,50000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: MANGCHEFER on 2025-10-31; no executable liquidation inferred,73
+alpha_semivol_pit,30000,S15_nocap,15,,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,28
+alpha_semivol_pit,30000,S15_cap1000,15,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+alpha_semivol_pit,30000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,10
+alpha_semivol_pit,40000,S15_nocap,15,,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+alpha_semivol_pit,40000,S15_cap1000,15,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+alpha_semivol_pit,40000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,10
+alpha_semivol_pit,50000,S15_nocap,15,,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+alpha_semivol_pit,50000,S15_cap1000,15,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,12
+alpha_semivol_pit,50000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+minervini,30000,S15_nocap,15,,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,27
+minervini,30000,S15_cap1000,15,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+minervini,30000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,10
+minervini,40000,S15_nocap,15,,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+minervini,40000,S15_cap1000,15,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+minervini,40000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,10
+minervini,50000,S15_nocap,15,,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+minervini,50000,S15_cap1000,15,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,11
+minervini,50000,S10_cap1000,10,1000.0,INCOMPLETE,MISSING_HELD_BAR: CAIRN on 2017-04-26; no executable liquidation inferred,10

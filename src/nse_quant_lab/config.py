@@ -27,6 +27,14 @@ class BacktestConfig:
     enforce_upper_circuit_rejection: bool = True # Limit-up buys skipped
     unaffordable_policy: str = "TRY_NEXT"        # "TRY_NEXT" (queues backup slots) or "SKIP"
     execution_approach: str = "APPROACH_3"       # "APPROACH_3" (budget-gated + Day T+2 catchup), "APPROACH_1B", "APPROACH_1A", "BASELINE"
+    # ENTRY-ONLY price cap (Rs per share, nominal close on the decision date); None = off. Applied to every strategy by
+    # entry_filters.apply_entry_price_cap, identically in the backtest engine and the paper manager. Held names are exempt.
+    max_entry_price: Optional[float] = None
+    # RESEARCH-ONLY sensitivity policies. Default "strict" (what production and the registered results use): missing data or an unresolvable
+    # share action stops the run. The other values give explicit BOUNDS for a held name whose bars end, never a certified treatment.
+    missing_held_bar_policy: str = "strict"      # "strict" | "last_close" (optimistic bound) | "write_off" (pessimistic bound: proceeds 0)
+    fractional_entitlement_policy: str = "strict"  # "strict" | "floor_no_cash" (round the new share count down, no cash: the live manager's behaviour)
+    unverified_share_action_policy: str = "strict"  # "strict" | "accept_factor" (treat a price-factor jump with no matched official event as a split of that ratio)
     min_turnover_50d: float = 10_000_000.0       # Rs 1.0 Crore / day default (realistic production floor)
     min_price: float = 20.0                      # Rs 20 minimum stock price (filters penny stocks)
     enforce_pit_universe: bool = True            # Point-in-time constituent gating (Nifty 500)

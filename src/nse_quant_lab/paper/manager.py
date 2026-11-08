@@ -17,6 +17,7 @@ from ..db.models import OrderModel, ExecutionModel, PositionModel, TradeModel, D
 from ..execution import is_locked_down, is_locked_up
 from ..fees import calc_buy_fees_exact, calc_sell_fees_exact
 from ..notifications.telegram import TelegramNotifier
+from ..entry_filters import apply_entry_price_cap
 from .locking import serialized_portfolio
 from .lease import PortfolioLease, supports_leases, COLLECTION as LEASE_COLLECTION
 
@@ -150,6 +151,7 @@ class PaperTradingManager:
                 open_positions_count=0,
                 closed_trades_count=0,
                 win_rate_pct=0.0,
+                max_entry_price=getattr(self.config, "max_entry_price", None),
                 status="ACTIVE",
                 last_run_at=datetime.now(timezone.utc).isoformat(),
             )
@@ -638,7 +640,8 @@ class PaperTradingManager:
                     "status": "PENDING_OPEN",
                     "action": "BUY",
                 })
-            candidates_df = self.strategy.select_entry_candidates(universe, decision_date, positions, self.config)
+            candidates_df = apply_entry_price_cap(
+                self.strategy.select_entry_candidates(universe, decision_date, positions, self.config), positions, self.config)
             target_symbols = list(candidates_df.head(self.config.portfolio_size).index)
 
             # Rank Hysteresis / Hold Buffer:

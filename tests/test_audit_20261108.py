@@ -295,3 +295,75 @@ def test_schedule_preview_is_read_only_and_describes_the_special_session(monkeyp
     text = d.format_schedule_preview(scheduler, '2026-11-08')
     assert 'SPECIAL session' in text and '14:21  morning_execution  stop retrying at 15:10' in text
     assert 'CLOSED' in d.format_schedule_preview(scheduler, '2026-11-07')
+
+
+def _ended_history_run(policy):
+    dates = pd.bdate_range('2025-06-02', periods=3)
+    cfg = _zero_fee_config(); cfg.initial_capital, cfg.portfolio_size = 1000, 1
+    cfg.missing_held_bar_policy = policy
+    uni = {'AAA': toy_frame(dates[:2], [100, 100]), 'BBB': toy_frame(dates, [100, 100, 100])}
+    return BacktestEngine(Toy(dates), cfg).run(uni, str(dates[0].date()), str(dates[-1].date()))
+
+
+def test_defaults_are_strict_for_production_and_research_policies_are_opt_in():
+    from nse_quant_lab.config import PaperTradingConfig
+    for c in (BacktestConfig(), PaperTradingConfig(strategy_id='x')):
+        assert c.missing_held_bar_policy == 'strict' and c.fractional_entitlement_policy == 'strict'
+    with pytest.raises(ValueError, match='MISSING_HELD_BAR'):
+        _ended_history_run('strict')
+
+
+def test_research_bound_last_close_sells_at_last_bar_when_bars_end():
+    metrics, trades, _, execs, nav = _ended_history_run('last_close')
+    t = trades.iloc[0]
+    assert t.symbol == 'AAA' and t.exit_reason == 'RESEARCH_LAST_CLOSE_DATA_ENDED' and t.exit_price == 100 and t.net_pnl == pytest.approx(0)
+    assert nav.nav.iloc[-1] == pytest.approx(1000)
+
+
+def test_research_bound_write_off_books_total_loss_when_bars_end():
+    metrics, trades, _, execs, nav = _ended_history_run('write_off')
+    t = trades.iloc[0]
+    assert t.exit_reason == 'RESEARCH_WRITE_OFF_DATA_ENDED' and t.exit_price == 0 and t.net_pnl == pytest.approx(-1000)
+    assert nav.nav.iloc[-1] == pytest.approx(0)
+
+
+def test_fractional_bonus_floor_policy_forfeits_the_fraction_only_when_opted_in():
+    dates, df = _raw_basis_market(bonus=True)               # 1:1 bonus (x2): make the entitlement fractional by buying an odd count
+    df = df.copy(); df['bonus_ratio'] = [1., 1., 1.5, 1.]; df['split_ratio'] = [1., 1., 1., 1.]
+    df['price_adjustment_factor'] = [.1, .1, .15, .15]    # share multiplier = factor ratio = 1.5
+    for col in ('raw_open', 'raw_high', 'raw_low', 'raw_close'):
+        df[col] = [100., 100., 100/1.5, 100/1.5]
+    cfg = _zero_fee_config(); cfg.initial_capital = 1100    # 11 shares @100 -> 16.5 after a 1:2 bonus
+    with pytest.raises(ValueError, match='FRACTIONAL_ENTITLEMENT_UNRESOLVED'):
+        BacktestEngine(Toy(dates), cfg).run({'AAA': df}, str(dates[0].date()), str(dates[-1].date()))
+    cfg.fractional_entitlement_policy = 'floor_no_cash'
+    metrics, _, _, _, nav = BacktestEngine(Toy(dates), cfg).run({'AAA': df}, str(dates[0].date()), str(dates[-1].date()))
+    assert metrics['corporate_action_ledger'][0]['new_shares'] == 16
+
+
+def test_unverified_factor_jump_is_accepted_only_under_the_research_policy():
+    dates, df = _raw_basis_market()
+    df['share_action_verified'] = False
+    with pytest.raises(ValueError, match='UNVERIFIED_SHARE_ACTION'):
+        BacktestEngine(Toy(dates), _zero_fee_config()).run({'AAA': df}, str(dates[0].date()), str(dates[-1].date()))
+    cfg = _zero_fee_config(); cfg.unverified_share_action_policy = 'accept_factor'
+    metrics, _, _, _, nav = BacktestEngine(Toy(dates), cfg).run({'AAA': df}, str(dates[0].date()), str(dates[-1].date()))
+    assert metrics['corporate_action_ledger'][0]['new_shares'] == 20 and nav.nav.tolist() == pytest.approx([1000] * 4)
+
+
+def test_engine_entry_price_cap_skips_expensive_names_for_the_next_ranked():
+    """Engine-level cap: the expensive top-ranked name is not bought; the next eligible name takes the slot."""
+    dates = pd.bdate_range('2025-06-02', periods=3)
+    class Pick(Toy):
+        def select_entry_candidates(self, universe, date, holdings, config):
+            return pd.DataFrame({'close': [900., 100.], 'turnover_50d': [1e9, 1e9], 'rank': [1, 2]}, index=['BIG', 'SMALL'])
+    def frame(p):
+        f = toy_frame(dates, [p] * 3)
+        for c in ('open', 'high', 'low', 'close'):
+            f['raw_' + c] = f[c]
+        f['price_adjustment_factor'] = 1.0
+        return f
+    cfg = _zero_fee_config(); cfg.initial_capital, cfg.portfolio_size = 2000, 1
+    cfg.max_entry_price = 500.0
+    _, _, _, execs, _ = BacktestEngine(Pick(dates), cfg).run({'BIG': frame(900.), 'SMALL': frame(100.)}, str(dates[0].date()), str(dates[-1].date()))
+    assert list(execs[execs.action == 'BUY'].symbol) == ['SMALL']
