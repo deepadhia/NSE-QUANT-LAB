@@ -6,7 +6,7 @@ data is missing. A real merger/delisting needs a human-recorded event with evide
 exactly once per account. Splits/bonuses stay in `corporate_actions`; this collection is for everything else.
 
 Collection `corporate_events`, one document per event (unique `event_id`):
-  common      : event_id, symbol, type, effective_date 'YYYY-MM-DD', evidence (free text / URL / circular number), recorded_at
+  common      : event_id, symbol, type, effective_date 'YYYY-MM-DD' (NSE trading cessation / ex-date, not retroactive NCLT appointed date), evidence (free text / URL / circular number), recorded_at
   CASH_OUT    : cash_per_share  NET cash credited per share (0.0 is a legitimate, explicit write-off; it is never a default)
   CONVERSION  : new_symbol, ratio (new shares per 1 old share), fraction_cash_per_new_share
                 (cash paid per NEW share for the fractional entitlement; REQUIRED, may be 0.0, whenever shares*ratio is

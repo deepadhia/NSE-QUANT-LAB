@@ -215,7 +215,10 @@ def test_conversion_pays_cash_in_lieu_of_fractions_exactly_once():
     start = _cash(db)
     _run(mgr, {"BBB": _frame("2026-03-03")})
     _run(mgr, {"BBB": _frame("2026-03-03")})
-    assert db.positions.find_one({"symbol": "BBB"})["shares"] == 187
+    new_pos = db.positions.find_one({"symbol": "BBB"})
+    assert new_pos["shares"] == 187
+    # 100 shares outlay was 10020.0; 187/187.5 pro-rated outlay is 9993.28
+    assert new_pos["entry_outlay"] == pytest.approx(10020.0 * (187 / 187.5), abs=0.01)
     assert _cash(db) == pytest.approx(start + 0.5 * 90.0, abs=0.01)
     assert len(db.executions.docs) == 1
     _assert_nav_cash_consistent(db)

@@ -9,6 +9,11 @@ account by the next `run_daily_pipeline.py` run (the scheduler retries do this a
 
 PREVIEW is the default (nothing is written). Add --apply to store the event.
 
+IMPORTANT on --effective-date:
+  The effective date MUST be the trading cessation / ex-date on NSE when market bars stopped appearing,
+  NOT the retroactive NCLT scheme 'Appointed Date'. A symbol still trading on or after the effective date
+  will be rejected loudly by the manager's contradicted-event guard.
+
 Examples
   # Delisted / cash-out at Rs 12.50 net per share (use --cash-per-share 0 ONLY for an evidenced total write-off):
   python scripts/record_corporate_event.py --type CASH_OUT --symbol XYZ --effective-date 2026-11-20 \
@@ -85,7 +90,7 @@ def main() -> int:
     ap.add_argument("--list", action="store_true", help="list recorded events and exit")
     ap.add_argument("--type", choices=EVENT_TYPES)
     ap.add_argument("--symbol")
-    ap.add_argument("--effective-date", help="YYYY-MM-DD (applied once the pipeline's decision date reaches it)")
+    ap.add_argument("--effective-date", help="YYYY-MM-DD trading cessation/ex-date on NSE when bars stop appearing (NOT retroactive NCLT 'Appointed Date'; applied once pipeline reaches it)")
     ap.add_argument("--evidence", help="circular number / URL / filing reference (required, >= 10 chars)")
     ap.add_argument("--cash-per-share", type=float, help="CASH_OUT: NET cash per share (0 = evidenced write-off)")
     ap.add_argument("--new-symbol", help="CONVERSION: the symbol the shares become")

@@ -371,10 +371,14 @@ class PaperTradingManager:
             new_doc = {k: v for k, v in pos.items() if k != "_id"}
             new_doc.update(symbol=new_sym, shares=whole, applied_actions=list(pos.get("applied_actions") or []) + [key],
                            stop_loss_price=None, supertrend_stop=None, ema100_stop=None, sma150_stop=None, stop_buffer_pct=None)
-            # Cost basis is carried over: whole new shares x new entry price == old shares x old entry price.
+            # Cost basis is carried over: whole new shares x new entry price == old shares x old entry price x alloc_ratio.
+            alloc_ratio = float(whole) / (float(whole) + float(frac)) if (whole + frac) > 0 else 1.0
             for k in ("entry_price", "entry_fill_price"):
                 if new_doc.get(k):
-                    new_doc[k] = float(new_doc[k]) * old_shares / whole
+                    new_doc[k] = float(new_doc[k]) / ratio
+            for k in ("entry_outlay", "entry_fees"):
+                if new_doc.get(k) is not None:
+                    new_doc[k] = round(float(new_doc[k]) * alloc_ratio, 2)
             if new_doc.get("last_close"):
                 new_doc["last_close"] = float(new_doc["last_close"]) / ratio     # stale mark rebased; real price comes from the new symbol's bar
             mark = float(new_doc.get("last_close") or new_doc.get("entry_price") or 0.0)
