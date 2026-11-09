@@ -71,16 +71,21 @@ def run_strategy_pipeline(strat_doc: dict, universe: dict, decision_dt: pd.Times
     manager.initialize_portfolio()
 
     res = manager.generate_post_market_signals(universe, decision_dt)
+    if res.get("status") == "REFUSED_STALE_DECISION_DATE":
+        # Must be checked on its own: it is not PAUSED/ARCHIVED, and a refusal is a failure (exit non-zero), not a clean skip.
+        logger.error(f"   Strategy '{strategy_id}': {res.get('message')}")
+        return [f"{strategy_id}: {res['status']}"]
     if res.get("status") in ("PAUSED", "ARCHIVED"):
-        if res["status"] == "REFUSED_STALE_DECISION_DATE":
-            logger.error(f"   Strategy '{strategy_id}': {res.get('message')}")
-            return [f"{strategy_id}: {res['status']}"]
         logger.warning(f"   Strategy '{strategy_id}' is {res['status']}. Skipping signal generation.")
         return []
 
     logger.info(f"   Exits generated: {len(res.get('exits', []))}")
     logger.info(f"   Buys generated:  {len(res.get('buys', []))}")
-    return []
+    problems = []
+    if res.get("missing_held_bars"):
+        logger.critical(f"   [MISSING_HELD_BAR] Strategy '{strategy_id}' held position(s) unpriced: {res['missing_held_bars']}")
+        problems.append(f"{strategy_id}: MISSING_HELD_BAR for {res['missing_held_bars']}")
+    return problems
 
 
 def main():

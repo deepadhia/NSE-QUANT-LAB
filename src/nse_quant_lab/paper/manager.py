@@ -18,6 +18,7 @@ from ..execution import is_locked_down, is_locked_up
 from ..fees import calc_buy_fees_exact, calc_sell_fees_exact
 from ..notifications.telegram import TelegramNotifier
 from ..entry_filters import apply_entry_price_cap
+from ..corporate_events import COLLECTION as EVENTS_COLLECTION, CASH_OUT, validate_event, split_whole_and_fraction
 from .locking import serialized_portfolio
 from .lease import PortfolioLease, supports_leases, COLLECTION as LEASE_COLLECTION
 
@@ -242,6 +243,154 @@ class PaperTradingManager:
             )
             self._alert(f"Corporate action applied {sym} ex {ex_date} x{ratio:g}: shares -> {new_shares}")
 
+    def _apply_corporate_events(self, positions: Dict[str, Any], cash: float, date_str: str,
+                                universe: Optional[Dict[str, pd.DataFrame]] = None) -> float:
+        """Apply human-recorded, evidenced `corporate_events` (CASH_OUT / CONVERSION) to held names, once per account.
+        This is the ONLY way a merger/delisting/suspension becomes a cash credit or a symbol change: missing data alone
+        never is (see MISSING_HELD_BAR). Every write is resumable: execution -> cash (once, keyed by exec_id) -> trade ->
+        position replace/delete -> pending-order cancel, so a crash at any step is completed by the next run. Returns cash."""
+        if not positions:
+            return cash
+        try:
+            events = [e for e in self.db.get_collection(EVENTS_COLLECTION).find({"symbol": {"$in": list(positions.keys())}})
+                      if isinstance(e, dict)]
+        except Exception as exc:
+            logger.error("corporate_events lookup failed: %s", exc)
+            raise RuntimeError("CORPORATE_EVENTS_UNAVAILABLE: retry before changing portfolio") from exc
+        for ev in sorted(events, key=lambda e: (str(e.get("effective_date", "")), str(e.get("event_id", "")))):
+            try:
+                validate_event(ev)
+            except ValueError as exc:
+                logger.critical("[CORPORATE_EVENT_INVALID] %s: %s. Not applied.", ev.get("event_id"), exc)
+                self._alert(f"INVALID corporate event {ev.get('event_id')}: {exc}. Not applied.")
+                continue
+            sym, eff = ev["symbol"], ev["effective_date"]
+            pos = positions.get(sym)
+            if pos is None or eff > date_str:
+                continue
+            df_sym = (universe or {}).get(sym)
+            if df_sym is not None and not df_sym.empty and bool((df_sym["date"] >= pd.Timestamp(eff)).any()):
+                # The stock still trades on/after the event's effective date: the event contradicts the market data (typo, wrong
+                # date, or a premature record). Never liquidate or convert a live, priced position on a mistaken event.
+                logger.critical("[CORPORATE_EVENT_CONTRADICTED] %s: %s still has market bars on/after effective date %s. Not applied.", ev["event_id"], sym, eff)
+                self._alert(f"Corporate event {ev['event_id']} NOT applied: {sym} still trades on/after {eff}. Check the event.")
+                continue
+            key = f"EVENT:{ev['event_id']}"
+            if ev["type"] == CASH_OUT:
+                if eff <= str(pos.get("entry_date", ""))[:10]:
+                    continue        # position was opened on/after the event: not affected
+                cash = self._apply_cash_out(ev, key, pos, positions, cash, date_str)
+            else:
+                cash = self._apply_conversion(ev, key, pos, positions, cash, date_str)
+        return cash
+
+    def _event_exec_id(self, ev: Dict[str, Any]) -> str:
+        return f"EXEC_EVENT_{ev['event_id']}_{self.config.strategy_id}"
+
+    def _record_event_execution(self, ev: Dict[str, Any], action: str, shares: int, unit_cash: float, net_cash: float,
+                                date_str: str) -> str:
+        """Write the event's cash flow to the executions ledger once (the ledger is what `_reconcile_cash` sums)."""
+        exec_id = self._event_exec_id(ev)
+        if self._prior_event_execution(exec_id) is None:
+            self._record_execution(ExecutionModel(
+                exec_id=exec_id, order_id=f"EVENT_{ev['event_id']}", strategy_id=self.config.strategy_id, mode=self._mode,
+                symbol=ev["symbol"], action=action, shares=int(shares), raw_price=float(unit_cash), fill_price=float(unit_cash),
+                gross_val=round(net_cash, 2), net_cash=round(net_cash, 2), fees=0.0, slippage=0.0, session_date=date_str))
+        return exec_id
+
+    def _prior_event_execution(self, exec_id: str) -> Optional[Dict[str, Any]]:
+        prior = self.db.executions.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "exec_id": exec_id})
+        return prior if isinstance(prior, dict) else None
+
+    def _credit_event_cash(self, exec_id: str, cash: float, date_str: str) -> float:
+        if self._cash_already_applied(exec_id):
+            return cash
+        prior = self._prior_event_execution(exec_id)
+        cash += float(prior["net_cash"]) if prior else self._execution_cash[exec_id]
+        self._persist_cash(cash, date_str, exec_id)
+        return cash
+
+    def _cancel_pending_orders(self, sym: str, reason: str, date_str: str) -> None:
+        for o in list(self.db.orders.find({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym,
+                                           "status": {"$in": ["PENDING_OPEN", "DEFERRED_LOWER_CIRCUIT"]}})):
+            self.db.orders.update_one({"order_id": o["order_id"], "strategy_id": self.config.strategy_id, "mode": self._mode},
+                                      {"$set": {"status": "CANCELLED", "cancel_reason": reason, "execution_date": date_str}})
+
+    def _apply_cash_out(self, ev: Dict[str, Any], key: str, pos: Dict[str, Any], positions: Dict[str, Any],
+                        cash: float, date_str: str) -> float:
+        sym, eff = ev["symbol"], ev["effective_date"]
+        exec_id = self._event_exec_id(ev)
+        prior = self._prior_event_execution(exec_id)
+        shares = int(prior["shares"]) if prior else int(pos["shares"])      # resume uses the shares already credited
+        unit = float(prior["fill_price"]) if prior else float(ev["cash_per_share"])
+        net = round(shares * unit, 2)
+        exec_id = self._record_event_execution(ev, "SELL", shares, unit, net, date_str)
+        cash = self._credit_event_cash(exec_id, cash, date_str)
+        have_trade = isinstance(self.db.trades.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "exec_id": exec_id}), dict)
+        if not have_trade:
+            self._record_trade(pos, {"symbol": sym, "reason": f"EVENT_CASH_OUT:{ev['event_id']}"}, shares, unit, unit, net, 0.0,
+                               pd.Timestamp(eff), eff, exec_id)
+        self._cancel_pending_orders(sym, f"EVENT_CASH_OUT:{ev['event_id']}", date_str)   # before the delete: stays resumable
+        self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym})
+        positions.pop(sym, None)
+        logger.critical("[CORPORATE_EVENT] %s: %s %d sh closed at Rs %.4f/sh (net Rs %.2f). Evidence: %s", self.config.strategy_id, sym, shares, unit, net, ev["evidence"])
+        self._alert(f"Corporate event applied: {sym} CASH_OUT {shares} sh x Rs {unit:g} = Rs {net:,.2f} (effective {eff}).")
+        return cash
+
+    def _apply_conversion(self, ev: Dict[str, Any], key: str, pos: Dict[str, Any], positions: Dict[str, Any],
+                          cash: float, date_str: str) -> float:
+        sym, new_sym, eff = ev["symbol"], ev["new_symbol"].strip(), ev["effective_date"]
+        ratio = float(ev["ratio"])
+        existing_new = positions.get(new_sym)
+        resuming = existing_new is not None and key in (existing_new.get("applied_actions") or [])
+        if existing_new is not None and not resuming:
+            logger.critical("[CORPORATE_EVENT_CONFLICT] %s: account already holds %s; refusing to merge into it. Resolve manually.", sym, new_sym)
+            self._alert(f"Corporate event {ev['event_id']} NOT applied: account already holds {new_sym}. Resolve manually.")
+            return cash
+        if eff <= str(pos.get("entry_date", ""))[:10]:
+            return cash             # position was opened on/after the event: not affected
+        prior = self._prior_event_execution(self._event_exec_id(ev))
+        old_shares = int(pos["shares"])
+        whole, frac = split_whole_and_fraction(old_shares, ratio)
+        if frac > 0 and ev.get("fraction_cash_per_new_share") is None:
+            logger.critical("[CORPORATE_EVENT_FRACTION_UNRESOLVED] %s: %d sh x %g = %.6f new shares; no fraction_cash_per_new_share "
+                            "recorded (0.0 must be stated explicitly). Not applied.", sym, old_shares, ratio, whole + frac)
+            self._alert(f"Corporate event {ev['event_id']} NOT applied: fractional entitlement needs fraction_cash_per_new_share (0.0 if none).")
+            return cash
+        if whole < 1:
+            logger.critical("[CORPORATE_EVENT_INVALID] %s: conversion yields no whole share. Not applied.", sym)
+            self._alert(f"Corporate event {ev['event_id']} NOT applied: yields no whole shares; record a CASH_OUT instead.")
+            return cash
+        # 1. fractional cash-in-lieu (cash first: it is idempotent and keyed by exec_id)
+        in_lieu = round(frac * float(ev.get("fraction_cash_per_new_share") or 0.0), 2) if not prior else float(prior["net_cash"])
+        if in_lieu > 0 or prior:
+            exec_id = self._record_event_execution(ev, "EVENT_CASH_IN_LIEU", 0, float(ev.get("fraction_cash_per_new_share") or 0.0), in_lieu, date_str)
+            cash = self._credit_event_cash(exec_id, cash, date_str)
+        # 2. carry the position to the new symbol on the new share basis (cost basis and entry date are preserved)
+        if not resuming:
+            new_doc = {k: v for k, v in pos.items() if k != "_id"}
+            new_doc.update(symbol=new_sym, shares=whole, applied_actions=list(pos.get("applied_actions") or []) + [key],
+                           stop_loss_price=None, supertrend_stop=None, ema100_stop=None, sma150_stop=None, stop_buffer_pct=None)
+            # Cost basis is carried over: whole new shares x new entry price == old shares x old entry price.
+            for k in ("entry_price", "entry_fill_price"):
+                if new_doc.get(k):
+                    new_doc[k] = float(new_doc[k]) * old_shares / whole
+            if new_doc.get("last_close"):
+                new_doc["last_close"] = float(new_doc["last_close"]) / ratio     # stale mark rebased; real price comes from the new symbol's bar
+            mark = float(new_doc.get("last_close") or new_doc.get("entry_price") or 0.0)
+            new_doc["market_value"] = whole * mark
+            new_doc["unrealized_pnl"] = new_doc["market_value"] - float(new_doc.get("entry_outlay", whole * float(new_doc.get("entry_price", mark))))
+            self.db.positions.replace_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": new_sym}, new_doc, upsert=True)
+            positions[new_sym] = new_doc
+        # 3. remove the old symbol and its pending orders
+        self._cancel_pending_orders(sym, f"EVENT_CONVERSION:{ev['event_id']}", date_str)  # before the delete: stays resumable
+        self.db.positions.delete_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym})
+        positions.pop(sym, None)
+        logger.critical("[CORPORATE_EVENT] %s: %s -> %s x%g (%d -> %d sh, cash in lieu Rs %.2f). Evidence: %s",
+                        self.config.strategy_id, sym, new_sym, ratio, old_shares, whole, in_lieu, ev["evidence"])
+        self._alert(f"Corporate event applied: {sym} -> {new_sym} x{ratio:g}: {old_shares} -> {whole} sh, cash in lieu Rs {in_lieu:,.2f} (effective {eff}).")
+        return cash
+
     def _prior_execution(self, order: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Execution already written for this order (crash/retry recovery), else None."""
         prior = self.db.executions.find_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "order_id": order["order_id"]})
@@ -448,14 +597,27 @@ class PaperTradingManager:
         cash = state["cash"]
         positions = state["positions"]
         self._apply_corporate_actions(positions, date_str)
-        missing = [sym for sym in positions if sym not in universe or
+        cash = self._apply_corporate_events(positions, cash, date_str, universe)
+        missing =[sym for sym in positions if sym not in universe or
                    universe[sym].loc[universe[sym]["date"] == decision_date].empty]
         if missing:
-            raise ValueError(f"MISSING_HELD_BAR: {date_str}: {missing}; retain positions and retry ingestion")
+            logger.critical(f"[MISSING_HELD_BAR] {date_str}: missing market data for held position(s): {missing}. "
+                            f"Retaining position(s) at last close; daily exits and stop-loss will NOT be evaluated for missing symbol(s).")
+            self._alert(f"🚨 MISSING HELD BAR on {date_str}: {', '.join(missing)}. Position(s) retained at last close; stops NOT evaluated for these symbol(s). Retrying ingestion.")
 
         # Mark open positions to today's EOD close from universe
         current_holdings_val = 0.0
         for sym, pos in list(positions.items()):
+            if sym in missing:
+                last_pr = float(pos.get("last_close") or pos.get("entry_price", 0.0))
+                pos["last_close"] = last_pr
+                pos["market_value"] = pos["shares"] * last_pr
+                entry_px = float(pos.get("entry_price", pos.get("last_close", 0.0)))
+                entry_outlay = float(pos.get("entry_outlay", pos["shares"] * entry_px))
+                pos["unrealized_pnl"] = pos["market_value"] - entry_outlay
+                current_holdings_val += pos["market_value"]
+                continue
+
             df_sym = universe.get(sym)
             if df_sym is not None and not df_sym.empty:
                 c_rows = df_sym.loc[df_sym["date"] <= decision_date]
@@ -521,9 +683,6 @@ class PaperTradingManager:
                         {"strategy_id": self.config.strategy_id, "mode": getattr(self.config, "mode", "paper"), "symbol": sym},
                         {"$set": update_dict}
                     )
-            else:
-                logger.critical(f"[FORCED_DELISTING_TRIGGER] Position '{sym}' missing from universe panel. Queuing DATA_ENDED_FORCED_EXIT.")
-                raise ValueError(f"MISSING_HELD_BAR: {sym}; no delisting inferred")
             current_holdings_val += pos.get("market_value", pos["shares"] * pos.get("last_close", pos.get("entry_price", 0.0)))
 
         current_nav = cash + current_holdings_val
@@ -634,7 +793,9 @@ class PaperTradingManager:
             if isinstance(strat_doc, dict) and bool(strat_doc.get("catchup_eligible", False)):
                 is_catchup = True
 
-        if is_rebal or is_catchup:
+        if (is_rebal or is_catchup) and missing:
+            logger.warning(f"[REBALANCE_SKIPPED] {self.config.strategy_id}: held position(s) {missing} are unpriced; skipping rebalance entry staging to protect cash.")
+        elif is_rebal or is_catchup:
             # Idempotency: clear any existing PENDING_OPEN rebalance buy orders for this signal date before staging fresh batch
             if hasattr(self.db.orders, "delete_many"):
                 self.db.orders.delete_many({
@@ -655,7 +816,7 @@ class PaperTradingManager:
             if not is_catchup:
                 rebal_drops = self.strategy.evaluate_rebalance_exits(universe, decision_date, positions, allowed_hold_symbols, self.config)
                 for sym, reason in rebal_drops.items():
-                    if sym not in requested_exits and sym in positions:
+                    if sym not in requested_exits and sym in positions and sym not in missing:
                         existing_active_sell = self.db.orders.find_one({
                             "strategy_id": self.config.strategy_id,
                             "mode": getattr(self.config, "mode", "paper"),
@@ -813,7 +974,12 @@ class PaperTradingManager:
                 exits_to_log,
                 active_holdings=active_holdings_to_log,
             )
-        return {"exits": exits_to_log, "buys": buys_to_log, "active_holdings": active_holdings_to_log}
+        return {
+            "exits": exits_to_log,
+            "buys": buys_to_log,
+            "active_holdings": active_holdings_to_log,
+            "missing_held_bars": missing,
+        }
 
     @staticmethod
     def _cost_inputs(prev_rows: pd.DataFrame) -> Dict[str, Any]:

@@ -261,3 +261,85 @@ def test_split_rebases_stored_mark_so_sizing_and_alerts_stay_correct(caplog):
     with caplog.at_level(logging.CRITICAL, logger="nse_quant_lab.paper.manager"):
         mgr.generate_post_market_signals({"AAA": _frame("2026-03-03", price=100.0), "BBB": _frame("2026-03-03", price=100.0)}, pd.Timestamp("2026-03-03"))
     assert not any("POSSIBLE_CORPORATE_ACTION" in r.message for r in caplog.records), "false alert after a recorded split"
+
+
+def test_missing_held_bar_does_not_block_healthy_position_exits():
+    """Falsification test: When symbol A lacks an EOD bar, symbol A is retained at last close without
+    sales, but healthy symbol B's technical exit is NOT blocked. Rebalance buys are blocked until data is restored."""
+    class ExitStrategy(StubStrategy):
+        def evaluate_daily_exits(self, universe, decision_date, open_positions, config):
+            exits = {}
+            if "HEALTHY_SYM" in open_positions:
+                exits["HEALTHY_SYM"] = "TECHNICAL_STOP"
+            return exits
+
+        def is_rebalance_decision_date(self, timeline, decision_date, config):
+            return True
+
+        def select_entry_candidates(self, universe, decision_date, current_holdings, config):
+            return pd.DataFrame([{"symbol": "NEW_CANDIDATE", "close": 50.0, "turnover_50d": 1e8, "rank": 1}])
+
+    cfg = PaperTradingConfig(strategy_id=SID, initial_capital=100000.0, portfolio_size=5, telegram_enabled=False)
+    db = ParityMockDb()
+    strat = ExitStrategy(config=cfg)
+    mgr = PaperTradingManager(strat, cfg, db)
+    mgr.initialize_portfolio()
+
+    _position(db, sym="HEALTHY_SYM", shares=100, price=100.0)
+    _position(db, sym="SUSPENDED_SYM", shares=50, price=200.0)
+
+    # Universe only contains HEALTHY_SYM and NEW_CANDIDATE; SUSPENDED_SYM is missing!
+    uni = {
+        "HEALTHY_SYM": _frame("2026-03-03", price=90.0),
+        "NEW_CANDIDATE": _frame("2026-03-03", price=50.0),
+    }
+
+    res = mgr.generate_post_market_signals(uni, pd.Timestamp("2026-03-03"))
+
+    # 1. Suspended symbol reported in missing_held_bars
+    assert "SUSPENDED_SYM" in res.get("missing_held_bars", [])
+
+    # 2. Healthy symbol successfully staged its technical exit order
+    exit_order = db.orders.find_one({"strategy_id": SID, "symbol": "HEALTHY_SYM", "action": "SELL"})
+    assert exit_order is not None
+    assert exit_order["reason"] == "TECHNICAL_STOP"
+    assert exit_order["status"] == "PENDING_OPEN"
+
+    # 3. Suspended symbol has NO staged exit order (retained, never liquidated fictitiously)
+    suspended_order = db.orders.find_one({"strategy_id": SID, "symbol": "SUSPENDED_SYM"})
+    assert suspended_order is None
+
+    # 4. New BUY orders are blocked because held positions are unpriced
+    buy_orders = [o for o in db.orders.docs if o["action"] == "BUY"]
+    assert buy_orders == [], f"Expected 0 buy orders when data is missing, got: {buy_orders}"
+
+
+
+def _run_pipeline_with_manager_result(result):
+    """Drive scripts/run_daily_pipeline.run_strategy_pipeline with a manager that returns `result`."""
+    import importlib.util
+    import os
+    from unittest.mock import MagicMock, patch
+
+    path = os.path.join(os.path.dirname(__file__), "..", "scripts", "run_daily_pipeline.py")
+    spec = importlib.util.spec_from_file_location("run_daily_pipeline_under_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    fake_mgr = MagicMock()
+    fake_mgr.generate_post_market_signals.return_value = result
+    with patch.object(mod, "PaperTradingManager", return_value=fake_mgr), patch.object(mod, "get_strategy", return_value=MagicMock()):
+        return mod.run_strategy_pipeline({"strategy_id": "trend_momentum_pit", "mode": "paper"}, {}, pd.Timestamp("2026-03-03"), MagicMock())
+
+
+def test_pipeline_reports_stale_decision_date_refusal_as_a_problem():
+    """A refused back-dated run is a failure: it must produce a problem (-> exit 4), not a clean skip."""
+    problems = _run_pipeline_with_manager_result(
+        {"status": "REFUSED_STALE_DECISION_DATE", "exits": [], "buys": [], "message": "older than recorded activity"})
+    assert problems and "REFUSED_STALE_DECISION_DATE" in problems[0]
+
+
+def test_pipeline_reports_missing_held_bar_as_a_problem_and_paused_as_clean():
+    problems = _run_pipeline_with_manager_result({"exits": [], "buys": [], "missing_held_bars": ["SUSPENDED_SYM"]})
+    assert problems and "MISSING_HELD_BAR" in problems[0] and "SUSPENDED_SYM" in problems[0]
+    assert _run_pipeline_with_manager_result({"status": "PAUSED", "exits": [], "buys": []}) == []
+    assert _run_pipeline_with_manager_result({"exits": [], "buys": [], "missing_held_bars": []}) == []

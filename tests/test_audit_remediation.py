@@ -282,8 +282,8 @@ def test_finding_7_missing_data_is_retained_without_fictional_liquidation(mock_d
     with patch.object(manager, "get_current_state", return_value={"cash": 100000.0, "positions": positions}):
         with patch.object(manager.strategy, "is_rebalance_decision_date", return_value=False):
             mock_db.orders.find_one.return_value = None
-            with pytest.raises(ValueError, match="MISSING_HELD_BAR"):
-                manager.generate_post_market_signals(universe=empty_universe, decision_date=pd.to_datetime("2026-10-25"))
+            res = manager.generate_post_market_signals(universe=empty_universe, decision_date=pd.to_datetime("2026-10-25"))
+            assert "DELISTED_SYM" in res.get("missing_held_bars", [])
             assert not mock_db.orders.replace_one.called
 
     # 2. Morning execution of the forced delisting exit (bar is None!)

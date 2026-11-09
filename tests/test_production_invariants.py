@@ -372,3 +372,18 @@ def test_r11_cross_host_lease_wraps_portfolio_operations_and_fences_state_change
         assert "self._assert_lease()" in body, f"{fn} must verify the lease (fencing) before writing"
     lease = _read(SRC / "paper" / "lease.py")
     assert '"hello"' in lease and "$inc" in lease and "DuplicateKeyError" in lease and "LEASE_LOST" in lease
+
+def test_r14_event_driven_closure_requires_validated_evidenced_event_and_is_the_only_cash_path():
+    """A merger/delisting becomes cash or a symbol change ONLY through a validated `corporate_events` document (evidence + explicit
+    terms), applied through the executions ledger so cash reconciles. The recording script must preview by default."""
+    mgr = _read(SRC / "paper" / "manager.py")
+    ev = mgr[mgr.index("def _apply_corporate_events"):mgr.index("def _prior_execution")]
+    assert "validate_event(ev)" in ev, "an event must be validated before it is applied"
+    assert "_record_event_execution" in ev or "_apply_cash_out" in ev
+    assert "_record_execution(" in mgr[mgr.index("def _record_event_execution"):mgr.index("def _prior_event_execution")], "event cash must go through the executions ledger"
+    assert "self._apply_corporate_events(positions, cash, date_str, universe)" in mgr
+    mod = _read(SRC / "corporate_events.py")
+    assert "evidence" in mod and "fraction_cash_per_new_share" in mod and "cash_per_share" in mod
+    script = _read(SCRIPTS / "record_corporate_event.py")
+    assert "--apply" in script and "PREVIEW ONLY" in script, "the recorder must not write without an explicit --apply"
+
