@@ -4,6 +4,11 @@ Newest first. Entries describe what changed in the code, not investment performa
 (Corrected 2026-11-04: everything below is committed and pushed up to `4c879b8`; the earlier "nothing committed" note and the performance claims in
 1.1.0 were wrong or unsupported and have been fixed in place.)
 
+## [Unreleased] - 2026-11-09 (benchmark ingestion: Upstox primary)
+- Changed: `scripts/ingest_benchmarks.py` now takes Nifty 50 / Nifty 500 candles from Upstox (`NSE_INDEX|...`, last 40 days, re-upserted every run) with Yahoo as the long-history layer and the same-day fallback (Upstox publishes the same-day index candle late). Every bar stores `source` (`upstox` / `yahoo_provisional` / `yahoo`). Special sessions (Diwali Muhurat) are kept from Upstox even when Yahoo drops them.
+- Added: freshness check (no bar for the latest completed NSE session -> exit 1, scheduler retries; previously silent), Yahoo-vs-Upstox close cross-check (0.1%), rejection of OHLC-inconsistent bars and of Yahoo-only bars inside Upstox's range, Telegram alert when degraded (Upstox outage/no token/mismatch; exit stays 0 because the daemon holds the 18:00 pipeline while this job retries), `--dry-run`. Tests: `tests/test_benchmark_ingest.py` (13).
+- Not changed: strategy rules, regime gate, schema consumers (only an extra `source` field).
+
 ## [Unreleased] - 2026-11-07 (live-path fixes + results reconciliation)
 - Fixed: open-position shares could be multiplied twice on a split (Upstox ingestion rescale + recorded `corporate_actions` document). Ingestion now defers to a matching recorded action; an unrecorded gap is rescaled once and stamped in `applied_actions` (`SYMBOL:<date>:ingest`), which the manager honours. Tests: `tests/test_split_single_application.py`.
 - Fixed: `run_daily_pipeline.py` could never import `scripts.audit_daily_portfolio` when run as a script (repo root missing from `sys.path`); the failure was swallowed. Static gate added.
