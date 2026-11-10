@@ -4,6 +4,11 @@ Purpose: measure REAL execution frictions (09:16 bid/ask fills, Rs 14.75 sale fe
 research result (price cap < Rs 1,000, 10 vs 15 slots) survives out of sample. Paper only; no real orders. Evidence behind it:
 `research/audit_2026-11-08/small_capital_grid/` (descriptive, 2016-10..2026-10, in-sample, optimistic/pessimistic bounds). Do not read it as a forecast.
 
+**2026-11-10 audit update:** The saved `results.csv` cap runs used a filtered ranking for the rebalance hold buffer. That let the
+entry-price cap suppress some rank-based exits, contrary to its entry-only definition. The engine and paper path now use the
+original ranking for exits. Treat the 36 saved capped rows as stale until the corrected grid is rerun; the script now
+writes separate `results_entry_only_hold_rank_v2.csv` artifacts. The original no-cap rows are unaffected by this specific defect.
+
 ## How accounts work
 * An ACCOUNT is a strategy document keyed by `strategy_id` (it namespaces orders, positions, cash, leases). Its logic comes from `strategy_class`
   (registry key; defaults to `strategy_id`). Any number of accounts of one class can run side by side.

@@ -6,8 +6,8 @@ the candidate frame that ``strategy.select_entry_candidates`` returns, and works
 
 max_entry_price (config field, default None = off)
     A NEW entry is allowed only if the candidate's nominal ``close`` on the decision date is strictly below the cap (Rs per share).
-    * Held names are exempt: a position that has risen above the cap is never dropped or blocked (same convention as every
-      other entry-only rule in this repo; the rebalance-exit logic still sees them in the ranking).
+    * Held names are exempt from the cap: rising above it alone does not close a position. Rebalance exits use
+      the original, unfiltered ranking, so removing expensive new candidates does not promote a holding's rank.
     * Candidates are re-ranked 1..N after filtering so the next-ranked eligible name takes the slot.
     * The cap tests the SIGNAL-day close. The morning fill may open up to +2% higher (limit_cap_pct), so a fill slightly above the cap is
       expected and is not a violation.

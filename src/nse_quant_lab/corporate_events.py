@@ -11,6 +11,10 @@ Collection `corporate_events`, one document per event (unique `event_id`):
   CONVERSION  : new_symbol, ratio (new shares per 1 old share), fraction_cash_per_new_share
                 (cash paid per NEW share for the fractional entitlement; REQUIRED, may be 0.0, whenever shares*ratio is
                 not a whole number. Fraction treatment differs by scheme and must be stated, never guessed.)
+  FRACTION_CASH : settles the PENDING fractional entitlement that a bonus/consolidation left in `fractional_entitlements`.
+                effective_date = the date the cash was actually paid; entitlement_ex_date = ex-date of the share action;
+                cash_per_fraction_share = NET cash per ONE whole share of the fraction (credit = fraction_shares x this;
+                0.0 is a legitimate, explicit evidenced no-payment). Applied from the ledger, so it works even after the stock was sold.
 """
 
 from __future__ import annotations
@@ -23,7 +27,8 @@ from typing import Any, Dict
 COLLECTION = "corporate_events"
 CASH_OUT = "CASH_OUT"
 CONVERSION = "CONVERSION"
-EVENT_TYPES = (CASH_OUT, CONVERSION)
+FRACTION_CASH = "FRACTION_CASH"
+EVENT_TYPES = (CASH_OUT, CONVERSION, FRACTION_CASH)
 MIN_EVIDENCE_CHARS = 10
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -60,6 +65,19 @@ def validate_event(doc: Dict[str, Any]) -> None:
         cps = doc.get("cash_per_share")
         if not _finite(cps) or float(cps) < 0:
             raise ValueError("CASH_OUT needs an explicit cash_per_share >= 0 (0 = evidenced write-off)")
+    elif etype == FRACTION_CASH:
+        ex = doc.get("entitlement_ex_date")
+        if not isinstance(ex, str) or not _DATE_RE.match(ex):
+            raise ValueError("FRACTION_CASH needs entitlement_ex_date 'YYYY-MM-DD' (ex-date of the share action it settles)")
+        try:
+            datetime.strptime(ex, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError(f"entitlement_ex_date is not a real date: {ex}") from exc
+        if ex > eff:
+            raise ValueError("entitlement_ex_date cannot be after the payment (effective) date")
+        cpf = doc.get("cash_per_fraction_share")
+        if not _finite(cpf) or float(cpf) < 0:
+            raise ValueError("FRACTION_CASH needs an explicit cash_per_fraction_share >= 0 (0 = evidenced no payment)")
     else:
         new_symbol, ratio = doc.get("new_symbol"), doc.get("ratio")
         if not isinstance(new_symbol, str) or not new_symbol.strip() or new_symbol.strip() == symbol.strip():
@@ -73,7 +91,8 @@ def validate_event(doc: Dict[str, Any]) -> None:
 
 def build_event(event_type: str, symbol: str, effective_date: str, evidence: str, *,
                 cash_per_share: Any = None, new_symbol: Any = None, ratio: Any = None,
-                fraction_cash_per_new_share: Any = None) -> Dict[str, Any]:
+                fraction_cash_per_new_share: Any = None, entitlement_ex_date: Any = None,
+                cash_per_fraction_share: Any = None) -> Dict[str, Any]:
     doc: Dict[str, Any] = {
         "event_id": event_id_for(symbol, event_type, effective_date),
         "symbol": str(symbol).strip(),
@@ -84,6 +103,8 @@ def build_event(event_type: str, symbol: str, effective_date: str, evidence: str
     }
     if event_type == CASH_OUT:
         doc["cash_per_share"] = cash_per_share
+    elif event_type == FRACTION_CASH:
+        doc.update(entitlement_ex_date=entitlement_ex_date, cash_per_fraction_share=cash_per_fraction_share)
     else:
         doc.update(new_symbol=None if new_symbol is None else str(new_symbol).strip(), ratio=ratio,
                    fraction_cash_per_new_share=fraction_cash_per_new_share)

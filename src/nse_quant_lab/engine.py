@@ -430,14 +430,13 @@ class BacktestEngine:
             if current_date in exec_dates_set:
                 is_catchup_session = current_date in scheduled_catchup_sessions
                 d_dec = exec_to_decision_map[current_date]
-                ranked_df = apply_entry_price_cap(
-                    self.strategy.select_entry_candidates(universe_ind, d_dec, open_positions, self.config),
-                    open_positions, self.config)
+                unfiltered_ranked = self.strategy.select_entry_candidates(universe_ind, d_dec, open_positions, self.config)
+                ranked_df = apply_entry_price_cap(unfiltered_ranked, open_positions, self.config)
 
                 # Rank Hysteresis / Hold Buffer:
                 # Retain held positions as long as their rank is within hold buffer (e.g. Top 16)
                 hold_buf = getattr(self.config, "rebalance_hold_rank_buffer", self.config.portfolio_size)
-                allowed_hold_symbols = list(ranked_df.head(hold_buf).index)
+                allowed_hold_symbols = list(unfiltered_ranked.head(hold_buf).index)
                 target_symbols_list = list(ranked_df.head(self.config.portfolio_size).index)
 
                 # Rebalance Exits: Only evaluate rebalance drops on standard rebalances (never on 1-day catch-up sessions)

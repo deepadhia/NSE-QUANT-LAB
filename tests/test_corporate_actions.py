@@ -247,6 +247,62 @@ def test_end_to_end_paper_manager_applies_synced_split():
     assert len(pos_after["applied_actions"]) == 1
 
 
+def test_fractional_bonus_credits_whole_shares_and_records_pending_fraction_without_blocking():
+    db = MockDatabase()
+    cfg = PaperTradingConfig(strategy_id="alpha_semivol_pit", initial_capital=100000.0)
+    mgr = PaperTradingManager(strategy=get_strategy("alpha_semivol_pit", cfg), config=cfg, db=db)
+    mgr._alert = MagicMock()
+    db.positions.insert_one({"strategy_id": cfg.strategy_id, "mode": "paper", "symbol": "AAA", "shares": 37,
+                             "entry_price": 522.0, "entry_fill_price": 522.0, "entry_date": "2010-08-02",
+                             "last_close": 522.0, "applied_actions": []})
+    db.corporate_actions.insert_one({"symbol": "AAA", "ex_date": "2010-08-18",
+                                     "action_type": "bonus", "ratio": 5 / 3, "source": "NSE_OFFICIAL"})
+    positions = {"AAA": db.positions.find_one({"symbol": "AAA"})}
+
+    for as_of in ("2010-08-18", "2010-08-19"):  # no exception; a re-run must not apply or record anything twice
+        mgr._apply_corporate_actions(positions, as_of_date=as_of)
+    assert db.positions.find_one({"symbol": "AAA"})["shares"] == 61          # 37 x 5/3 = 61.667 -> whole shares credited
+    ents = list(db.fractional_entitlements.find({"symbol": "AAA"}))
+    assert len(ents) == 1
+    assert ents[0]["fraction_shares"] == pytest.approx(2 / 3, abs=1e-5)
+    assert ents[0]["status"] == "PENDING_CASH_SETTLEMENT" and ents[0]["ex_date"] == "2010-08-18"
+    assert mgr._alert.call_count == 1 and "fractional entitlement" in mgr._alert.call_args[0][0]
+
+
+def test_fractional_entitlement_survives_a_crash_between_ledger_write_and_position_update():
+    db = MockDatabase()
+    cfg = PaperTradingConfig(strategy_id="alpha_semivol_pit", initial_capital=100000.0)
+    mgr = PaperTradingManager(strategy=get_strategy("alpha_semivol_pit", cfg), config=cfg, db=db)
+    mgr._alert = MagicMock()
+    db.positions.insert_one({"strategy_id": cfg.strategy_id, "mode": "paper", "symbol": "AAA", "shares": 37,
+                             "entry_price": 522.0, "entry_fill_price": 522.0, "entry_date": "2010-08-02",
+                             "last_close": 522.0, "applied_actions": []})
+    db.corporate_actions.insert_one({"symbol": "AAA", "ex_date": "2010-08-18",
+                                     "action_type": "bonus", "ratio": 5 / 3, "source": "NSE_OFFICIAL"})
+    mgr._record_fractional_entitlement("AAA", "2010-08-18", 5 / 3, 37, 2 / 3, 199.0)   # ledger written, then "crash"
+    positions = {"AAA": db.positions.find_one({"symbol": "AAA"})}
+    mgr._apply_corporate_actions(positions, as_of_date="2010-08-18")
+    assert db.positions.find_one({"symbol": "AAA"})["shares"] == 61
+    assert len(list(db.fractional_entitlements.find({"symbol": "AAA"}))) == 1
+
+
+def test_whole_share_bonus_still_applies_once():
+    db = MockDatabase()
+    cfg = PaperTradingConfig(strategy_id="alpha_semivol_pit", initial_capital=100000.0)
+    mgr = PaperTradingManager(strategy=get_strategy("alpha_semivol_pit", cfg), config=cfg, db=db)
+    mgr._alert = MagicMock()
+    db.positions.insert_one({"strategy_id": cfg.strategy_id, "mode": "paper", "symbol": "AAA",
+                             "shares": 36, "entry_price": 522.0, "entry_fill_price": 522.0,
+                             "entry_date": "2010-08-02", "last_close": 522.0, "applied_actions": []})
+    db.corporate_actions.insert_one({"symbol": "AAA", "ex_date": "2010-08-18",
+                                     "action_type": "bonus", "ratio": 5 / 3, "source": "NSE_OFFICIAL"})
+    positions = {"AAA": db.positions.find_one({"symbol": "AAA"})}
+    mgr._apply_corporate_actions(positions, as_of_date="2010-08-18")
+    mgr._apply_corporate_actions(positions, as_of_date="2010-08-19")
+    assert db.positions.find_one({"symbol": "AAA"})["shares"] == 60
+    assert len(db.positions.find_one({"symbol": "AAA"})["applied_actions"]) == 1
+
+
 # ---------------------------------------------------------------- combined / partial announcements (parser audit fix)
 from nse_quant_lab.corporate_actions import needs_review
 

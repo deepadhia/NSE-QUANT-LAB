@@ -11,9 +11,8 @@ Source policy (every stored bar carries a `source` field):
                             late, so the evening run must still use Yahoo for "today"; the next run replaces it with
                             the Upstox bar (the lookback window is re-upserted every run).
   * `yahoo`              -- Yahoo history older than the Upstox window, or any bar written while Upstox was unreachable.
-  * A Yahoo-only bar INSIDE Upstox's range is NOT written (Upstox, the exchange-sourced feed, has no such session; this
-    is how a phantom or stale Yahoo day would be caught). Special sessions such as Diwali Muhurat are real sessions and
-    Upstox carries them, so they are kept even when Yahoo has dropped them.
+  * A Yahoo-only bar INSIDE Upstox's range is rejected on a closed exchange day. On a confirmed trading session it is
+    retained as provisional and alerted: a gap in Upstox's response does not establish that the exchange was closed.
 
 Failure policy (fail loud, never guess):
   * Upstox unreachable / token rejected / empty answer, a Yahoo-vs-Upstox close disagreement above CLOSE_TOLERANCE, or a
@@ -116,17 +115,19 @@ def _ohlc_violation(r: Dict[str, Any]) -> Optional[str]:
 
 
 def merge_bars(yahoo: List[Dict[str, Any]], upstox: List[Dict[str, Any]], upstox_ok: bool, window_start: str,
-               tol: float = CLOSE_TOLERANCE) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+               is_trading_day: Callable[[date], bool],
+               tol: float = CLOSE_TOLERANCE) -> Tuple[List[Dict[str, Any]], List[str], List[str], List[str]]:
     """Combine the two feeds per date following the module's source policy.
 
-    Returns (rows_to_write, mismatches, rejected). `rows_to_write` carry a `source` field. `mismatches` are Yahoo-vs-Upstox
-    close disagreements (Upstox is still written); `rejected` are bars deliberately NOT written, with the reason."""
+    Returns (rows_to_write, mismatches, rejected, gaps). `rows_to_write` carry a `source` field. `mismatches` are
+    Yahoo-vs-Upstox close disagreements; `rejected` are bars not written; `gaps` are real sessions absent from Upstox."""
     y = {r["date"]: r for r in yahoo}
     u = {r["date"]: r for r in upstox} if upstox_ok else {}
     u_max = max(u) if u else ""
     out: List[Dict[str, Any]] = []
     mismatches: List[str] = []
     rejected: List[str] = []
+    gaps: List[str] = []
 
     for d in sorted(set(y) | set(u)):
         if d in u:
@@ -146,16 +147,19 @@ def merge_bars(yahoo: List[Dict[str, Any]], upstox: List[Dict[str, Any]], upstox
         row = dict(y[d])
         in_window = d >= window_start
         if upstox_ok and in_window and u and d < u_max:
-            rejected.append(f"{d}: Yahoo-only bar inside Upstox's range ({window_start}..{u_max}) not written (no such session at Upstox)")
-            continue
+            if not is_trading_day(date.fromisoformat(d)):
+                rejected.append(f"{d}: Yahoo-only bar inside Upstox's range ({window_start}..{u_max}) not written (closed exchange day)")
+                continue
         if in_window:
             bad = _ohlc_violation(row)
             if bad:
                 rejected.append(f"{d}: Yahoo bar rejected ({bad})")
                 continue
+        if upstox_ok and in_window and u and d < u_max:
+            gaps.append(f"{d}: Upstox missing a confirmed NSE session inside its range; Yahoo bar retained provisionally")
         row["source"] = "yahoo_provisional" if (upstox_ok and in_window) else "yahoo"
         out.append(row)
-    return out, mismatches, rejected
+    return out, mismatches, rejected, gaps
 
 
 def expected_session(now_ist: datetime, is_trading_day: Callable[[date], bool]) -> date:
@@ -234,11 +238,13 @@ def ingest_benchmarks(
                 degraded.append(f"{ticker}: Upstox fetch failed ({type(exc).__name__}: {exc}); stored Yahoo bars only")
                 logger.error("Upstox fetch failed for %s: %s", ticker, exc, exc_info=True)
 
-        rows, mismatches, rejected = merge_bars(yahoo, upstox, upstox_ok, window_start)
+        rows, mismatches, rejected, gaps = merge_bars(yahoo, upstox, upstox_ok, window_start, trading_day_fn)
         for m in mismatches:
             degraded.append(f"{ticker}: SOURCE MISMATCH {m} (Upstox value stored)")
         for r in rejected:
             degraded.append(f"{ticker}: {r}")
+        for gap in gaps:
+            degraded.append(f"{ticker}: {gap}")
 
         if not rows:
             problems.append(f"{ticker}: no usable bars from any source")

@@ -1,0 +1,560 @@
+{
+  "initial_capital": 100000.0,
+  "ending_nav": 2569692.430922969,
+  "net_pnl": 2469692.430922969,
+  "total_return_pct": 2469.6924309229685,
+  "cagr_pct": 18.820738337458366,
+  "cagr_sessions_250_pct": 18.998130494997923,
+  "sharpe_risk_free_rate": 0.06,
+  "annualization_sessions": 252,
+  "cagr_calendar_pct": 18.820738337458366,
+  "max_drawdown_pct": -41.18974240786772,
+  "annualized_vol_pct": 19.747038475282167,
+  "sharpe_ratio": 0.6729696217438564,
+  "total_trades": 665,
+  "win_rate_pct": 41.65413533834587,
+  "profit_factor": 2.0223067889439394,
+  "total_statutory_fees": 82011.55390000001,
+  "total_slippage": 72334.56632952769,
+  "total_friction": 154346.1202295277,
+  "skipped_orders": 49,
+  "years_trading": 18.66,
+  "years_calendar": 18.83,
+  "corporate_action_ledger": [
+    {
+      "symbol": "PRAJIND",
+      "date": "2007-07-18",
+      "ratio": 2.0,
+      "old_shares": 18,
+      "new_shares": 36
+    },
+    {
+      "symbol": "DIVISLAB",
+      "date": "2007-08-03",
+      "ratio": 5.0,
+      "old_shares": 1,
+      "new_shares": 5
+    },
+    {
+      "symbol": "JPASSOCIAT",
+      "date": "2007-12-17",
+      "ratio": 4.999999999999999,
+      "old_shares": 8,
+      "new_shares": 40
+    },
+    {
+      "symbol": "JINDALSTEL",
+      "date": "2008-01-21",
+      "ratio": 5.0,
+      "old_shares": 1,
+      "new_shares": 5
+    },
+    {
+      "symbol": "JINDALSTEL",
+      "date": "2009-09-14",
+      "ratio": 6.0,
+      "old_shares": 6,
+      "new_shares": 36
+    },
+    {
+      "symbol": "ENGINERSIN",
+      "date": "2010-05-06",
+      "ratio": 6.0,
+      "old_shares": 3,
+      "new_shares": 18
+    },
+    {
+      "symbol": "AEGISLOG",
+      "date": "2010-08-18",
+      "ratio": 1.6666666666666667,
+      "old_shares": 37,
+      "new_shares": 61
+    },
+    {
+      "symbol": "BAJAJ-AUTO",
+      "date": "2010-09-08",
+      "ratio": 2.0,
+      "old_shares": 12,
+      "new_shares": 24
+    },
+    {
+      "symbol": "HAVELLS",
+      "date": "2010-10-08",
+      "ratio": 2.0,
+      "old_shares": 22,
+      "new_shares": 44
+    },
+    {
+      "symbol": "TITAN",
+      "date": "2011-06-23",
+      "ratio": 20.0,
+      "old_shares": 3,
+      "new_shares": 60
+    },
+    {
+      "symbol": "GRAVITA",
+      "date": "2012-05-25",
+      "ratio": 5.0,
+      "old_shares": 20,
+      "new_shares": 100
+    },
+    {
+      "symbol": "BPCL",
+      "date": "2012-07-13",
+      "ratio": 2.0,
+      "old_shares": 21,
+      "new_shares": 42
+    },
+    {
+      "symbol": "M&MFIN",
+      "date": "2013-02-15",
+      "ratio": 5.0,
+      "old_shares": 16,
+      "new_shares": 80
+    },
+    {
+      "symbol": "SUNPHARMA",
+      "date": "2013-07-29",
+      "ratio": 2.0,
+      "old_shares": 20,
+      "new_shares": 40
+    },
+    {
+      "symbol": "ASIANPAINT",
+      "date": "2013-07-30",
+      "ratio": 10.0,
+      "old_shares": 3,
+      "new_shares": 30
+    },
+    {
+      "symbol": "TITAGARH",
+      "date": "2015-04-23",
+      "ratio": 5.0,
+      "old_shares": 41,
+      "new_shares": 205
+    },
+    {
+      "symbol": "DISHMAN",
+      "date": "2016-05-02",
+      "ratio": 2.0,
+      "old_shares": 71,
+      "new_shares": 142
+    },
+    {
+      "symbol": "BAJFINANCE",
+      "date": "2016-09-08",
+      "ratio": 9.999999999999998,
+      "old_shares": 3,
+      "new_shares": 30
+    },
+    {
+      "symbol": "GRASIM",
+      "date": "2016-10-06",
+      "ratio": 5.0,
+      "old_shares": 5,
+      "new_shares": 25
+    },
+    {
+      "symbol": "ENGINERSIN",
+      "date": "2016-12-30",
+      "ratio": 2.0,
+      "old_shares": 102,
+      "new_shares": 204
+    },
+    {
+      "symbol": "OIL",
+      "date": "2017-01-12",
+      "ratio": 1.3333333333333333,
+      "old_shares": 66,
+      "new_shares": 88
+    },
+    {
+      "symbol": "VAKRANGEE",
+      "date": "2017-12-21",
+      "ratio": 2.0,
+      "old_shares": 105,
+      "new_shares": 210
+    },
+    {
+      "symbol": "JINDWORLD",
+      "date": "2017-12-26",
+      "ratio": 2.0,
+      "old_shares": 19,
+      "new_shares": 38
+    },
+    {
+      "symbol": "JUBLFOOD",
+      "date": "2018-06-21",
+      "ratio": 2.0,
+      "old_shares": 15,
+      "new_shares": 30
+    },
+    {
+      "symbol": "LAURUSLABS",
+      "date": "2020-09-29",
+      "ratio": 5.0,
+      "old_shares": 60,
+      "new_shares": 300
+    },
+    {
+      "symbol": "AARTIDRUGS",
+      "date": "2020-09-30",
+      "ratio": 4.0,
+      "old_shares": 26,
+      "new_shares": 104
+    },
+    {
+      "symbol": "DIXON",
+      "date": "2021-03-18",
+      "ratio": 5.0,
+      "old_shares": 6,
+      "new_shares": 30
+    },
+    {
+      "symbol": "ALKYLAMINE",
+      "date": "2021-05-11",
+      "ratio": 2.5,
+      "old_shares": 17,
+      "new_shares": 42
+    },
+    {
+      "symbol": "APLAPOLLO",
+      "date": "2021-09-16",
+      "ratio": 2.0,
+      "old_shares": 36,
+      "new_shares": 72
+    },
+    {
+      "symbol": "MANINFRA",
+      "date": "2021-11-17",
+      "ratio": 1.5,
+      "old_shares": 753,
+      "new_shares": 1129
+    },
+    {
+      "symbol": "JBMA",
+      "date": "2022-02-21",
+      "ratio": 2.5,
+      "old_shares": 58,
+      "new_shares": 145
+    },
+    {
+      "symbol": "BSE",
+      "date": "2022-03-21",
+      "ratio": 3.0,
+      "old_shares": 42,
+      "new_shares": 126
+    },
+    {
+      "symbol": "MAHSEAMLES",
+      "date": "2022-11-25",
+      "ratio": 2.0,
+      "old_shares": 117,
+      "new_shares": 234
+    },
+    {
+      "symbol": "BLS",
+      "date": "2022-12-08",
+      "ratio": 2.0,
+      "old_shares": 352,
+      "new_shares": 704
+    },
+    {
+      "symbol": "VBL",
+      "date": "2023-06-15",
+      "ratio": 2.0,
+      "old_shares": 51,
+      "new_shares": 102
+    },
+    {
+      "symbol": "INOXWIND",
+      "date": "2024-05-24",
+      "ratio": 4.0,
+      "old_shares": 302,
+      "new_shares": 1208
+    },
+    {
+      "symbol": "KPIGREEN",
+      "date": "2024-07-18",
+      "ratio": 2.0,
+      "old_shares": 104,
+      "new_shares": 208
+    },
+    {
+      "symbol": "BSE",
+      "date": "2025-05-23",
+      "ratio": 3.0,
+      "old_shares": 22,
+      "new_shares": 66
+    }
+  ],
+  "strategy": "trend_momentum_pit",
+  "fy_tax_ledger": [
+    {
+      "fy": "FY2006-2007",
+      "date": "2007-03-30",
+      "stcg_gross": -6299.41,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 6299.41,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 42953.5,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2007-2008",
+      "date": "2008-03-31",
+      "stcg_gross": 51840.19,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 45540.78,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 4690.7,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 120018.22,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2008-2009",
+      "date": "2009-03-31",
+      "stcg_gross": 1227.69,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 1227.69,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 189.68,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 140818.18,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2009-2010",
+      "date": "2010-03-31",
+      "stcg_gross": 55185.23,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 55185.23,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 8526.12,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 226.26,
+      "accrued_unpaid_tax": 8526.12
+    },
+    {
+      "fy": "FY2010-2011",
+      "date": "2011-03-31",
+      "stcg_gross": 10708.96,
+      "ltcg_gross": 37832.97,
+      "taxable_stcg": 10708.96,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 1654.53,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 232512.87,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2011-2012",
+      "date": "2012-03-30",
+      "stcg_gross": -3955.54,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 3955.54,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 28677.77,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2012-2013",
+      "date": "2013-03-28",
+      "stcg_gross": 10797.33,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 6841.79,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 1057.06,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 77963.47,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2013-2014",
+      "date": "2014-03-31",
+      "stcg_gross": -11738.04,
+      "ltcg_gross": 5240.02,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 11738.04,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 80251.55,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2014-2015",
+      "date": "2015-03-31",
+      "stcg_gross": 39738.58,
+      "ltcg_gross": 81284.84,
+      "taxable_stcg": 28000.53,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 4326.08,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 62589.85,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2015-2016",
+      "date": "2016-03-31",
+      "stcg_gross": -830.22,
+      "ltcg_gross": 49928.55,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 830.22,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 391311.26,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2016-2017",
+      "date": "2017-03-31",
+      "stcg_gross": 31239.44,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 30409.22,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 4698.22,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 184199.24,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2017-2018",
+      "date": "2018-03-28",
+      "stcg_gross": 148202.64,
+      "ltcg_gross": 9228.31,
+      "taxable_stcg": 148202.64,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 22897.31,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 108023.54,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2018-2019",
+      "date": "2019-03-29",
+      "stcg_gross": -70330.71,
+      "ltcg_gross": 204853.12,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 34522.41,
+      "tax_paid": 3590.33,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 79048.39,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2019-2020",
+      "date": "2020-03-31",
+      "stcg_gross": -80128.22,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 80128.22,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 591000.92,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2020-2021",
+      "date": "2021-03-31",
+      "stcg_gross": 8184.18,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 71944.04,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 42119.87,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2021-2022",
+      "date": "2022-03-31",
+      "stcg_gross": 300379.3,
+      "ltcg_gross": 479033.84,
+      "taxable_stcg": 228435.25,
+      "taxable_ltcg": 379033.84,
+      "tax_paid": 75055.42,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 147.05,
+      "accrued_unpaid_tax": 75055.42
+    },
+    {
+      "fy": "FY2022-2023",
+      "date": "2023-03-31",
+      "stcg_gross": -56350.26,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 56350.26,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 444915.13,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2023-2024",
+      "date": "2024-03-28",
+      "stcg_gross": 222611.72,
+      "ltcg_gross": 524753.87,
+      "taxable_stcg": 166261.45,
+      "taxable_ltcg": 424753.87,
+      "tax_paid": 70111.19,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 656943.5,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2024-2025",
+      "date": "2025-03-28",
+      "stcg_gross": -303711.95,
+      "ltcg_gross": 872915.08,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 444203.13,
+      "tax_paid": 57746.41,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 2399242.73,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2025-2026",
+      "date": "2025-10-30",
+      "stcg_gross": -128706.77,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 128706.77,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 385443.02,
+      "accrued_unpaid_tax": 0.0
+    }
+  ],
+  "total_tax_assessed": 254543.05000000002,
+  "tax_payable": 0.0,
+  "total_tax_paid": 254543.05000000002,
+  "start_date": "2007-01-01",
+  "end_date": "2025-10-30",
+  "total_turnover": 64772559.75000001
+}

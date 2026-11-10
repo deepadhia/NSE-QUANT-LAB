@@ -11,6 +11,7 @@ Per run it checks things a buggy or flattering backtest would violate, and print
   costs      : fees as % of starting capital, median position size, DP-charge drag on small positions
 Also: determinism against results_prelim_no_ledgers.csv (same inputs must give identical numbers) and the Rs 1 lakh calibration row.
 """
+import argparse
 import sys
 from pathlib import Path
 
@@ -82,7 +83,14 @@ def check_run(row):
 
 
 def main():
-    res = pd.read_csv(OUT / "results.csv")
+    global RUNS
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--corrected", action="store_true", help="validate the v2 entry-only hold-rank grid")
+    args = parser.parse_args()
+    results_path = OUT / ("results_entry_only_hold_rank_v2.csv" if args.corrected else "results.csv")
+    if args.corrected:
+        RUNS = OUT / "runs_entry_only_hold_rank_v2"
+    res = pd.read_csv(results_path)
     ok = res[res.status == "OK"]
     print(f"{len(ok)} OK runs of {len(res)} recorded ({(res.status != 'OK').sum()} not OK)")
     rows = []
@@ -90,7 +98,7 @@ def main():
         tag, flags, info = check_run(row)
         rows.append({"run": tag, "flags": " | ".join(flags) or "-", **info})
     rep = pd.DataFrame(rows)
-    rep.to_csv(OUT / "validation_report.csv", index=False)
+    rep.to_csv(OUT / ("validation_report_entry_only_hold_rank_v2.csv" if args.corrected else "validation_report.csv"), index=False)
     pd.set_option("display.width", 250); pd.set_option("display.max_colwidth", 110); pd.set_option("display.max_columns", 30)
     bad = rep[rep["flags"] != "-"]
     print(f"\nRUNS WITH FLAGS: {len(bad)} of {len(rep)}")
@@ -100,7 +108,7 @@ def main():
     print(rep[["ended_exits", "ended_pnl_pct_of_total", "top1_pct_of_gains", "top5_pct_of_gains", "cagr_ex_top1_crude_pct",
                "median_position_rs", "max_buy_pct_of_nav", "max_daily_move_pct"]].describe().round(1).to_string())
     prelim = OUT / "results_prelim_no_ledgers.csv"
-    if prelim.exists():
+    if prelim.exists() and not args.corrected:
         p = pd.read_csv(prelim)
         p = p[p.status == "OK"].copy()                       # the earlier file also holds stopped rows with shifted columns
         m = ok.merge(p, on=["strategy", "capital", "variant", "bound"], suffixes=("", "_prelim"))

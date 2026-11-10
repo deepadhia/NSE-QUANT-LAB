@@ -1,0 +1,141 @@
+{
+  "initial_capital": 100000.0,
+  "ending_nav": 273496.99919418513,
+  "net_pnl": 173496.99919418513,
+  "total_return_pct": 173.49699919418512,
+  "cagr_pct": 32.017831873773694,
+  "cagr_sessions_250_pct": 32.45055708708144,
+  "sharpe_risk_free_rate": 0.06,
+  "annualization_sessions": 252,
+  "cagr_calendar_pct": 32.017831873773694,
+  "max_drawdown_pct": -41.18974240786772,
+  "annualized_vol_pct": 25.338364124581258,
+  "sharpe_ratio": 0.9661320313827478,
+  "total_trades": 100,
+  "win_rate_pct": 43.0,
+  "profit_factor": 2.9791588270216187,
+  "total_statutory_fees": 3732.300199999998,
+  "total_slippage": 1914.254283184613,
+  "total_friction": 5646.554483184611,
+  "skipped_orders": 10,
+  "years_trading": 3.58,
+  "years_calendar": 3.62,
+  "corporate_action_ledger": [
+    {
+      "symbol": "PRAJIND",
+      "date": "2007-07-18",
+      "ratio": 2.0,
+      "old_shares": 18,
+      "new_shares": 36
+    },
+    {
+      "symbol": "DIVISLAB",
+      "date": "2007-08-03",
+      "ratio": 5.0,
+      "old_shares": 1,
+      "new_shares": 5
+    },
+    {
+      "symbol": "JPASSOCIAT",
+      "date": "2007-12-17",
+      "ratio": 4.999999999999999,
+      "old_shares": 8,
+      "new_shares": 40
+    },
+    {
+      "symbol": "JINDALSTEL",
+      "date": "2008-01-21",
+      "ratio": 5.0,
+      "old_shares": 1,
+      "new_shares": 5
+    },
+    {
+      "symbol": "JINDALSTEL",
+      "date": "2009-09-14",
+      "ratio": 6.0,
+      "old_shares": 6,
+      "new_shares": 36
+    },
+    {
+      "symbol": "ENGINERSIN",
+      "date": "2010-05-06",
+      "ratio": 6.0,
+      "old_shares": 3,
+      "new_shares": 18
+    }
+  ],
+  "strategy": "trend_momentum_pit",
+  "fy_tax_ledger": [
+    {
+      "fy": "FY2006-2007",
+      "date": "2007-03-30",
+      "stcg_gross": -6299.41,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 6299.41,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 42953.5,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2007-2008",
+      "date": "2008-03-31",
+      "stcg_gross": 51840.19,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 45540.78,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 4690.7,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 120018.22,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2008-2009",
+      "date": "2009-03-31",
+      "stcg_gross": 1227.69,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 1227.69,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 189.68,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 140818.18,
+      "accrued_unpaid_tax": 0.0
+    },
+    {
+      "fy": "FY2009-2010",
+      "date": "2010-03-31",
+      "stcg_gross": 55185.23,
+      "ltcg_gross": 0.0,
+      "taxable_stcg": 55185.23,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 8526.12,
+      "carried_forward_stcl": 0,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 226.26,
+      "accrued_unpaid_tax": 8526.12
+    },
+    {
+      "fy": "FY2010-2011",
+      "date": "2010-08-17",
+      "stcg_gross": -3501.14,
+      "ltcg_gross": 13231.24,
+      "taxable_stcg": 0.0,
+      "taxable_ltcg": 0.0,
+      "tax_paid": 0.0,
+      "carried_forward_stcl": 3501.14,
+      "carried_forward_ltcl": 0,
+      "cash_after_tax": 2207.75,
+      "accrued_unpaid_tax": 0.0
+    }
+  ],
+  "total_tax_assessed": 13406.5,
+  "tax_payable": 0.0,
+  "total_tax_paid": 13406.5,
+  "start_date": "2007-01-01",
+  "end_date": "2010-08-17",
+  "total_turnover": 2015580.9
+}

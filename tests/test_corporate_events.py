@@ -9,7 +9,8 @@ after the event, and missing data on its own must still never sell anything.
 import pandas as pd
 import pytest
 
-from nse_quant_lab.corporate_events import (CASH_OUT, CONVERSION, build_event, split_whole_and_fraction, validate_event)
+from nse_quant_lab.corporate_events import (CASH_OUT, CONVERSION, FRACTION_CASH, build_event, split_whole_and_fraction,
+                                            validate_event)
 from test_paper_failure_modes import SID, _cash, _frame, _make, _order, _position
 
 DECISION = pd.Timestamp("2026-03-03")
@@ -291,3 +292,115 @@ def test_event_is_applied_when_the_symbol_stopped_trading_before_its_effective_d
     _run(mgr, {"AAA": _frame("2026-02-27"), "ZZZ": _frame("2026-03-03")})            # last AAA bar is before the effective date
     assert db.positions.find_one({"symbol": "AAA"}) is None
     assert _cash(db) == pytest.approx(start + 1000.0, abs=0.01)
+
+
+# ------------------------------------------------------------------ FRACTION_CASH (settles a pending fractional entitlement)
+def _entitlement(db, sym="AAA", ex="2026-01-20", fraction=2 / 3, status="PENDING_CASH_SETTLEMENT"):
+    db.get_collection("fractional_entitlements").insert_one({
+        "entitlement_id": f"{SID}:paper:{sym}:{ex}:1.6667", "strategy_id": SID, "mode": "paper", "symbol": sym, "ex_date": ex,
+        "ratio": 5 / 3, "shares_before": 37, "fraction_shares": fraction, "est_value_rs": 199.0, "status": status})
+
+
+def _fraction_cash(cpf=334.86, eff="2026-03-02", ex="2026-01-20", sym="AAA"):
+    return build_event(FRACTION_CASH, sym, eff, EVIDENCE, entitlement_ex_date=ex, cash_per_fraction_share=cpf)
+
+
+@pytest.mark.parametrize("mutate,msg", [
+    (lambda d: d.pop("entitlement_ex_date"), "entitlement_ex_date"),
+    (lambda d: d.update(entitlement_ex_date="2026-13-01"), "entitlement_ex_date"),
+    (lambda d: d.update(entitlement_ex_date="2026-04-01"), "after the payment"),
+    (lambda d: d.pop("cash_per_fraction_share"), "cash_per_fraction_share"),
+    (lambda d: d.update(cash_per_fraction_share=-1.0), "cash_per_fraction_share"),
+    (lambda d: d.update(cash_per_fraction_share=float("nan")), "cash_per_fraction_share"),
+    (lambda d: d.update(evidence="n/a"), "evidence"),
+])
+def test_invalid_fraction_cash_documents_are_rejected(mutate, msg):
+    doc = _fraction_cash()
+    mutate(doc)
+    with pytest.raises(ValueError, match=msg):
+        validate_event(doc)
+
+
+def test_fraction_cash_credits_the_ledger_entitlement_once_even_though_the_stock_is_no_longer_held():
+    mgr, db, _ = _make()                                    # note: NO AAA position exists (sold long ago)
+    _entitlement(db)
+    _record(db, _fraction_cash(cpf=334.86))
+    start = _cash(db)
+
+    _run(mgr)
+    expected = round(2 / 3 * 334.86, 2)
+    assert _cash(db) == pytest.approx(start + expected, abs=0.01)
+    ent = db.get_collection("fractional_entitlements").find_one({"symbol": "AAA"})
+    assert ent["status"] == "SETTLED" and ent["settled_cash_rs"] == pytest.approx(expected, abs=0.01)
+    assert ent["settled_by_event"] == f"AAA:FRACTION_CASH:2026-03-02"
+    assert _cash(db) == pytest.approx(_ledger_cash(db), abs=0.01), "must reconcile with the executions ledger"
+    _assert_nav_cash_consistent(db)
+
+    _run(mgr)                                               # scheduler retry: no second credit
+    assert len(db.executions.docs) == 1
+    assert _cash(db) == pytest.approx(start + expected, abs=0.01)
+
+
+def test_fraction_cash_resumes_after_a_crash_between_cash_credit_and_ledger_mark():
+    mgr, db, _ = _make()
+    _entitlement(db)
+    _record(db, _fraction_cash(cpf=334.86))
+    start = _cash(db)
+    _run(mgr)
+    db.get_collection("fractional_entitlements").update_one({"symbol": "AAA"}, {"$set": {"status": "PENDING_CASH_SETTLEMENT"}})  # "crash"
+    _run(mgr)
+    assert _cash(db) == pytest.approx(start + round(2 / 3 * 334.86, 2), abs=0.01), "cash must not be credited twice"
+    assert len(db.executions.docs) == 1
+    assert db.get_collection("fractional_entitlements").find_one({"symbol": "AAA"})["status"] == "SETTLED"
+
+
+def test_fraction_cash_is_not_applied_before_its_payment_date_or_to_a_different_ex_date():
+    mgr, db, _ = _make()
+    _entitlement(db, ex="2026-01-20")
+    _record(db, _fraction_cash(eff="2026-03-10"))                     # paid after the decision date 2026-03-03
+    _record(db, _fraction_cash(eff="2026-03-02", ex="2026-02-01"))    # references an ex-date with no entitlement
+    start = _cash(db)
+    _run(mgr)
+    assert _cash(db) == pytest.approx(start, abs=0.01)
+    assert db.get_collection("fractional_entitlements").find_one({"symbol": "AAA"})["status"] == "PENDING_CASH_SETTLEMENT"
+    assert not db.executions.docs
+
+
+def test_explicit_zero_fraction_payout_settles_the_entitlement_without_cash():
+    mgr, db, _ = _make()
+    _entitlement(db)
+    _record(db, _fraction_cash(cpf=0.0))
+    start = _cash(db)
+    _run(mgr)
+    assert _cash(db) == pytest.approx(start, abs=0.01)
+    ent = db.get_collection("fractional_entitlements").find_one({"symbol": "AAA"})
+    assert ent["status"] == "SETTLED" and ent["settled_cash_rs"] == 0.0
+
+
+def test_fraction_cash_never_touches_a_held_position_or_other_accounts_entitlements():
+    mgr, db, _ = _make()
+    _position(db, "AAA", shares=100, price=100.0)
+    _entitlement(db)
+    other = db.get_collection("fractional_entitlements")
+    other.insert_one({"entitlement_id": "other_acct:paper:AAA:2026-01-20:1.6667", "strategy_id": "other_acct", "mode": "paper",
+                      "symbol": "AAA", "ex_date": "2026-01-20", "fraction_shares": 0.5, "status": "PENDING_CASH_SETTLEMENT"})
+    _record(db, _fraction_cash())
+    _run(mgr)
+    assert db.positions.find_one({"symbol": "AAA"})["shares"] == 100          # not converted/cashed out by the event
+    assert other.find_one({"strategy_id": "other_acct"})["status"] == "PENDING_CASH_SETTLEMENT"
+
+
+def test_recorder_preview_lists_every_accounts_pending_entitlement_and_changes_nothing(capsys):
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("record_corporate_event", Path(__file__).resolve().parent.parent / "scripts" / "record_corporate_event.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mgr, db, _ = _make()
+    _entitlement(db)
+    _entitlement(db, ex="2026-02-01")                                  # different ex-date: must not be listed
+    doc = _fraction_cash(cpf=300.0)
+    assert mod.preview_fraction(db, doc) == 1
+    out = capsys.readouterr().out
+    assert "fraction 0.6667 sh -> cash Rs 200.00" in out and "2026-02-01" not in out
+    assert all(e["status"] == "PENDING_CASH_SETTLEMENT" for e in db.get_collection("fractional_entitlements").docs)

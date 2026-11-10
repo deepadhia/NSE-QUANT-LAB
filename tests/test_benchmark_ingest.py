@@ -114,6 +114,16 @@ def test_yahoo_phantom_bar_inside_upstox_range_is_not_written():
     assert any("2026-11-07" in d and "not written" in d for d in res["degraded"])
 
 
+def test_yahoo_bar_for_real_session_missing_from_upstox_is_retained_provisionally():
+    yahoo = {k: list(v) for k, v in YAHOO.items()}
+    yahoo["^NSEI"].append(bar("2026-11-08", 25070.45, 25131.85, 24985.3, 24986.4))
+    upstox = {k: [b for b in v if b["date"] != "2026-11-08"] for k, v in UPSTOX.items()}
+    upstox["^NSEI"].append(bar("2026-11-09", 25076.4, 25084.05, 24838.75, 25044.65))
+    res, col = run(yahoo=yahoo, upstox=upstox)
+    assert col.docs[("^NSEI", "2026-11-08")]["source"] == "yahoo_provisional"
+    assert any("2026-11-08" in d and "Upstox missing" in d for d in res["degraded"])
+
+
 def test_inconsistent_upstox_bar_is_rejected():
     up = {k: [dict(b) for b in v] for k, v in UPSTOX.items()}
     up["^NSEI"][2]["high"] = 24000.0                                           # high below close

@@ -40,6 +40,25 @@ def test_held_names_are_exempt_even_above_the_cap():
     assert list(out.index) == ["EXP", "CHEAP", "EDGE", "LOW"] and list(out["rank"]) == [1, 2, 3, 4]
 
 
+def test_entry_cap_does_not_change_the_original_hold_buffer_rank():
+    candidates = pd.DataFrame({"close": [1500.0, 300.0, 400.0], "rank": [1, 2, 3]},
+                              index=["EXPENSIVE_NEW", "CHEAP_NEW", "HELD"])
+    filtered = apply_entry_price_cap(candidates, {"HELD": {"shares": 1}}, BacktestConfig(max_entry_price=1000.0))
+    assert list(filtered.head(2).index) == ["CHEAP_NEW", "HELD"]
+    assert list(candidates.head(2).index) == ["EXPENSIVE_NEW", "CHEAP_NEW"]
+    for path, hold_source in (("src/nse_quant_lab/engine.py", "unfiltered_ranked"),
+                              ("src/nse_quant_lab/paper/manager.py", "unfiltered_ranked")):
+        src = (ROOT / path).read_text(encoding="utf-8")
+        assert f"allowed_hold_symbols = list({hold_source}.head(hold_buf).index)" in src
+
+
+def test_small_capital_research_uses_the_production_entry_cap_contract():
+    src = (ROOT / "research/audit_2026-11-08/small_capital_grid.py").read_text(encoding="utf-8")
+    assert "max_entry_price=cap" in src
+    assert "def select_entry_candidates" not in src
+    assert "results_entry_only_hold_rank_v2.csv" in src
+
+
 def test_unknown_price_is_never_treated_as_cheap_and_bad_cap_is_rejected():
     bad = _cands(); bad.loc["LOW", "close"] = np.nan
     with pytest.raises(ValueError, match="no usable close"):

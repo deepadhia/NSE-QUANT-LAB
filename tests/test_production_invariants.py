@@ -265,6 +265,13 @@ def test_daemon_gates_pipeline_on_benchmark_retry_and_audit_on_pipeline_success(
     assert 'job_id == "daily_portfolio_audit" and "daily_pipeline" not in self.succeeded_today' in src
 
 
+def test_benchmark_merge_checks_exchange_calendar_before_rejecting_a_yahoo_only_bar():
+    src = _read(SCRIPTS / "ingest_benchmarks.py")
+    merge = src[src.index("def merge_bars("):src.index("def expected_session(")]
+    assert "is_trading_day(date.fromisoformat(d))" in merge
+    assert "Upstox missing a confirmed NSE session" in merge
+
+
 def test_strategies_do_not_cache_a_failed_benchmark_load():
     for name in ("trend_momentum_pit", "alpha_semivol_pit", "minervini"):
         src = _read(SRC / "strategies" / f"{name}.py")
@@ -386,4 +393,13 @@ def test_r14_event_driven_closure_requires_validated_evidenced_event_and_is_the_
     assert "evidence" in mod and "fraction_cash_per_new_share" in mod and "cash_per_share" in mod
     script = _read(SCRIPTS / "record_corporate_event.py")
     assert "--apply" in script and "PREVIEW ONLY" in script, "the recorder must not write without an explicit --apply"
+
+
+def test_r15_fractional_share_actions_are_recorded_not_silently_floored_or_blocking():
+    mgr = _read(SRC / "paper" / "manager.py")
+    action = mgr[mgr.index("def _apply_corporate_actions"):mgr.index("def _apply_corporate_events")]
+    assert "_record_fractional_entitlement(" in action and "PENDING_CASH_SETTLEMENT" in action
+    assert "FRACTIONAL_ACTION_UNRESOLVED" not in action, \
+        "a fractional remainder must not block the run: whole shares are credited automatically"
+    assert "int(math.floor(pos[\"shares\"] * ratio" not in action
 

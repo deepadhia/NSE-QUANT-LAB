@@ -1,0 +1,6 @@
+{
+  "status": "NEXT_BLOCKER",
+  "reason": "MISSING_HELD_BAR: MANGCHEFER on 2025-10-31; no executable liquidation inferred",
+  "assumption": "floor_no_cash applies to all fractional share actions, research only",
+  "seconds": 318.8
+}

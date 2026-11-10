@@ -4,6 +4,8 @@ Question (user, 2026-11-08): what if a 15-stock portfolio is limited to share pr
 DESCRIPTIVE research on a 10-year window (2016-10-01..2026-10-30) of the production strategy classes and production engine on the
 NOMINAL-price execution panel (raw prices, integer shares, Rs 14.75 DP charge, dated Indian tax). NOT a forecast, NOT out-of-sample,
 and the price cap / slot count are extra configurations tried on the same history (the tried set was already ~180).
+The v1 capped rows used the filtered ranking for hold-buffer exits. This corrected v2 run sets max_entry_price on the engine config
+so exits see the unfiltered ranking; v1 results are preserved separately and must not be read as corrected capped results.
 
 A third research policy, unverified_share_action_policy="accept_factor", treats a price-factor jump with no matched official event as a split of that
 ratio (alpha_semivol_pit stopped on PHILIPCARB 2018 otherwise). Strict mode (all 27 configs, see results_strict_all_incomplete.csv) stopped every run: the window holds 540 symbols whose bars end (delistings, mergers:
@@ -16,14 +18,13 @@ Variants (cap applies to NEW entries only; held names are exempt, like every ent
   S15_nocap   : 15 slots, no price cap (budget gating still skips names the slot cannot afford)
   S15_cap1000 : 15 slots, new entries need nominal price < Rs 1,000
   S10_cap1000 : 10 slots, same cap
-Usage: python small_capital_grid.py     (resumable: finished runs in small_capital_grid/results.csv are skipped)
+Usage: python small_capital_grid.py     (resumable: finished v2 runs are skipped)
 """
 import gc
 import sys
 import time
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import psutil
 
@@ -32,8 +33,10 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 OUT = HERE / "small_capital_grid"
 OUT.mkdir(exist_ok=True)
-RESULTS = OUT / "results.csv"
-RUNS = OUT / "runs"
+# Earlier cap runs filtered the strategy ranking before the engine could preserve the original hold-buffer rank.
+# Keep those artifacts unchanged and write corrected research runs to a new series.
+RESULTS = OUT / "results_entry_only_hold_rank_v2.csv"
+RUNS = OUT / "runs_entry_only_hold_rank_v2"
 RUNS.mkdir(exist_ok=True)
 START, END = "2016-10-01", "2026-10-30"
 TRIMMED = ROOT / "external" / "nse_archive" / "clean_panel_execution_v2_from2014.parquet"
@@ -64,7 +67,7 @@ def bench_series():
     return b.drop_duplicates("date", keep="last").sort_values("date").set_index("date")["close"]
 
 
-def make_strategy(cls, cfg, bench, cap, memo):
+def make_strategy(cls, cfg, bench, memo):
     class Variant(cls):
         def compute_indicators(self, df, config=None):          # indicators depend only on the frame: share them across runs
             key = id(df)
@@ -72,14 +75,6 @@ def make_strategy(cls, cfg, bench, cap, memo):
                 memo[key] = super().compute_indicators(df, config)
             return memo[key]
 
-        def select_entry_candidates(self, universe, decision_date, current_holdings, config):
-            out = super().select_entry_candidates(universe, decision_date, current_holdings, config)
-            if cap is None or out.empty:
-                return out
-            keep = (out["close"] < cap) | out.index.isin(list(current_holdings))
-            out = out[np.asarray(keep)].copy()
-            out["rank"] = np.arange(1, len(out) + 1)
-            return out
     return Variant(config=cfg, benchmark=bench)
 
 
@@ -92,12 +87,13 @@ def run_one(name, cls, capital, variant, uni, bench, memo, bound="optimistic"):
         rebalance_frequency="MONTHLY", min_turnover_50d=0.0, min_price=0.0, slippage_pct=0.002, unaffordable_policy="TRY_NEXT",
         enforce_pit_universe=False, pit_top_n_liquidity=0, brokerage_per_order=0.0, dp_charge_sell=14.75,
         max_volume_participation_pct=0.10, deduct_annual_tax=True, tax_model="india_fy", execution_approach="APPROACH_3",
+        max_entry_price=cap,
         missing_held_bar_policy=BOUNDS[bound], fractional_entitlement_policy="floor_no_cash",
         unverified_share_action_policy="accept_factor")
     t0 = time.time()
     row = {"strategy": name, "capital": capital, "variant": variant, "bound": bound, "slots": slots, "price_cap": cap}
     try:
-        metrics, trades, _, execs, nav = BacktestEngine(make_strategy(cls, cfg, bench, cap, memo), cfg).run(uni, START, END)
+        metrics, trades, _, execs, nav = BacktestEngine(make_strategy(cls, cfg, bench, memo), cfg).run(uni, START, END)
     except ValueError as exc:
         return {**row, "status": "INCOMPLETE", "reason": str(exc)[:160], "seconds": round(time.time() - t0)}
     nav["date"] = pd.to_datetime(nav["date"])

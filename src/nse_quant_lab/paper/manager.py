@@ -18,7 +18,8 @@ from ..execution import is_locked_down, is_locked_up
 from ..fees import calc_buy_fees_exact, calc_sell_fees_exact
 from ..notifications.telegram import TelegramNotifier
 from ..entry_filters import apply_entry_price_cap
-from ..corporate_events import COLLECTION as EVENTS_COLLECTION, CASH_OUT, validate_event, split_whole_and_fraction
+from ..corporate_events import (COLLECTION as EVENTS_COLLECTION, CASH_OUT, FRACTION_CASH, validate_event,
+                                split_whole_and_fraction)
 from .locking import serialized_portfolio
 from .lease import PortfolioLease, supports_leases, COLLECTION as LEASE_COLLECTION
 
@@ -224,8 +225,19 @@ class PaperTradingManager:
             if (ex_date <= str(pos.get("entry_date", ""))[:10] or key in applied
                     or any(str(k).startswith(f"{sym}:{ex_date}:") for k in applied)):
                 continue
-            new_shares = int(math.floor(pos["shares"] * ratio + 1e-9))
-            logger.warning("[CORPORATE_ACTION] %s ex %s ratio %.4f: shares %d -> %d", sym, ex_date, ratio, pos["shares"], new_shares)
+            exact_shares = int(pos["shares"]) * ratio
+            # Whole shares are credited to a holder automatically; a fractional remainder is pooled by the company/trustee
+            # and paid later as cash (amount and date unknown at ex-date). Credit the whole shares now, record the remainder
+            # as a PENDING entitlement (valued at zero in NAV until cash is evidenced) -- never discard it, never block the run.
+            new_shares = int(math.floor(exact_shares + 1e-7))
+            fraction = round(exact_shares - new_shares, 6)
+            fraction_note = ""
+            if fraction > 1e-6:
+                old_basis_close = float(pos.get("last_close") or 0.0)
+                self._record_fractional_entitlement(sym, ex_date, ratio, int(pos["shares"]), fraction,
+                                                    est_value=fraction * old_basis_close / ratio)
+                fraction_note = f" (+{fraction:.4f} share fractional entitlement pending cash settlement, valued at 0)"
+            logger.warning("[CORPORATE_ACTION] %s ex %s ratio %.4f: shares %d -> %d%s", sym, ex_date, ratio, pos["shares"], new_shares, fraction_note)
             pos["shares"] = new_shares
             for k in ("entry_price", "entry_fill_price"):
                 if pos.get(k):
@@ -241,7 +253,23 @@ class PaperTradingManager:
                           "entry_fill_price": pos.get("entry_fill_price"), "last_close": pos.get("last_close"),
                           "applied_actions": pos["applied_actions"]}},
             )
-            self._alert(f"Corporate action applied {sym} ex {ex_date} x{ratio:g}: shares -> {new_shares}")
+            self._alert(f"Corporate action applied {sym} ex {ex_date} x{ratio:g}: shares -> {new_shares}{fraction_note}")
+
+    def _record_fractional_entitlement(self, sym: str, ex_date: str, ratio: float, shares_before: int,
+                                       fraction: float, est_value: float) -> None:
+        """Idempotently record the fractional remainder of a share action (collection `fractional_entitlements`).
+        Written BEFORE the position update, keyed so a crash/retry never duplicates it. It is a ledger only: no NAV or
+        cash effect until the actual payout is evidenced and recorded."""
+        key = f"{self.config.strategy_id}:{self._mode}:{sym}:{ex_date}:{ratio}"
+        coll = self.db.get_collection("fractional_entitlements")
+        if coll.find_one({"entitlement_id": key}) is not None:
+            return
+        coll.insert_one({
+            "entitlement_id": key, "strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym,
+            "ex_date": ex_date, "ratio": ratio, "shares_before": shares_before, "fraction_shares": fraction,
+            "est_value_rs": round(est_value, 2), "status": "PENDING_CASH_SETTLEMENT",
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        })
 
     def _apply_corporate_events(self, positions: Dict[str, Any], cash: float, date_str: str,
                                 universe: Optional[Dict[str, pd.DataFrame]] = None) -> float:
@@ -264,6 +292,8 @@ class PaperTradingManager:
                 logger.critical("[CORPORATE_EVENT_INVALID] %s: %s. Not applied.", ev.get("event_id"), exc)
                 self._alert(f"INVALID corporate event {ev.get('event_id')}: {exc}. Not applied.")
                 continue
+            if ev["type"] == FRACTION_CASH:
+                continue            # settled from the fractional_entitlements ledger by _apply_fraction_settlements
             sym, eff = ev["symbol"], ev["effective_date"]
             pos = positions.get(sym)
             if pos is None or eff > date_str:
@@ -284,16 +314,66 @@ class PaperTradingManager:
                 cash = self._apply_conversion(ev, key, pos, positions, cash, date_str)
         return cash
 
-    def _event_exec_id(self, ev: Dict[str, Any]) -> str:
-        return f"EXEC_EVENT_{ev['event_id']}_{self.config.strategy_id}"
+    def _apply_fraction_settlements(self, cash: float, date_str: str) -> float:
+        """Credit evidenced FRACTION_CASH events against this account's PENDING `fractional_entitlements`, once each.
+        Driven by the ledger, not by positions: the payout belongs to the account even if the stock has since been sold.
+        Resumable: execution (once, keyed by exec_id) -> cash CAS -> ledger row marked SETTLED. Returns cash."""
+        ledger = self.db.get_collection("fractional_entitlements")
+        try:
+            pending = [e for e in ledger.find({"strategy_id": self.config.strategy_id, "mode": self._mode,
+                                               "status": "PENDING_CASH_SETTLEMENT"}) if isinstance(e, dict)]
+            if not pending:
+                return cash
+            events = [e for e in self.db.get_collection(EVENTS_COLLECTION).find(
+                {"type": FRACTION_CASH, "symbol": {"$in": sorted({e["symbol"] for e in pending})}}) if isinstance(e, dict)]
+        except Exception as exc:
+            logger.error("fractional settlement lookup failed: %s", exc)
+            raise RuntimeError("FRACTION_SETTLEMENT_UNAVAILABLE: retry before changing portfolio") from exc
+        for ev in sorted(events, key=lambda e: (str(e.get("effective_date", "")), str(e.get("event_id", "")))):
+            try:
+                validate_event(ev)
+            except ValueError as exc:
+                logger.critical("[CORPORATE_EVENT_INVALID] %s: %s. Not applied.", ev.get("event_id"), exc)
+                self._alert(f"INVALID corporate event {ev.get('event_id')}: {exc}. Not applied.")
+                continue
+            if ev["effective_date"] > date_str:
+                continue
+            matches = [e for e in pending if e["symbol"] == ev["symbol"] and e["ex_date"] == ev["entitlement_ex_date"]]
+            if not matches:
+                continue
+            if len(matches) > 1:
+                logger.critical("[FRACTION_SETTLEMENT_AMBIGUOUS] %s matches %d pending entitlements. Not applied.", ev["event_id"], len(matches))
+                self._alert(f"Corporate event {ev['event_id']} NOT applied: {len(matches)} pending entitlements match it. Resolve manually.")
+                continue
+            ent = matches[0]
+            suffix = f":{ent['ex_date']}"
+            exec_id = self._event_exec_id(ev, suffix)
+            prior = self._prior_event_execution(exec_id)
+            unit = float(prior["fill_price"]) if prior else float(ev["cash_per_fraction_share"])
+            net = float(prior["net_cash"]) if prior else round(float(ent["fraction_shares"]) * unit, 2)
+            if net > 0 or prior:
+                exec_id = self._record_event_execution(ev, "EVENT_CASH_IN_LIEU", 0, unit, net, date_str, suffix)
+                cash = self._credit_event_cash(exec_id, cash, date_str)
+            ledger.update_one({"entitlement_id": ent["entitlement_id"]},
+                              {"$set": {"status": "SETTLED", "settled_by_event": ev["event_id"], "settled_cash_rs": round(net, 2),
+                                        "settled_date": ev["effective_date"]}})
+            ent["status"] = "SETTLED"
+            logger.critical("[FRACTION_SETTLED] %s: %s ex %s fraction %.4f sh x Rs %.4f = Rs %.2f. Evidence: %s",
+                            self.config.strategy_id, ent["symbol"], ent["ex_date"], float(ent["fraction_shares"]), unit, net, ev["evidence"])
+            self._alert(f"Fractional entitlement settled: {ent['symbol']} ex {ent['ex_date']} {float(ent['fraction_shares']):.4f} sh "
+                        f"-> Rs {net:,.2f} cash (paid {ev['effective_date']}).")
+        return cash
+
+    def _event_exec_id(self, ev: Dict[str, Any], suffix: str = "") -> str:
+        return f"EXEC_EVENT_{ev['event_id']}{suffix}_{self.config.strategy_id}"
 
     def _record_event_execution(self, ev: Dict[str, Any], action: str, shares: int, unit_cash: float, net_cash: float,
-                                date_str: str) -> str:
+                                date_str: str, suffix: str = "") -> str:
         """Write the event's cash flow to the executions ledger once (the ledger is what `_reconcile_cash` sums)."""
-        exec_id = self._event_exec_id(ev)
+        exec_id = self._event_exec_id(ev, suffix)
         if self._prior_event_execution(exec_id) is None:
             self._record_execution(ExecutionModel(
-                exec_id=exec_id, order_id=f"EVENT_{ev['event_id']}", strategy_id=self.config.strategy_id, mode=self._mode,
+                exec_id=exec_id, order_id=f"EVENT_{ev['event_id']}{suffix}", strategy_id=self.config.strategy_id, mode=self._mode,
                 symbol=ev["symbol"], action=action, shares=int(shares), raw_price=float(unit_cash), fill_price=float(unit_cash),
                 gross_val=round(net_cash, 2), net_cash=round(net_cash, 2), fees=0.0, slippage=0.0, session_date=date_str))
         return exec_id
@@ -602,6 +682,7 @@ class PaperTradingManager:
         positions = state["positions"]
         self._apply_corporate_actions(positions, date_str)
         cash = self._apply_corporate_events(positions, cash, date_str, universe)
+        cash = self._apply_fraction_settlements(cash, date_str)
         missing =[sym for sym in positions if sym not in universe or
                    universe[sym].loc[universe[sym]["date"] == decision_date].empty]
         if missing:
@@ -808,13 +889,13 @@ class PaperTradingManager:
                     "status": "PENDING_OPEN",
                     "action": "BUY",
                 })
-            candidates_df = apply_entry_price_cap(
-                self.strategy.select_entry_candidates(universe, decision_date, positions, self.config), positions, self.config)
+            unfiltered_ranked = self.strategy.select_entry_candidates(universe, decision_date, positions, self.config)
+            candidates_df = apply_entry_price_cap(unfiltered_ranked, positions, self.config)
             target_symbols = list(candidates_df.head(self.config.portfolio_size).index)
 
             # Rank Hysteresis / Hold Buffer:
             hold_buf = getattr(self.config, "rebalance_hold_rank_buffer", self.config.portfolio_size)
-            allowed_hold_symbols = list(candidates_df.head(hold_buf).index)
+            allowed_hold_symbols = list(unfiltered_ranked.head(hold_buf).index)
 
             # Rebalance drops: only evaluate on scheduled rebalances (never on 1-day catch-up sessions)
             if not is_catchup:
