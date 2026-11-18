@@ -82,6 +82,13 @@ else
     echo "    To install/enable it, run: ./deploy/manage_daemon.sh install-service"
 fi
 
+DASHBOARD_SERVICE="nse-quant-lab-dashboard.service"
+if systemctl is-active --quiet "$DASHBOARD_SERVICE"; then
+    echo "--> Restarting $DASHBOARD_SERVICE..."
+    sudo systemctl restart "$DASHBOARD_SERVICE"
+    echo "--> Dashboard service restarted successfully."
+fi
+
 echo "==========================================================="
 echo "   DEPLOYMENT SUCCEEDED (Commit: $NEW_COMMIT)!"
 echo "==========================================================="
