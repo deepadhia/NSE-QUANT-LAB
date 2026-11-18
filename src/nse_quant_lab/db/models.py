@@ -72,6 +72,7 @@ class PositionModel:
     ema100_stop: Optional[float] = None
     sma150_stop: Optional[float] = None
     stop_buffer_pct: Optional[float] = None
+    peak_price: Optional[float] = None
     applied_actions: list = field(default_factory=list)   # corporate-action keys already applied to shares/prices
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 

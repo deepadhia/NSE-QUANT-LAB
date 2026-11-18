@@ -239,7 +239,7 @@ class PaperTradingManager:
                 fraction_note = f" (+{fraction:.4f} share fractional entitlement pending cash settlement, valued at 0)"
             logger.warning("[CORPORATE_ACTION] %s ex %s ratio %.4f: shares %d -> %d%s", sym, ex_date, ratio, pos["shares"], new_shares, fraction_note)
             pos["shares"] = new_shares
-            for k in ("entry_price", "entry_fill_price"):
+            for k in ("entry_price", "entry_fill_price", "peak_price"):
                 if pos.get(k):
                     pos[k] = float(pos[k]) / ratio
             # The stored mark is on the OLD price basis: rebase it with the share count (market value is unchanged by a
@@ -251,6 +251,7 @@ class PaperTradingManager:
                 {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
                 {"$set": {"shares": pos["shares"], "entry_price": pos.get("entry_price"),
                           "entry_fill_price": pos.get("entry_fill_price"), "last_close": pos.get("last_close"),
+                          "peak_price": pos.get("peak_price"),
                           "applied_actions": pos["applied_actions"]}},
             )
             self._alert(f"Corporate action applied {sym} ex {ex_date} x{ratio:g}: shares -> {new_shares}{fraction_note}")
@@ -453,7 +454,7 @@ class PaperTradingManager:
                            stop_loss_price=None, supertrend_stop=None, ema100_stop=None, sma150_stop=None, stop_buffer_pct=None)
             # Cost basis is carried over: whole new shares x new entry price == old shares x old entry price x alloc_ratio.
             alloc_ratio = float(whole) / (float(whole) + float(frac)) if (whole + frac) > 0 else 1.0
-            for k in ("entry_price", "entry_fill_price"):
+            for k in ("entry_price", "entry_fill_price", "peak_price"):
                 if new_doc.get(k):
                     new_doc[k] = float(new_doc[k]) / ratio
             for k in ("entry_outlay", "entry_fees"):
@@ -592,6 +593,7 @@ class PaperTradingManager:
                     entry_price=float(prior["raw_price"]), entry_fill_price=fill_price, entry_date=original_date,
                     entry_outlay=outlay, entry_fees=float(prior["fees"]), last_close=float(prior["raw_price"]),
                     market_value=float(prior["gross_val"]), unrealized_pnl=0.0,
+                    peak_price=fill_price,
                 )
                 self.db.positions.replace_one({"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},
                                               pos_model.to_dict(), upsert=True)
@@ -748,10 +750,15 @@ class PaperTradingManager:
                     pos["stop_loss_price"] = round(effective_stop, 2) if effective_stop else None
                     pos["stop_buffer_pct"] = buffer_pct
 
+                    today_high = float(last_row["high"]) if "high" in last_row and not np.isnan(last_row["high"]) else last_pr
+                    peak_pr = max(float(pos.get("peak_price") or entry_px), today_high, last_pr)
+                    pos["peak_price"] = round(peak_pr, 2)
+
                     update_dict = {
                         "last_close": last_pr,
                         "market_value": pos["market_value"],
                         "unrealized_pnl": pos["unrealized_pnl"],
+                        "peak_price": round(peak_pr, 2),
                     }
                     try:
                         update_dict["days_held"] = int((decision_date - pd.to_datetime(pos.get("entry_date"))).days)
@@ -1654,6 +1661,7 @@ class PaperTradingManager:
                 last_close=open_price,
                 market_value=gross_val,
                 unrealized_pnl=0.0,
+                peak_price=fill_price,
             )
             self.db.positions.replace_one(
                 {"strategy_id": self.config.strategy_id, "mode": self._mode, "symbol": sym},

@@ -22,6 +22,8 @@ class FakeDb:
         self.strategies = InMemoryCollection()
         self.positions = InMemoryCollection()
         self.daily_nav = InMemoryCollection()
+        self.trades = InMemoryCollection()
+        self.orders = InMemoryCollection()
 
 
 def _seed():
@@ -164,3 +166,81 @@ def test_db_failure_returns_503_not_a_guess():
     finally:
         srv.shutdown()
         srv.server_close()
+
+
+def test_peak_price_and_stop_cushion_derived_correctly():
+    db = _seed()
+    db.positions.docs.append({
+        "strategy_id": "A",
+        "mode": "paper",
+        "symbol": "PEAKTEST",
+        "shares": 10,
+        "entry_price": 100.0,
+        "entry_fill_price": 100.0,
+        "last_close": 110.0,
+        "peak_price": 125.0,
+        "stop_loss_price": 95.0,
+        "stop_buffer_pct": None,  # should be re-derived as (110 - 95)/110 * 100
+    })
+    snap = build_snapshot(db, "paper")
+    a = next(s for s in snap["strategies"] if s["strategy_id"] == "A")
+    pos = next(p for p in a["positions"] if p["symbol"] == "PEAKTEST")
+    assert pos["peak_price"] == 125.0
+    assert pos["peak_gain_pct"] == pytest.approx(25.0)
+    assert pos["gain_pct"] == pytest.approx(10.0)
+    assert pos["stop_loss_price"] == 95.0
+    assert pos["stop_buffer_pct"] == pytest.approx((110.0 - 95.0) / 110.0 * 100.0, abs=0.01)
+
+
+def test_closed_trades_and_realized_pnl_reconciliation():
+    db = _seed()
+    db.trades = InMemoryCollection()
+    db.trades.docs.append({
+        "strategy_id": "A",
+        "mode": "paper",
+        "symbol": "HFCL",
+        "entry_date": "2026-11-06",
+        "entry_price": 226.91,
+        "exit_date": "2026-11-17",
+        "exit_price": 188.44,
+        "shares": 29,
+        "hold_days": 11,
+        "gross_pnl": -1083.2,
+        "net_pnl": -1111.38,
+        "return_pct": -16.95,
+        "exit_reason": "STRUCTURAL_SMA150",
+    })
+    snap = build_snapshot(db, "paper")
+    a = next(s for s in snap["strategies"] if s["strategy_id"] == "A")
+    assert len(a["closed_trades"]) == 1
+    t = a["closed_trades"][0]
+    assert t["symbol"] == "HFCL"
+    assert t["net_pnl"] == -1111.38
+    assert a["realized_pnl"] == pytest.approx(-1111.38)
+    assert a["total_pnl"] == pytest.approx(-1111.38 + a["unrealized_pnl"])
+    assert snap["totals"]["realized_pnl"] == pytest.approx(-1111.38)
+    assert snap["totals"]["closed_trades_count"] == 1
+
+
+def test_pending_orders_tagging_on_open_positions():
+    db = _seed()
+    db.orders = InMemoryCollection()
+    db.orders.docs.append({
+        "strategy_id": "A",
+        "mode": "paper",
+        "symbol": "WIN",
+        "action": "SELL",
+        "shares": 100,
+        "price": 120.0,
+        "status": "PENDING_OPEN",
+        "reason": "STRUCTURAL_EMA100",
+        "signal_date": "2026-11-17",
+    })
+    snap = build_snapshot(db, "paper")
+    a = next(s for s in snap["strategies"] if s["strategy_id"] == "A")
+    assert len(a["pending_orders"]) == 1
+    win = next(p for p in a["positions"] if p["symbol"] == "WIN")
+    assert win["pending_order"] is not None
+    assert win["pending_order"]["action"] == "SELL"
+    assert win["pending_order"]["reason"] == "STRUCTURAL_EMA100"
+    assert snap["totals"]["pending_orders_count"] == 1
